@@ -2,39 +2,48 @@ package connector
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
-	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	jira "github.com/andygrunwald/go-jira/v2/cloud"
 )
 
 // TODO: implement your connector here
-type connectorImpl struct {
+type Jira struct {
+	client *jira.Client
 }
 
-func (c *connectorImpl) ListResourceTypes(ctx context.Context, req *v2.ResourceTypesServiceListResourceTypesRequest) (*v2.ResourceTypesServiceListResourceTypesResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+type JiraOAuthOptions struct {
+	PrivateKeyPath  string
+	ConsumerKeyPath string
 }
 
-func (c *connectorImpl) ListResources(ctx context.Context, req *v2.ResourcesServiceListResourcesRequest) (*v2.ResourcesServiceListResourcesResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+type JiraBasicAuthOptions struct {
+	Username string
+	ApiKey   string
 }
 
-func (c *connectorImpl) ListEntitlements(ctx context.Context, req *v2.EntitlementsServiceListEntitlementsRequest) (*v2.EntitlementsServiceListEntitlementsResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+type JiraOptions struct {
+	Url       string
+	BasicAuth *JiraBasicAuthOptions
+	OAuth     *JiraOAuthOptions
 }
 
-func (c *connectorImpl) ListGrants(ctx context.Context, req *v2.GrantsServiceListGrantsRequest) (*v2.GrantsServiceListGrantsResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+func New(ctx context.Context, options JiraOptions) (*Jira, error) {
+	if (options.BasicAuth == nil && options.OAuth == nil) || (options.BasicAuth != nil && options.OAuth != nil) {
+		return nil, errors.New("jira-connector: either BasicAuth or OAuth must be provided")
+	}
+
+	if options.BasicAuth != nil {
+		return newBasicAuthJira(ctx, options)
+	}
+
+	return newOAuthJira(ctx, options)
 }
 
-func (c *connectorImpl) GetMetadata(ctx context.Context, req *v2.ConnectorServiceGetMetadataRequest) (*v2.ConnectorServiceGetMetadataResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+func newOAuthJira(ctx context.Context, options JiraOptions) (*Jira, error) {
+	return &Jira{}, nil
 }
 
-func (c *connectorImpl) Validate(ctx context.Context, req *v2.ConnectorServiceValidateRequest) (*v2.ConnectorServiceValidateResponse, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *connectorImpl) GetAsset(req *v2.AssetServiceGetAssetRequest, server v2.AssetService_GetAssetServer) error {
-	return fmt.Errorf("not implemented")
+func newBasicAuthJira(ctx context.Context, options JiraOptions) (*Jira, error) {
+	return &Jira{}, nil
 }

@@ -32,7 +32,7 @@ func validateConfig(ctx context.Context, cfg *config) error {
 
 // cmdFlags sets the cmdFlags required for the connector.
 func cmdFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().String("jira-url", "https://jira.atlassian.com", "Url to Jira service. ($BATON_JIRA_URL)")
+	cmd.PersistentFlags().String("jira-url", "", "Url to Jira service. ($BATON_JIRA_URL)")
 	cmd.PersistentFlags().String("jira-username", "", "Username for Jira service. ($BATON_JIRA_USERNAME)")
 	cmd.PersistentFlags().String("jira-api-token", "", "API token for Jira service. ($BATON_JIRA_API_TOKEN)")
 }

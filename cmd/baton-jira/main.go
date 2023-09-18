@@ -58,7 +58,5 @@ func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, erro
 		return nil, err
 	}
 
-	fmt.Printf("jira connector: %+v\n", jiraConnector)
-
 	return c, nil
 }

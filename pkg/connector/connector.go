@@ -63,7 +63,9 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 }
 
 func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	return nil
+	return []connectorbuilder.ResourceSyncer{
+		userBuilder(o.client),
+	}
 }
 
 func (o *Jira) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {

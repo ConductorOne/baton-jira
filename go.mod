@@ -90,3 +90,5 @@ require (
 	modernc.org/memory v1.7.1 // indirect
 	modernc.org/sqlite v1.25.0 // indirect
 )
+
+replace github.com/andygrunwald/go-jira/v2 => github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20230921145439-b52090cf348c

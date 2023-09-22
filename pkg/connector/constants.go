@@ -1,3 +1,7 @@
 package connector
 
-var resourcePageSize = 50
+var (
+	resourcePageSize = 50
+
+	memberEntitlement = "member"
+)

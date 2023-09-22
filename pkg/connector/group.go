@@ -2,11 +2,14 @@ package connector
 
 import (
 	"context"
+	"fmt"
 
 	jira "github.com/andygrunwald/go-jira/v2/cloud"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
+	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
+	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 )
 
@@ -53,15 +56,65 @@ func groupBuilder(client *jira.Client) *groupResourceType {
 }
 
 func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	// TODO: just check but there is no entitlements for groups IMHO
-	return nil, "", nil, nil
+	var rv []*v2.Entitlement
+
+	assigmentOptions := []ent.EntitlementOption{
+		ent.WithGrantableTo(resourceTypeUser),
+		ent.WithDescription(fmt.Sprintf("Member of %s group", resource.DisplayName)),
+		ent.WithDisplayName(fmt.Sprintf("%s User group %s", resource.DisplayName, memberEntitlement)),
+	}
+
+	en := ent.NewAssignmentEntitlement(resource, memberEntitlement, assigmentOptions...)
+	rv = append(rv, en)
+
+	return rv, "", nil, nil
 }
 
 func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	// TODO: implement
-	return nil, "", nil, nil
+	groupMembers, _, err := u.client.Group.Get(ctx, resource.DisplayName, nil)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to get group members")
+	}
+
+	var rv []*v2.Grant
+	for _, groupMember := range groupMembers {
+		user, err := userResource(ctx, &jira.User{
+			Name:         groupMember.Name,
+			Key:          groupMember.Key,
+			AccountID:    groupMember.AccountID,
+			EmailAddress: groupMember.EmailAddress,
+			DisplayName:  groupMember.DisplayName,
+			Active:       groupMember.Active,
+			TimeZone:     groupMember.TimeZone,
+			AccountType:  groupMember.AccountType,
+		})
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		grant := grant.NewGrant(resource, memberEntitlement, user.Id)
+		rv = append(rv, grant)
+	}
+
+	return rv, "", nil, nil
 }
 
 func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	groups, _, _, err := u.client.Group.Find(ctx)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to list groups")
+	}
 
+	var resources []*v2.Resource
+	for _, group := range groups {
+		resource, err := groupResource(ctx, &group)
+
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		resources = append(resources, resource)
+	}
+
+	return resources, "", nil, nil
 }

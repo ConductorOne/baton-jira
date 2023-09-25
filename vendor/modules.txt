@@ -1,4 +1,4 @@
-# github.com/andygrunwald/go-jira/v2 v2.0.0-20230325080157-2e11dffbdb9a => github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20230921145439-b52090cf348c
+# github.com/andygrunwald/go-jira/v2 v2.0.0-20230325080157-2e11dffbdb9a => github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20230925161505-7dd60896a58d
 ## explicit; go 1.18
 github.com/andygrunwald/go-jira/v2/cloud
 # github.com/aws/aws-sdk-go-v2 v1.21.0
@@ -548,4 +548,4 @@ modernc.org/memory
 # modernc.org/sqlite v1.25.0
 ## explicit; go 1.18
 modernc.org/sqlite/lib
-# github.com/andygrunwald/go-jira/v2 => github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20230921145439-b52090cf348c
+# github.com/andygrunwald/go-jira/v2 => github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20230925161505-7dd60896a58d

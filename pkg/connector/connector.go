@@ -58,6 +58,7 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 		return nil, wrapError(err, "failed to get projects")
 	}
 
+	// TODO: groups
 	// TODO: Roles (maybe)
 	return nil, nil
 }
@@ -66,6 +67,7 @@ func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceS
 	return []connectorbuilder.ResourceSyncer{
 		userBuilder(o.client),
 		groupBuilder(o.client),
+		projectBuilder(o.client),
 	}
 }
 

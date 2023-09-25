@@ -61,7 +61,7 @@ func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resou
 	assigmentOptions := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
 		ent.WithDescription(fmt.Sprintf("Member of %s group", resource.DisplayName)),
-		ent.WithDisplayName(fmt.Sprintf("%s User group %s", resource.DisplayName, memberEntitlement)),
+		ent.WithDisplayName(fmt.Sprintf("%s group %s", resource.DisplayName, memberEntitlement)),
 	}
 
 	en := ent.NewAssignmentEntitlement(resource, memberEntitlement, assigmentOptions...)

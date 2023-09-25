@@ -4,4 +4,6 @@ var (
 	resourcePageSize = 50
 
 	memberEntitlement = "member"
+
+	participateEntitlement = "participate"
 )

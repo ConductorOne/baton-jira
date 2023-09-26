@@ -6,4 +6,6 @@ var (
 	memberEntitlement = "member"
 
 	participateEntitlement = "participate"
+
+	leadEntitlement = "lead"
 )

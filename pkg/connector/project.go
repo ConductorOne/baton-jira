@@ -9,7 +9,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
-	"github.com/conductorone/baton-sdk/pkg/types/grant"
+	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 )
 
@@ -66,48 +66,42 @@ func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 	}
 	rv = append(rv, ent.NewAssignmentEntitlement(resource, participateEntitlement, assigmentOptions...))
 
+	assigmentOptions = []ent.EntitlementOption{
+		ent.WithGrantableTo(resourceTypeUser),
+		ent.WithDescription(fmt.Sprintf("Leading %s project", resource.DisplayName)),
+		ent.WithDisplayName(fmt.Sprintf("%s project %s", resource.DisplayName, leadEntitlement)),
+	}
+	rv = append(rv, ent.NewAssignmentEntitlement(resource, leadEntitlement, assigmentOptions...))
+
 	return rv, "", nil, nil
 }
 
 func (u *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	roles, _, err := u.client.Role.GetList(ctx)
+	project, _, err := u.client.Project.Get(ctx, resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get roles")
+		return nil, "", nil, wrapError(err, "failed to get project")
 	}
 
 	var rv []*v2.Grant
-	for _, role := range *roles {
-		if role.Actors == nil {
-			continue
+
+	if project.Lead.AccountID != "" {
+		lead := project.Lead
+		leadResource, err := userResource(ctx, &jira.User{
+			Name:         lead.Name,
+			Key:          lead.Key,
+			AccountID:    lead.AccountID,
+			EmailAddress: lead.EmailAddress,
+			DisplayName:  lead.DisplayName,
+			Active:       lead.Active,
+			TimeZone:     lead.TimeZone,
+			AccountType:  lead.AccountType,
+		})
+		if err != nil {
+			return nil, "", nil, err
 		}
 
-		for _, actor := range role.Actors {
-			if actor.ActorGroup != nil {
-				groupResource, err := groupResource(ctx, &jira.Group{
-					Name: actor.ActorGroup.Name,
-				})
-				if err != nil {
-					return nil, "", nil, err
-				}
-
-				grant := grant.NewGrant(resource, participateEntitlement, groupResource.Id)
-				rv = append(rv, grant)
-			}
-
-			if actor.ActorUser != nil {
-				user, _, err := u.client.User.Get(ctx, actor.ActorUser.AccountID)
-				if err != nil {
-					return nil, "", nil, err
-				}
-				userResource, err := userResource(ctx, user)
-				if err != nil {
-					return nil, "", nil, err
-				}
-
-				grant := grant.NewGrant(resource, participateEntitlement, userResource.Id)
-				rv = append(rv, grant)
-			}
-		}
+		grant := grant.NewGrant(resource, leadEntitlement, leadResource.Id)
+		rv = append(rv, grant)
 	}
 
 	return rv, "", nil, nil

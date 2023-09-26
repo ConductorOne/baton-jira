@@ -3,6 +3,8 @@ package connector
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 
 	jira "github.com/andygrunwald/go-jira/v2/cloud"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -96,6 +98,12 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 	}
 	rv = append(rv, participateGrants...)
 
+	roleGrants, err := getRoleGrants(ctx, p, resource, project)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to get role grants")
+	}
+	rv = append(rv, roleGrants...)
+
 	return rv, "", nil, nil
 }
 
@@ -130,7 +138,7 @@ func getGrantsForAllUsersIfProjectIsPublic(ctx context.Context, p *projectResour
 	if !project.IsPrivate {
 		users, _, err := p.client.User.Find(ctx, "")
 		if err != nil {
-			return nil, wrapError(err, "failed to list users")
+			return nil, err
 		}
 
 		for _, user := range users {
@@ -145,6 +153,53 @@ func getGrantsForAllUsersIfProjectIsPublic(ctx context.Context, p *projectResour
 	}
 
 	return rv, nil
+}
+
+func getRoleGrants(ctx context.Context, p *projectResourceType, resouce *v2.Resource, project *jira.Project) ([]*v2.Grant, error) {
+	var rv []*v2.Grant
+
+	for _, roleLink := range project.Roles {
+		roleId, err := parseRoleIdFromRoleLink(roleLink)
+		if err != nil {
+			return nil, err
+		}
+
+		role, _, err := p.client.Role.Get(ctx, roleId)
+		if err != nil {
+			return nil, err
+		}
+
+		roleResource, err := roleResource(role)
+		if err != nil {
+			return nil, err
+		}
+
+		grant := grant.NewGrant(resouce, participateEntitlement, roleResource.Id)
+		rv = append(rv, grant)
+	}
+
+	return rv, nil
+}
+
+// Unfortunatelly, the Jira API does not provide a way to get the role id from project.
+// It only provides a link to the role. Like this: https://your-domain.atlassian.net/rest/api/3/project/10001/role/10002
+// So, we need to parse the role id from the link.
+func parseRoleIdFromRoleLink(roleLink string) (int, error) {
+	regexPattern := `\/(\d+)\/?$` // Regex pattern to match the last number in the URL path
+	r := regexp.MustCompile(regexPattern)
+
+	matches := r.FindStringSubmatch(roleLink)
+
+	if len(matches) < 2 {
+		return 0, fmt.Errorf("failed to parse role id from role link")
+	}
+
+	lastNumber, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, err
+	}
+
+	return lastNumber, nil
 }
 
 func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {

@@ -68,6 +68,7 @@ func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceS
 		userBuilder(o.client),
 		groupBuilder(o.client),
 		projectBuilder(o.client),
+		roleBuilder(o.client),
 	}
 }
 

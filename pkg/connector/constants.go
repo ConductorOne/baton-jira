@@ -8,4 +8,6 @@ var (
 	participateEntitlement = "participate"
 
 	leadEntitlement = "lead"
+
+	appointedEntitlement = "appointed"
 )

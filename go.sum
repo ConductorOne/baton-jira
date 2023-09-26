@@ -302,8 +302,8 @@ github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+F
 github.com/tklauser/numcpus v0.6.1/go.mod h1:1XfjsgE2zo8GVw7POkMbHENHzVg3GzmoZ9fESEdAacY=
 github.com/trivago/tgo v1.0.7 h1:uaWH/XIy9aWYWpjm2CU3RpcqZXmX2ysQ9/Go+d9gyrM=
 github.com/trivago/tgo v1.0.7/go.mod h1:w4dpD+3tzNIIiIfkWWa85w5/B77tlvdZckQ+6PkFnhc=
-github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20230925161505-7dd60896a58d h1:wzzAqwpLbRGlFSezjv1wPBBeNnHaSs0yZE7kRUTagSY=
-github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20230925161505-7dd60896a58d/go.mod h1:TrfsnL20VgD+KgEw4gbTYuSAPE8T1ZxjMCFBGgGvNvI=
+github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20230926185835-5af8c4c69d10 h1:aiUS+1BiUwWLsGyNuNFOrTQh6mnfuDbFGLuyINI8gbM=
+github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20230926185835-5af8c4c69d10/go.mod h1:TrfsnL20VgD+KgEw4gbTYuSAPE8T1ZxjMCFBGgGvNvI=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

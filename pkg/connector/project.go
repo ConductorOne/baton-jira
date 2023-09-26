@@ -76,14 +76,31 @@ func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 	return rv, "", nil, nil
 }
 
-func (u *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	project, _, err := u.client.Project.Get(ctx, resource.Id.Resource)
+func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+	project, _, err := p.client.Project.Get(ctx, resource.Id.Resource)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get project")
 	}
 
 	var rv []*v2.Grant
 
+	leadGrants, err := getLeadGrants(ctx, resource, project)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to get lead grants")
+	}
+	rv = append(rv, leadGrants...)
+
+	participateGrants, err := getGrantsForAllUsersIfProjectIsPublic(ctx, p, resource, project)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to get participate grants")
+	}
+	rv = append(rv, participateGrants...)
+
+	return rv, "", nil, nil
+}
+
+func getLeadGrants(ctx context.Context, resource *v2.Resource, project *jira.Project) ([]*v2.Grant, error) {
+	var rv []*v2.Grant
 	if project.Lead.AccountID != "" {
 		lead := project.Lead
 		leadResource, err := userResource(ctx, &jira.User{
@@ -97,14 +114,37 @@ func (u *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			AccountType:  lead.AccountType,
 		})
 		if err != nil {
-			return nil, "", nil, err
+			return nil, err
 		}
 
 		grant := grant.NewGrant(resource, leadEntitlement, leadResource.Id)
 		rv = append(rv, grant)
 	}
 
-	return rv, "", nil, nil
+	return rv, nil
+}
+
+func getGrantsForAllUsersIfProjectIsPublic(ctx context.Context, p *projectResourceType, resource *v2.Resource, project *jira.Project) ([]*v2.Grant, error) {
+	var rv []*v2.Grant
+
+	if !project.IsPrivate {
+		users, _, err := p.client.User.Find(ctx, "")
+		if err != nil {
+			return nil, wrapError(err, "failed to list users")
+		}
+
+		for _, user := range users {
+			userResource, err := userResource(ctx, &user)
+			if err != nil {
+				return nil, err
+			}
+
+			grant := grant.NewGrant(resource, participateEntitlement, userResource.Id)
+			rv = append(rv, grant)
+		}
+	}
+
+	return rv, nil
 }
 
 func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {

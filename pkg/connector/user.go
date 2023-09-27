@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"strings"
 
 	jira "github.com/andygrunwald/go-jira/v2/cloud"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -30,10 +31,14 @@ type (
 )
 
 func userResource(ctx context.Context, user *jira.User) (*v2.Resource, error) {
+	names := strings.Split(user.DisplayName, " ")
 	profile := map[string]interface{}{
-		"login":   user.EmailAddress,
-		"name":    user.DisplayName,
-		"user_id": user.AccountID,
+		"login":      user.EmailAddress,
+		"first_name": names[0],
+		"user_id":    user.AccountID,
+	}
+	if len(names) > 1 {
+		profile["last_name"] = names[1]
 	}
 
 	var userStatus v2.UserTrait_Status_Status

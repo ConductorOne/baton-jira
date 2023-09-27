@@ -157,6 +157,7 @@ func (u *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 
 	var rv []*v2.Resource
 	for _, role := range *roles {
+		role := role
 		resource, err := roleResource(&role)
 		if err != nil {
 			return nil, "", nil, wrapError(err, "failed to create role resource")

@@ -106,8 +106,8 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 	}
 
 	var resources []*v2.Resource
-	for _, group := range groups {
-		resource, err := groupResource(ctx, &group)
+	for i := range groups {
+		resource, err := groupResource(ctx, &groups[i])
 
 		if err != nil {
 			return nil, "", nil, err

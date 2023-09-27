@@ -141,8 +141,8 @@ func getGrantsForAllUsersIfProjectIsPublic(ctx context.Context, p *projectResour
 			return nil, err
 		}
 
-		for _, user := range users {
-			userResource, err := userResource(ctx, &user)
+		for i := range users {
+			userResource, err := userResource(ctx, &users[i])
 			if err != nil {
 				return nil, err
 			}
@@ -210,7 +210,6 @@ func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pag
 
 	var resources []*v2.Resource
 	for _, project := range *projects {
-
 		resource, err := projectResource(ctx, &jira.Project{
 			Name:            project.Name,
 			ID:              project.ID,

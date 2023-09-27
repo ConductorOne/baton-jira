@@ -101,8 +101,8 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 	}
 
 	var resources []*v2.Resource
-	for _, user := range users {
-		resource, err := userResource(ctx, &user)
+	for i := range users {
+		resource, err := userResource(ctx, &users[i])
 
 		if err != nil {
 			return nil, "", nil, err

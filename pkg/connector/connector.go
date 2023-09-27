@@ -47,7 +47,6 @@ func (b *JiraBasicAuthBuilder) New() (*Jira, error) {
 }
 
 func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
-	// This also covers groups permissions check
 	_, _, err := j.client.User.Find(ctx, "")
 	if err != nil {
 		return nil, wrapError(err, "failed to get users")
@@ -58,8 +57,16 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 		return nil, wrapError(err, "failed to get projects")
 	}
 
-	// TODO: groups
-	// TODO: Roles (maybe)
+	_, _, err = j.client.Role.GetList(ctx)
+	if err != nil {
+		return nil, wrapError(err, "failed to get roles")
+	}
+
+	_, _, err = j.client.Group.Find(ctx)
+	if err != nil {
+		return nil, wrapError(err, "failed to get groups")
+	}
+
 	return nil, nil
 }
 

@@ -100,7 +100,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 }
 
 func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	groups, _, _, err := u.client.Group.Find(ctx)
+	groups, _, err := u.client.Group.Find(ctx)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to list groups")
 	}

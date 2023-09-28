@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	jira "github.com/andygrunwald/go-jira/v2/cloud"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -11,6 +12,8 @@ import (
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 var resourceTypeGroup = &v2.ResourceType{
@@ -116,4 +119,93 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagi
 	}
 
 	return resources, "", nil, nil
+}
+
+func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
+	l := ctxzap.Extract(ctx)
+
+	if principal.Id.ResourceType != resourceTypeUser.Id {
+		err := fmt.Errorf("baton-jira: only users can be granted to groups")
+
+		l.Warn(
+			err.Error(),
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+
+		return nil, err
+	}
+
+	_, resp, err := u.client.Group.AddUserByGroupName(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
+	if err != nil {
+		l.Error(
+			"failed to add user to group",
+			zap.Error(err),
+			zap.String("group", entitlement.Resource.Id.Resource),
+			zap.String("user", principal.Id.Resource),
+		)
+
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusCreated {
+		err := fmt.Errorf("baton-jira: failed to add user to group: %s", resp.Status)
+
+		l.Error(
+			err.Error(),
+			zap.String("group", entitlement.Resource.Id.Resource),
+			zap.String("user", principal.Id.Resource),
+			zap.Int("status_code", resp.StatusCode),
+		)
+
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
+	l := ctxzap.Extract(ctx)
+
+	entitlement := grant.Entitlement
+	principal := grant.Principal
+
+	if principal.Id.ResourceType != resourceTypeUser.Id {
+		err := fmt.Errorf("baton-jira: only users can be revoked from groups")
+
+		l.Warn(
+			err.Error(),
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+
+		return nil, err
+	}
+
+	resp, err := u.client.Group.RemoveUserByGroupName(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
+	if err != nil {
+		l.Error(
+			"failed to remove user from group",
+			zap.Error(err),
+			zap.String("group", entitlement.Resource.Id.Resource),
+			zap.String("user", principal.Id.Resource),
+		)
+
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		err := fmt.Errorf("baton-jira: failed to remove user from group: %s", resp.Status)
+
+		l.Error(
+			err.Error(),
+			zap.String("group", entitlement.Resource.Id.Resource),
+			zap.String("user", principal.Id.Resource),
+			zap.Int("status_code", resp.StatusCode),
+		)
+
+		return nil, err
+	}
+
+	return nil, nil
 }

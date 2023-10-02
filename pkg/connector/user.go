@@ -85,12 +85,10 @@ func userBuilder(client *jira.Client) *userResourceType {
 }
 
 func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	// TODO: just check but there is no entitlements for users IMHO
 	return nil, "", nil, nil
 }
 
 func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	// TODO: user has roles for the application, user.AccountType
 	return nil, "", nil, nil
 }
 

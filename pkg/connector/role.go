@@ -20,7 +20,6 @@ var resourceTypeRole = &v2.ResourceType{
 	Traits: []v2.ResourceType_Trait{
 		v2.ResourceType_TRAIT_ROLE,
 	},
-	Annotations: annotations.Annotations{},
 }
 
 type roleResourceType struct {

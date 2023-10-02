@@ -19,7 +19,6 @@ var resourceTypeGroup = &v2.ResourceType{
 	Traits: []v2.ResourceType_Trait{
 		v2.ResourceType_TRAIT_GROUP,
 	},
-	Annotations: annotations.Annotations{},
 }
 
 type groupResourceType struct {

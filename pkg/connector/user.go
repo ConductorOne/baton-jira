@@ -19,7 +19,7 @@ var (
 		Traits: []v2.ResourceType_Trait{
 			v2.ResourceType_TRAIT_USER,
 		},
-		Annotations: annotations.Annotations{},
+		Annotations: getResourceTypeAnnotation(),
 	}
 )
 
@@ -29,6 +29,13 @@ type (
 		client       *jira.Client
 	}
 )
+
+func getResourceTypeAnnotation() annotations.Annotations {
+	annotations := annotations.Annotations{}
+	annotations.Update(&v2.SkipEntitlementsAndGrants{})
+
+	return annotations
+}
 
 func userResource(ctx context.Context, user *jira.User) (*v2.Resource, error) {
 	names := strings.Split(user.DisplayName, " ")

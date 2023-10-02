@@ -57,16 +57,6 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 		return nil, wrapError(err, "failed to get projects")
 	}
 
-	_, _, err = j.client.Role.GetList(ctx)
-	if err != nil {
-		return nil, wrapError(err, "failed to get roles")
-	}
-
-	_, _, err = j.client.Group.Find(ctx)
-	if err != nil {
-		return nil, wrapError(err, "failed to get groups")
-	}
-
 	return nil, nil
 }
 

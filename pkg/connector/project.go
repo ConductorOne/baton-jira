@@ -58,6 +58,35 @@ func projectBuilder(client *jira.Client) *projectResourceType {
 	}
 }
 
+func (p *projectResourceType) getRolesForProject(ctx context.Context, project *jira.Project) ([]jira.Role, error) {
+	var rv []jira.Role
+
+	for _, roleLink := range project.Roles {
+		roleId, err := parseRoleIdFromRoleLink(roleLink)
+		if err != nil {
+			return nil, err
+		}
+
+		role, _, err := p.client.Role.Get(ctx, roleId)
+		if err != nil {
+			return nil, err
+		}
+
+		rv = append(rv, *role)
+	}
+
+	return rv, nil
+}
+
+func (p *projectResourceType) getRolesForProjectId(ctx context.Context, projectID string) ([]jira.Role, error) {
+	project, _, err := p.client.Project.Get(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.getRolesForProject(ctx, project)
+}
+
 func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
@@ -75,7 +104,30 @@ func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 	}
 	rv = append(rv, ent.NewAssignmentEntitlement(resource, leadEntitlement, assigmentOptions...))
 
+	roles, err := u.getRolesForProjectId(ctx, resource.Id.Resource)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	rv = append(rv, getPermissionEntitlementsFromRoles(resource, roles)...)
+
 	return rv, "", nil, nil
+}
+
+func getPermissionEntitlementsFromRoles(resource *v2.Resource, roles []jira.Role) []*v2.Entitlement {
+	var rv []*v2.Entitlement
+
+	for _, role := range roles {
+		permissionOptions := []ent.EntitlementOption{
+			ent.WithGrantableTo(resourceTypeUser),
+			ent.WithDescription(fmt.Sprintf("Role in %s project", resource.DisplayName)),
+			ent.WithDisplayName(fmt.Sprintf("%s project %s", resource.DisplayName, role.Name)),
+		}
+
+		entitlement := ent.NewPermissionEntitlement(resource, role.Name, permissionOptions...)
+		rv = append(rv, entitlement)
+	}
+
+	return rv
 }
 
 func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
@@ -98,11 +150,22 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 	}
 	rv = append(rv, participateGrants...)
 
-	roleGrants, err := getRoleGrants(ctx, p, resource, project)
+	projectRoles, err := p.getRolesForProject(ctx, project)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to get roles for project")
+	}
+
+	roleGrants, err := getRoleGrants(ctx, p, resource, projectRoles)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get role grants")
 	}
 	rv = append(rv, roleGrants...)
+
+	userPermissions, err := getUserPermissionGrants(ctx, p, resource, projectRoles)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to get user permission grants")
+	}
+	rv = append(rv, userPermissions...)
 
 	return rv, "", nil, nil
 }
@@ -155,27 +218,45 @@ func getGrantsForAllUsersIfProjectIsPublic(ctx context.Context, p *projectResour
 	return rv, nil
 }
 
-func getRoleGrants(ctx context.Context, p *projectResourceType, resouce *v2.Resource, project *jira.Project) ([]*v2.Grant, error) {
+func getRoleGrants(ctx context.Context, p *projectResourceType, resource *v2.Resource, roles []jira.Role) ([]*v2.Grant, error) {
 	var rv []*v2.Grant
 
-	for _, roleLink := range project.Roles {
-		roleId, err := parseRoleIdFromRoleLink(roleLink)
+	for _, role := range roles {
+		roleResource, err := roleResource(&role)
 		if err != nil {
 			return nil, err
 		}
 
-		role, _, err := p.client.Role.Get(ctx, roleId)
-		if err != nil {
-			return nil, err
-		}
-
-		roleResource, err := roleResource(role)
-		if err != nil {
-			return nil, err
-		}
-
-		grant := grant.NewGrant(resouce, participateEntitlement, roleResource.Id)
+		grant := grant.NewGrant(resource, participateEntitlement, roleResource.Id)
 		rv = append(rv, grant)
+	}
+
+	return rv, nil
+}
+
+func getUserPermissionGrants(ctx context.Context, p *projectResourceType, resource *v2.Resource, roles []jira.Role) ([]*v2.Grant, error) {
+	var rv []*v2.Grant
+
+	for _, role := range roles {
+		actors, _, err := p.client.Role.GetRoleActorsForProject(ctx, resource.Id.Resource, role.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, actor := range actors {
+			if actor.ActorUser.AccountID == "" {
+				continue
+			}
+
+			userResource, err := userResource(ctx, &jira.User{
+				AccountID: actor.ActorUser.AccountID,
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			grant := grant.NewGrant(resource, role.Name, userResource.Id)
+			rv = append(rv, grant)
+		}
 	}
 
 	return rv, nil

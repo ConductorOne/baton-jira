@@ -222,6 +222,7 @@ func getRoleGrants(ctx context.Context, p *projectResourceType, resource *v2.Res
 	var rv []*v2.Grant
 
 	for _, role := range roles {
+		role := role
 		roleResource, err := roleResource(&role)
 		if err != nil {
 			return nil, err

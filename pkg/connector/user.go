@@ -130,5 +130,5 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagin
 		return nil, "", nil, err
 	}
 
-	return nil, nextPage, nil, nil
+	return resources, nextPage, nil, nil
 }

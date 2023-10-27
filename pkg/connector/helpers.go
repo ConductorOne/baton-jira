@@ -26,15 +26,15 @@ func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, int64
 		})
 	}
 
-	page, err := convertPageToken(b.PageToken())
+	offset, err := getOffsetFromPageToken(b.PageToken())
 	if err != nil {
 		return nil, 0, err
 	}
 
-	return b, page, nil
+	return b, offset, nil
 }
 
-func convertPageToken(token string) (int64, error) {
+func getOffsetFromPageToken(token string) (int64, error) {
 	if token == "" {
 		return 0, nil
 	}
@@ -51,8 +51,8 @@ func isLastPage(count int, pageSize int) bool {
 	return count < pageSize
 }
 
-func handleNextPage(bag *pagination.Bag, page int64) (string, error) {
-	nextPage := fmt.Sprintf("%d", page)
+func getPageTokenFromOffset(bag *pagination.Bag, offset int64) (string, error) {
+	nextPage := fmt.Sprintf("%d", offset)
 	pageToken, err := bag.NextToken(nextPage)
 	if err != nil {
 		return "", err

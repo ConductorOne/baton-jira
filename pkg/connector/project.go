@@ -87,7 +87,7 @@ func (p *projectResourceType) getRolesForProjectId(ctx context.Context, projectI
 	return p.getRolesForProject(ctx, project)
 }
 
-func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
 	assigmentOptions := []ent.EntitlementOption{

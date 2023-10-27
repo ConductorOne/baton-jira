@@ -57,7 +57,7 @@ func roleBuilder(client *jira.Client) *roleResourceType {
 	}
 }
 
-func (u *roleResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *roleResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
 	assigmentOptions := []ent.EntitlementOption{
@@ -77,7 +77,7 @@ func (u *roleResourceType) Entitlements(ctx context.Context, resource *v2.Resour
 	return rv, "", nil, nil
 }
 
-func (u *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (u *roleResourceType) Grants(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	roleId, err := strconv.Atoi(resource.Id.Resource)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to convert role ID to integer")
@@ -148,7 +148,7 @@ func getGroupGrants(ctx context.Context, resource *v2.Resource, role *jira.Role)
 	return rv, nil
 }
 
-func (u *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (u *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	roles, _, err := u.client.Role.GetList(ctx)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get roles")

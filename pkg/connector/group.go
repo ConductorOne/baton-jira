@@ -57,7 +57,7 @@ func groupBuilder(client *jira.Client) *groupResourceType {
 	}
 }
 
-func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
 	assigmentOptions := []ent.EntitlementOption{
@@ -72,7 +72,7 @@ func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resou
 	return rv, "", nil, nil
 }
 
-func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, token *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	groupMembers, _, err := u.client.Group.Get(ctx, resource.DisplayName, nil)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get group members")
@@ -101,7 +101,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, t
 	return rv, "", nil, nil
 }
 
-func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	groups, _, err := u.client.Group.Find(ctx)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to list groups")

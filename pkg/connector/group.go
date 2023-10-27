@@ -101,8 +101,13 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, _
 	return rv, "", nil, nil
 }
 
-func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	groups, _, err := u.client.Group.Find(ctx)
+func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	groups, _, err := u.client.Group.Find(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to list groups")
 	}
@@ -118,7 +123,16 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagin
 		resources = append(resources, resource)
 	}
 
-	return resources, "", nil, nil
+	if isLastPage(len(groups), resourcePageSize) {
+		return resources, "", nil, nil
+	}
+
+	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	return resources, nextPage, nil, nil
 }
 
 func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {

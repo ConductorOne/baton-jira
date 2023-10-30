@@ -144,7 +144,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 	}
 
 	if offset == 0 {
-		// hadnle grants without pagination
+		// handle grants without pagination
 		leadGrants, err := getLeadGrants(ctx, resource, project)
 		if err != nil {
 			return nil, "", nil, wrapError(err, "failed to get lead grants")

@@ -91,4 +91,4 @@ require (
 	modernc.org/sqlite v1.25.0 // indirect
 )
 
-replace github.com/andygrunwald/go-jira/v2 => github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20231004110620-d7658815fedc
+replace github.com/andygrunwald/go-jira/v2 => github.com/vlnevyhosteny/go-jira/v2 v2.0.0-20231027205654-5bba6f1c5e17

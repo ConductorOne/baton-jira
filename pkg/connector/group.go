@@ -31,6 +31,7 @@ type groupResourceType struct {
 
 func groupResource(ctx context.Context, group *jira.Group) (*v2.Resource, error) {
 	profile := map[string]interface{}{
+		"id":   group.ID,
 		"name": group.Name,
 	}
 
@@ -38,7 +39,7 @@ func groupResource(ctx context.Context, group *jira.Group) (*v2.Resource, error)
 		rs.WithGroupProfile(profile),
 	}
 
-	resource, err := rs.NewGroupResource(group.Name, resourceTypeGroup, group.Name, groupTraitOptions)
+	resource, err := rs.NewGroupResource(group.Name, resourceTypeGroup, group.ID, groupTraitOptions)
 	if err != nil {
 		return nil, err
 	}

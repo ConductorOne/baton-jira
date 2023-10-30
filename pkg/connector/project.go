@@ -304,14 +304,19 @@ func parseRoleIdFromRoleLink(roleLink string) (int, error) {
 	return lastNumber, nil
 }
 
-func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	projects, _, err := u.client.Project.GetAll(ctx, nil)
+func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	projects, _, err := u.client.Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}
 
 	var resources []*v2.Resource
-	for _, project := range *projects {
+	for _, project := range projects {
 		resource, err := projectResource(ctx, &jira.Project{
 			Name:            project.Name,
 			ID:              project.ID,
@@ -325,5 +330,14 @@ func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pag
 		resources = append(resources, resource)
 	}
 
-	return resources, "", nil, nil
+	if isLastPage(len(projects), resourcePageSize) {
+		return resources, "", nil, nil
+	}
+
+	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	return resources, nextPage, nil, nil
 }

@@ -161,12 +161,6 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			return nil, "", nil, wrapError(err, "failed to get role grants")
 		}
 		rv = append(rv, roleGrants...)
-
-		userPermissions, err := getUserPermissionGrants(ctx, p, resource, projectRoles)
-		if err != nil {
-			return nil, "", nil, wrapError(err, "failed to get user permission grants")
-		}
-		rv = append(rv, userPermissions...)
 	}
 
 	participateGrants, isLastPage, err := getGrantsForAllUsersIfProjectIsPublic(ctx, p, resource, project, int(offset), resourcePageSize)
@@ -248,36 +242,19 @@ func getRoleGrants(ctx context.Context, p *projectResourceType, resource *v2.Res
 			return nil, err
 		}
 
-		grant := grant.NewGrant(resource, participateEntitlement, roleResource.Id)
+		grant := grant.NewGrant(
+			resource,
+			participateEntitlement,
+			roleResource.Id,
+			grant.WithAnnotation(
+				&v2.GrantExpandable{
+					EntitlementIds:  []string{fmt.Sprintf("role:%d:%s", role.ID, appointedEntitlement)},
+					Shallow:         true,
+					ResourceTypeIds: []string{resourceTypeUser.Id},
+				},
+			),
+		)
 		rv = append(rv, grant)
-	}
-
-	return rv, nil
-}
-
-func getUserPermissionGrants(ctx context.Context, p *projectResourceType, resource *v2.Resource, roles []jira.Role) ([]*v2.Grant, error) {
-	var rv []*v2.Grant
-
-	for _, role := range roles {
-		actors, _, err := p.client.Role.GetRoleActorsForProject(ctx, resource.Id.Resource, role.ID)
-		if err != nil {
-			return nil, err
-		}
-		for _, actor := range actors {
-			if actor.ActorUser.AccountID == "" {
-				continue
-			}
-
-			userResource, err := userResource(ctx, &jira.User{
-				AccountID: actor.ActorUser.AccountID,
-			})
-			if err != nil {
-				return nil, err
-			}
-
-			grant := grant.NewGrant(resource, role.Name, userResource.Id)
-			rv = append(rv, grant)
-		}
 	}
 
 	return rv, nil

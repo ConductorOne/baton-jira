@@ -82,7 +82,6 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 	groupMembers, _, err := u.client.Group.GetGroupMembers(
 		ctx,
 		resource.Id.Resource,
-		resource.DisplayName,
 		jira.WithStartAt(int(offset)),
 		jira.WithMaxResults(resourcePageSize),
 	)

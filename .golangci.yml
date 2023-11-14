@@ -53,6 +53,10 @@ linters-settings:
   varcheck:
     exported-fields: false # this appears to improperly detect exported variables as unused when they are used from a package with the same name
 
+  gomoddirectives:
+    replace-allow-list:
+      - github.com/andygrunwald/go-jira/v2
+
 
 linters:
   disable-all: true

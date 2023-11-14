@@ -2,39 +2,76 @@ package connector
 
 import (
 	"context"
-	"fmt"
 
+	jira "github.com/andygrunwald/go-jira/v2/cloud"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 )
 
-// TODO: implement your connector here
-type connectorImpl struct {
+type (
+	Jira struct {
+		client *jira.Client
+	}
+
+	JiraBuilder interface {
+		New() (*Jira, error)
+	}
+
+	JiraOptions struct {
+		Url string
+	}
+
+	JiraBasicAuthBuilder struct {
+		Base *JiraOptions
+
+		Username string
+		ApiToken string
+	}
+)
+
+func (b *JiraBasicAuthBuilder) New() (*Jira, error) {
+	transport := jira.BasicAuthTransport{
+		Username: b.Username,
+		APIToken: b.ApiToken,
+	}
+
+	client, err := jira.NewClient(b.Base.Url, transport.Client())
+	if err != nil {
+		return nil, err
+	}
+
+	return &Jira{
+		client: client,
+	}, nil
 }
 
-func (c *connectorImpl) ListResourceTypes(ctx context.Context, req *v2.ResourceTypesServiceListResourceTypesRequest) (*v2.ResourceTypesServiceListResourceTypesResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
+	_, _, err := j.client.User.Find(ctx, "")
+	if err != nil {
+		return nil, wrapError(err, "failed to get users")
+	}
+
+	_, _, err = j.client.Project.GetAll(ctx, nil)
+	if err != nil {
+		return nil, wrapError(err, "failed to get projects")
+	}
+
+	return nil, nil
 }
 
-func (c *connectorImpl) ListResources(ctx context.Context, req *v2.ResourcesServiceListResourcesRequest) (*v2.ResourcesServiceListResourcesResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
+	return []connectorbuilder.ResourceSyncer{
+		userBuilder(o.client),
+		groupBuilder(o.client),
+		projectBuilder(o.client),
+		roleBuilder(o.client),
+	}
 }
 
-func (c *connectorImpl) ListEntitlements(ctx context.Context, req *v2.EntitlementsServiceListEntitlementsRequest) (*v2.EntitlementsServiceListEntitlementsResponse, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *connectorImpl) ListGrants(ctx context.Context, req *v2.GrantsServiceListGrantsRequest) (*v2.GrantsServiceListGrantsResponse, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *connectorImpl) GetMetadata(ctx context.Context, req *v2.ConnectorServiceGetMetadataRequest) (*v2.ConnectorServiceGetMetadataResponse, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *connectorImpl) Validate(ctx context.Context, req *v2.ConnectorServiceValidateRequest) (*v2.ConnectorServiceValidateResponse, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *connectorImpl) GetAsset(req *v2.AssetServiceGetAssetRequest, server v2.AssetService_GetAssetServer) error {
-	return fmt.Errorf("not implemented")
+func (o *Jira) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
+	return &v2.ConnectorMetadata{
+		DisplayName: "Jira",
+		Description: "Connector syncing Jira users and their groups and projects to Baton.",
+	}, nil
 }

@@ -1,20 +1,20 @@
-project_name: baton-example
+project_name: baton-jira
 builds:
-  - binary: baton-example
+  - binary: baton-jira
     env:
       - CGO_ENABLED=0
     id: linux
-    main: ./cmd/baton-example
+    main: ./cmd/baton-jira
     goos:
       - linux
     goarch:
       - amd64
       - arm64
-  - binary: baton-example
+  - binary: baton-jira
     env:
       - CGO_ENABLED=0
     id: macos-amd64
-    main: ./cmd/baton-example
+    main: ./cmd/baton-jira
     goos:
       - darwin
     goarch:
@@ -22,12 +22,12 @@ builds:
     hooks:
       post:
         - gon .gon-amd64.json
-        - mv dist/baton-example-darwin-amd64.signed.zip dist/macos-amd64_darwin_amd64_v1/baton-example
-  - binary: baton-example
+        - mv dist/baton-jira-darwin-amd64.signed.zip dist/macos-amd64_darwin_amd64_v1/baton-jira
+  - binary: baton-jira
     env:
       - CGO_ENABLED=0
     id: macos-arm64
-    main: ./cmd/baton-example
+    main: ./cmd/baton-jira
     goos:
       - darwin
     goarch:
@@ -35,7 +35,7 @@ builds:
     hooks:
       post:
         - gon .gon-arm64.json
-        - mv dist/baton-example-darwin-arm64.signed.zip dist/macos-arm64_darwin_arm64/baton-example
+        - mv dist/baton-jira-darwin-arm64.signed.zip dist/macos-arm64_darwin_arm64/baton-jira
 archives:
   - id: linux-archive
     builds:
@@ -71,9 +71,9 @@ brews:
     folder: Formula
     homepage: https://conductorone.com
     test: |
-      system "#{bin}/baton-example -v"
+      system "#{bin}/baton-jira -v"
     install: |-
-      bin.install "baton-example"
+      bin.install "baton-jira"
 changelog:
   filters:
     exclude:

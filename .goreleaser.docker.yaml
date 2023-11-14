@@ -1,10 +1,10 @@
-project_name: baton-example
+project_name: baton-jira
 builds:
-  - binary: baton-example
+  - binary: baton-jira
     env:
       - CGO_ENABLED=0
     id: linux
-    main: ./cmd/baton-example
+    main: ./cmd/baton-jira
     goos:
       - linux
     goarch:
@@ -15,37 +15,37 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "ghcr.io/conductorone/baton-example:{{ .Version }}-amd64"
-      - "ghcr.io/conductorone/baton-example:latest-amd64"
+      - "ghcr.io/conductorone/baton-jira:{{ .Version }}-amd64"
+      - "ghcr.io/conductorone/baton-jira:latest-amd64"
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title=baton-example"
+      - "--label=org.opencontainers.image.title=baton-jira"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source=https://github.com/conductorone/baton-example"
+      - "--label=org.opencontainers.image.source=https://github.com/conductorone/baton-jira"
   - use: buildx
     goos: linux
     goarch: arm64
     image_templates:
-      - "ghcr.io/conductorone/baton-example:{{ .Version }}-arm64"
-      - "ghcr.io/conductorone/baton-example:latest-arm64"
+      - "ghcr.io/conductorone/baton-jira:{{ .Version }}-arm64"
+      - "ghcr.io/conductorone/baton-jira:latest-arm64"
     build_flag_templates:
       - "--platform=linux/arm64/v8"
       - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title=baton-example"
+      - "--label=org.opencontainers.image.title=baton-jira"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source=https://github.com/conductorone/baton-example"
+      - "--label=org.opencontainers.image.source=https://github.com/conductorone/baton-jira"
 docker_manifests:
-  - name_template: ghcr.io/conductorone/baton-example:{{ .Version }}
+  - name_template: ghcr.io/conductorone/baton-jira:{{ .Version }}
     image_templates:
-      - ghcr.io/conductorone/baton-example:{{ .Version }}-amd64
-      - ghcr.io/conductorone/baton-example:{{ .Version }}-arm64
-  - name_template: ghcr.io/conductorone/baton-example:latest
+      - ghcr.io/conductorone/baton-jira:{{ .Version }}-amd64
+      - ghcr.io/conductorone/baton-jira:{{ .Version }}-arm64
+  - name_template: ghcr.io/conductorone/baton-jira:latest
     image_templates:
-      - ghcr.io/conductorone/baton-example:latest-amd64
-      - ghcr.io/conductorone/baton-example:latest-arm64
+      - ghcr.io/conductorone/baton-jira:latest-amd64
+      - ghcr.io/conductorone/baton-jira:latest-arm64
 checksum:
   disable: true
 release:

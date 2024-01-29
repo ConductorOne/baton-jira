@@ -1,4 +1,4 @@
-module github.com/ConductorOne/baton-jira
+module github.com/conductorone/baton-jira
 
 go 1.19
 

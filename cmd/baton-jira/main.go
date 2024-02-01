@@ -42,7 +42,7 @@ func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, erro
 		Base: &connector.JiraOptions{
 			Url: cfg.JiraUrl,
 		},
-		Username: cfg.Username,
+		Username: cfg.Email,
 		ApiToken: cfg.ApiToken,
 	}
 

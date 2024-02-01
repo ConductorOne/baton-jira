@@ -8,9 +8,9 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more about the
 
 # Prerequisites
 
-Connector supports Jira Basic Auth. Connector requires username and api token to exchange for access token that later used throughout the communication with API. To obtain these credentials, you have to create API client in Jira. To do that you must have administrator role (more info on creating creadentials [here](https://developer.atlassian.com/cloud/jira/platform/basic-auth-for-rest-apis/)). 
+This connector supports Jira Basic Auth. It requires an email address and api token to exchange for access token that later used throughout the communication with API. To obtain these credentials, you have to create API client in Jira. To do that you must have administrator role (more info on creating credentials [here](https://developer.atlassian.com/cloud/jira/platform/basic-auth-for-rest-apis/)). 
 
-After you have obtained client id and secret, you can use them with connector. You can do this by setting `BATON_JIRA_USERNAME` and `BATON_JIRA_API_TOKEN` environment variables or by passing them as flags to baton-jira command.
+After you have obtained an API token, you can use them with the connector. You can do this by setting `BATON_JIRA_EMAIL` and `BATON_JIRA_API_TOKEN` environment variables or by passing them as flags to baton-jira command.
 
 # Getting Started
 
@@ -21,14 +21,14 @@ Along with credentials, you must specify Jira URL that you want to use. You can 
 ```
 brew install conductorone/baton/baton conductorone/baton/baton-jira
 
-BATON_JIRA_USERNAME=username BATON_JIRA_API_TOKEN=token BATON_JIRA_URL=your-jira.atlassian.com baton-jira
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN=token BATON_JIRA_URL=your-jira.atlassian.com baton-jira
 baton resources
 ```
 
 ## docker
 
 ```
-docker run --rm -v $(pwd):/out -e BATON_JIRA_USERNAME=username BATON_JIRA_API_TOKEN=token BATON_JIRA_URL=your-jira.atlassian.com ghcr.io/conductorone/baton-jira:latest -f "/out/sync.c1z"
+docker run --rm -v $(pwd):/out -e BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN=token BATON_JIRA_URL=your-jira.atlassian.com ghcr.io/conductorone/baton-jira:latest -f "/out/sync.c1z"
 docker run --rm -v $(pwd):/out ghcr.io/conductorone/baton:latest -f "/out/sync.c1z" resources
 ```
 
@@ -78,7 +78,7 @@ Flags:
   -h, --help                    help for baton-jira
       --jira-api-token string   API token for Jira service. ($BATON_JIRA_API_TOKEN)
       --jira-url string         Url to Jira service. ($BATON_JIRA_URL)
-      --jira-username string    Username for Jira service. ($BATON_JIRA_USERNAME)
+      --jira-email string       Email for Jira service. ($BATON_JIRA_EMAIL)
       --log-format string       The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")
       --log-level string        The log level: debug, info, warn, error ($BATON_LOG_LEVEL) (default "info")
   -p, --provisioning            This must be set in order for provisioning actions to be enabled. ($BATON_PROVISIONING)

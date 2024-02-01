@@ -38,7 +38,7 @@ func (b *JiraBasicAuthBuilder) New() (*Jira, error) {
 
 	client, err := jira.NewClient(b.Base.Url, transport.Client())
 	if err != nil {
-		return nil, err
+		return nil, wrapError(err, "error creating jira client")
 	}
 
 	return &Jira{

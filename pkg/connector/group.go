@@ -127,7 +127,7 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 		return nil, "", nil, err
 	}
 
-	groups, _, err := u.client.Group.Find(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
+	groups, _, err := u.client.Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to list groups")
 	}

@@ -237,6 +237,42 @@ func (s *GroupService) Find(ctx context.Context, tweaks ...searchF) ([]Group, *R
 	return groups.Groups, resp, nil
 }
 
+// Search for the groups
+// It can search by groupId, accountId or userName
+// Apart from returning groups it also returns total number of groups
+//
+// Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-groups/#api-rest-api-3-groups-picker-get
+func (s *GroupService) Bulk(ctx context.Context, tweaks ...searchF) ([]Group, *Response, error) {
+	search := []searchParam{}
+	for _, f := range tweaks {
+		search = f(search)
+	}
+
+	apiEndpoint := "/rest/api/3/group/bulk"
+
+	queryString := ""
+	for _, param := range search {
+		queryString += fmt.Sprintf("%s=%s&", param.name, param.value)
+	}
+
+	if queryString != "" {
+		apiEndpoint += "?" + queryString
+	}
+
+	req, err := s.client.NewRequest(ctx, http.MethodGet, apiEndpoint, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	groups := Groups{}
+	resp, err := s.client.Do(req, &groups)
+	if err != nil {
+		return nil, resp, NewJiraError(resp, err)
+	}
+
+	return groups.Groups, resp, nil
+}
+
 func WithInactiveUsers() searchF {
 	return func(s search) search {
 		s = append(s, searchParam{name: "includeInactiveUsers", value: "true"})

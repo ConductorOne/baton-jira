@@ -91,8 +91,8 @@ github.com/cncf/udpa/go v0.0.0-20200629203442-efcf912fb354/go.mod h1:WmhPx2Nbnht
 github.com/cncf/udpa/go v0.0.0-20201120205902-5459f2c99403/go.mod h1:WmhPx2Nbnhtbo57+VJT5O0JRkEi1Wbu0z5j0R8u5Hbk=
 github.com/conductorone/baton-sdk v0.1.18 h1:DVQMgrL8OBgHuOhObt2HuYPnKNn0TNyPCJTdNPlC7aU=
 github.com/conductorone/baton-sdk v0.1.18/go.mod h1:nh4xiJxOi2pBPCcsIfH8Xp0Xc5Q1BgmnXmGhrn3Spss=
-github.com/conductorone/go-jira/v2 v2.0.0-20240207003337-a6f2cae161bd h1:9cUtDuDaoBDY2fWx0mIHoCK4SL+SmzDaoq0Og+JCMx8=
-github.com/conductorone/go-jira/v2 v2.0.0-20240207003337-a6f2cae161bd/go.mod h1:TrfsnL20VgD+KgEw4gbTYuSAPE8T1ZxjMCFBGgGvNvI=
+github.com/conductorone/go-jira/v2 v2.0.0-20240304225643-956d8d0b5886 h1:+S8MzsnRmg6mTmpDbIaZ/4Po9FO/XsvfrjMi65JLwtE=
+github.com/conductorone/go-jira/v2 v2.0.0-20240304225643-956d8d0b5886/go.mod h1:TrfsnL20VgD+KgEw4gbTYuSAPE8T1ZxjMCFBGgGvNvI=
 github.com/cpuguy83/go-md2man/v2 v2.0.3/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

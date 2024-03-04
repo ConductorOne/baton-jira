@@ -75,6 +75,20 @@ type Groups struct {
 	Total  int     `json:"total,omitempty"`
 }
 
+type BulkGroup struct {
+	Name string `json:"name,omitempty"`
+	ID   string `json:"groupId,omitempty"`
+}
+
+type bulkGetGroupsResult struct {
+	IsLast     bool        `json:"isLast"`
+	MaxResults int         `json:"maxResults"`
+	NextPage   string      `json:"nextPage"`
+	Total      int         `json:"total"`
+	StartAt    int         `json:"startAt"`
+	Values     []BulkGroup `json:"values"`
+}
+
 // Get returns a paginated list of members of the specified group and its subgroups.
 // Users in the page are ordered by user names.
 // User of this resource is required to have sysadmin or admin permissions.
@@ -237,12 +251,10 @@ func (s *GroupService) Find(ctx context.Context, tweaks ...searchF) ([]Group, *R
 	return groups.Groups, resp, nil
 }
 
-// Search for the groups
-// It can search by groupId, accountId or userName
-// Apart from returning groups it also returns total number of groups
+// Bulk get groups
 //
-// Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-groups/#api-rest-api-3-groups-picker-get
-func (s *GroupService) Bulk(ctx context.Context, tweaks ...searchF) ([]Group, *Response, error) {
+// Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-groups/#api-rest-api-3-group-bulk-get
+func (s *GroupService) Bulk(ctx context.Context, tweaks ...searchF) ([]BulkGroup, *Response, error) {
 	search := []searchParam{}
 	for _, f := range tweaks {
 		search = f(search)
@@ -264,13 +276,13 @@ func (s *GroupService) Bulk(ctx context.Context, tweaks ...searchF) ([]Group, *R
 		return nil, nil, err
 	}
 
-	groups := Groups{}
-	resp, err := s.client.Do(req, &groups)
+	result := new(bulkGetGroupsResult)
+	resp, err := s.client.Do(req, &result)
 	if err != nil {
 		return nil, resp, NewJiraError(resp, err)
 	}
 
-	return groups.Groups, resp, nil
+	return result.Values, resp, nil
 }
 
 func WithInactiveUsers() searchF {

@@ -134,7 +134,11 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 
 	var resources []*v2.Resource
 	for i := range groups {
-		resource, err := groupResource(ctx, &groups[i])
+		group := jira.Group{
+			ID:   groups[i].ID,
+			Name: groups[i].Name,
+		}
+		resource, err := groupResource(ctx, &group)
 
 		if err != nil {
 			return nil, "", nil, err

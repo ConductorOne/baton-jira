@@ -1,9 +1,10 @@
 module github.com/conductorone/baton-jira
 
-go 1.20
+go 1.22
 
 require (
 	github.com/conductorone/baton-sdk v0.1.18
+	github.com/conductorone/go-jira/v2 v2.0.0-20240306175947-1fe3cf45bdbf
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	go.uber.org/zap v1.26.0
 )
@@ -16,7 +17,6 @@ require (
 )
 
 require (
-	github.com/andygrunwald/go-jira/v2 v2.0.0-20230325080157-2e11dffbdb9a
 	github.com/aws/aws-sdk-go-v2 v1.23.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.25.3 // indirect
@@ -95,5 +95,3 @@ require (
 	modernc.org/memory v1.7.2 // indirect
 	modernc.org/sqlite v1.27.0 // indirect
 )
-
-replace github.com/andygrunwald/go-jira/v2 => github.com/conductorone/go-jira/v2 v2.0.0-20240304225643-956d8d0b5886

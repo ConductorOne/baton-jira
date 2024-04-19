@@ -61,6 +61,10 @@ func userResource(ctx context.Context, user *jira.User) (*v2.Resource, error) {
 		rs.WithAccountType(mapAccountType(user.AccountType)),
 	}
 
+	if user.EmailAddress != "" {
+		userTraitOptions = append(userTraitOptions, rs.WithEmail(user.EmailAddress, true))
+	}
+
 	resource, err := rs.NewUserResource(user.DisplayName, resourceTypeUser, user.AccountID, userTraitOptions)
 	if err != nil {
 		return nil, err

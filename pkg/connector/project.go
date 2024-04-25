@@ -18,9 +18,6 @@ import (
 var resourceTypeProject = &v2.ResourceType{
 	Id:          "project",
 	DisplayName: "Project",
-	Traits: []v2.ResourceType_Trait{
-		v2.ResourceType_TRAIT_GROUP,
-	},
 }
 
 type projectResourceType struct {
@@ -29,17 +26,7 @@ type projectResourceType struct {
 }
 
 func projectResource(ctx context.Context, project *jira.Project) (*v2.Resource, error) {
-	profile := map[string]interface{}{
-		"name":       project.Name,
-		"project_id": project.ID,
-		"category":   project.ProjectCategory.Name,
-	}
-
-	projectTraitOptions := []rs.GroupTraitOption{
-		rs.WithGroupProfile(profile),
-	}
-
-	resource, err := rs.NewGroupResource(project.Name, resourceTypeProject, project.ID, projectTraitOptions)
+	resource, err := rs.NewResource(project.Name, resourceTypeProject, project.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -295,9 +282,8 @@ func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pag
 	var resources []*v2.Resource
 	for _, project := range projects {
 		resource, err := projectResource(ctx, &jira.Project{
-			Name:            project.Name,
-			ID:              project.ID,
-			ProjectCategory: project.ProjectCategory,
+			Name: project.Name,
+			ID:   project.ID,
 		})
 
 		if err != nil {

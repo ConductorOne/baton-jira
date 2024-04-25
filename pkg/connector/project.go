@@ -26,7 +26,6 @@ type projectResourceType struct {
 }
 
 func projectResource(ctx context.Context, project *jira.Project) (*v2.Resource, error) {
-
 	resource, err := rs.NewResource(project.Name, resourceTypeProject, project.ID)
 	if err != nil {
 		return nil, err

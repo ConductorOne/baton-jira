@@ -17,10 +17,7 @@
     {
       "resourceType":  {
         "id":  "project",
-        "displayName":  "Project",
-        "traits":  [
-          "TRAIT_GROUP"
-        ]
+        "displayName":  "Project"
       },
       "capabilities":  [
         "CAPABILITY_SYNC"

@@ -195,6 +195,9 @@ func (u *roleResourceType) mapRoleIDsToProjectNames(ctx context.Context) (map[in
 
 func (u *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	roleIDToProjectName, err := u.mapRoleIDsToProjectNames(ctx)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to map role IDs to project names")
+	}
 	roles, _, err := u.client.Role.GetList(ctx)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get roles")

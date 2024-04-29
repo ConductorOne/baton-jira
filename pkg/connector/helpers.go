@@ -2,6 +2,7 @@ package connector
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -59,4 +60,25 @@ func getPageTokenFromOffset(bag *pagination.Bag, offset int64) (string, error) {
 	}
 
 	return pageToken, nil
+}
+
+// Unfortunatelly, the Jira API does not provide a way to get the role id from project.
+// It only provides a link to the role. Like this: https://your-domain.atlassian.net/rest/api/3/project/10001/role/10002
+// So, we need to parse the role id from the link.
+func parseRoleIdFromRoleLink(roleLink string) (int, error) {
+	regexPattern := `\/(\d+)\/?$` // Regex pattern to match the last number in the URL path
+	r := regexp.MustCompile(regexPattern)
+
+	matches := r.FindStringSubmatch(roleLink)
+
+	if len(matches) < 2 {
+		return 0, fmt.Errorf("failed to parse role id from role link")
+	}
+
+	lastNumber, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, err
+	}
+
+	return lastNumber, nil
 }

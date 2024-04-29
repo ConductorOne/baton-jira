@@ -148,7 +148,53 @@ func getGroupGrants(ctx context.Context, resource *v2.Resource, role *jira.Role)
 	return rv, nil
 }
 
+func (u *roleResourceType) mapRoleIDsToProjectNames(ctx context.Context) (map[int]string, error) {
+	nextPage := ""
+	roleIDToProjectNameMap := make(map[int]string)
+	for {
+		bag, offset, err := parsePageToken(nextPage, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+		if err != nil {
+			return nil, err
+		}
+
+		projects, _, err := u.client.Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
+		if err != nil {
+			return nil, wrapError(err, "failed to get projects")
+		}
+
+		for _, project := range projects {
+			// The find endpoint does not return a project with the roles populated
+			project, _, err := u.client.Project.Get(ctx, project.ID)
+			if err != nil {
+				return nil, wrapError(err, "failed to get project")
+			}
+			for _, roleLink := range project.Roles {
+				roleId, err := parseRoleIdFromRoleLink(roleLink)
+				if err != nil {
+					return nil, wrapError(err, "failed to parse role id from role link")
+				}
+				roleIDToProjectNameMap[roleId] = project.Name
+			}
+		}
+
+		if isLastPage(len(projects), resourcePageSize) {
+			break
+		}
+
+		nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+		if err != nil {
+			return nil, err
+		}
+		if nextPage == "" {
+			break
+		}
+	}
+
+	return roleIDToProjectNameMap, nil
+}
+
 func (u *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	roleIDToProjectName, err := u.mapRoleIDsToProjectNames(ctx)
 	roles, _, err := u.client.Role.GetList(ctx)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get roles")
@@ -157,6 +203,9 @@ func (u *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagina
 	var rv []*v2.Resource
 	for _, role := range *roles {
 		role := role
+		if name, ok := roleIDToProjectName[role.ID]; ok {
+			role.Name = fmt.Sprintf("%s - %s", name, role.Name)
+		}
 		resource, err := roleResource(&role)
 		if err != nil {
 			return nil, "", nil, wrapError(err, "failed to create role resource")

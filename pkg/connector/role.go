@@ -3,6 +3,8 @@ package connector
 import (
 	"context"
 	"fmt"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 	"strconv"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -194,9 +196,10 @@ func (u *roleResourceType) mapRoleIDsToProjectNames(ctx context.Context) (map[in
 }
 
 func (u *roleResourceType) List(ctx context.Context, _ *v2.ResourceId, _ *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	l := ctxzap.Extract(ctx)
 	roleIDToProjectName, err := u.mapRoleIDsToProjectNames(ctx)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to map role IDs to project names")
+		l.Error(wrapError(err, "failed to map role IDs to project names").Error(), zap.Error(err))
 	}
 	roles, _, err := u.client.Role.GetList(ctx)
 	if err != nil {

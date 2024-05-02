@@ -3,8 +3,6 @@ package connector
 import (
 	"context"
 	"fmt"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"go.uber.org/zap"
 	"strconv"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -14,6 +12,8 @@ import (
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	jira "github.com/conductorone/go-jira/v2/cloud"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 var resourceTypeRole = &v2.ResourceType{

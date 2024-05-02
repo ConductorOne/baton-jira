@@ -2,7 +2,11 @@ package connector
 
 import (
 	"fmt"
+	"net/url"
+	"regexp"
+	"slices"
 	"strconv"
+	"strings"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
@@ -59,4 +63,37 @@ func getPageTokenFromOffset(bag *pagination.Bag, offset int64) (string, error) {
 	}
 
 	return pageToken, nil
+}
+
+var RoleIDNotFoundErr = fmt.Errorf("role id not found in role link")
+
+// Unfortunatelly, the Jira API does not provide a way to get the role id from project.
+// It only provides a link to the role. Like this: https://your-domain.atlassian.net/rest/api/3/project/10001/role/10002
+// So, we need to parse the role id from the link.
+func parseRoleIdFromRoleLink(roleLink string) (int, error) {
+	// Parse the URL
+	parsedURL, err := url.Parse(roleLink)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	// Split the path of the URL
+	pathElems := strings.Split(parsedURL.Path, "/")
+	// Find the index of the "role" element in the path, the next element should be the role id
+	roleIndex := slices.Index(pathElems, "role")
+	if roleIndex == -1 || roleIndex+1 >= len(pathElems) {
+		return 0, RoleIDNotFoundErr
+	}
+	regexPattern := `\d+` // Regex pattern to match any number in the URL path
+	r := regexp.MustCompile(regexPattern)
+	matches := r.FindStringSubmatch(pathElems[roleIndex+1])
+	// If there are no matches, return an error
+	if len(matches) == 0 {
+		return 0, RoleIDNotFoundErr
+	}
+	roleID, err := strconv.Atoi(matches[0])
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse role id: %w", err)
+	}
+	return roleID, nil
 }

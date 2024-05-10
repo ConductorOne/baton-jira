@@ -154,7 +154,7 @@ func (u *roleResourceType) mapRoleIDsToProjectNames(ctx context.Context) (map[in
 	nextPage := ""
 	roleIDToProjectNameMap := make(map[int]string)
 	for {
-		bag, offset, err := parsePageToken(nextPage, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+		bag, offset, err := parsePageToken(nextPage, &v2.ResourceId{ResourceType: resourceTypeProject.Id})
 		if err != nil {
 			return nil, err
 		}
@@ -183,7 +183,7 @@ func (u *roleResourceType) mapRoleIDsToProjectNames(ctx context.Context) (map[in
 			break
 		}
 
-		nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+		nextPage, err = getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 		if err != nil {
 			return nil, err
 		}

@@ -11,7 +11,9 @@ import (
 
 type (
 	Jira struct {
-		client *jira.Client
+		client         *jira.Client
+		ticketSchemas  map[string]*v2.TicketSchema
+		ticketStatuses []*v2.TicketStatus
 	}
 
 	JiraBuilder interface {
@@ -42,7 +44,8 @@ func (b *JiraBasicAuthBuilder) New() (*Jira, error) {
 	}
 
 	return &Jira{
-		client: client,
+		client:        client,
+		ticketSchemas: make(map[string]*v2.TicketSchema),
 	}, nil
 }
 

@@ -1,0 +1,13 @@
+{
+  "schema_id": "IT",
+  "status_id": "10000",
+  "type_id": "10001",
+  "display_name": "A test ticket",
+  "description": "A test description",
+  "labels": [],
+  "custom_fields": {
+    "project": {
+      "id": "10001"
+    }
+  }
+}

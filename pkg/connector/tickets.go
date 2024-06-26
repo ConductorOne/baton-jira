@@ -2,7 +2,9 @@ package connector
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"path"
 	"time"
@@ -250,7 +252,7 @@ func (j *Jira) GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, anno
 // This is returning nil for annotations.
 func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error) {
 	ticketOptions := []FieldOption{
-		WithStatus(ticket.GetStatus().GetId()),
+		// WithStatus(ticket.GetStatus().GetId()),
 		WithType(ticket.GetType().GetId()),
 		WithDescription(ticket.GetDescription()),
 		WithLabels(ticket.GetLabels()...),
@@ -404,6 +406,8 @@ func (j *Jira) createIssue(ctx context.Context, projectID string, summary string
 			Name: "Task",
 		}
 	}
+	issue_str, _ := json.Marshal(i)
+	fmt.Printf("\n\n@btipling json: %s \n\n", issue_str)
 	issue, _, err := j.client.Issue.Create(ctx, i)
 	if err != nil {
 		l.Error("error creating issue", zap.Error(err))

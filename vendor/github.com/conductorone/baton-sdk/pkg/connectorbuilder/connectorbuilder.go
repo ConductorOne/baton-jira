@@ -49,15 +49,22 @@ type CreateAccountResponse interface {
 }
 
 type AccountManager interface {
-	CreateAccount(ctx context.Context, accountInfo *v2.AccountInfo, credentialOptions *v2.CredentialOptions) (CreateAccountResponse, []*crypto.PlaintextCredential, annotations.Annotations, error)
+	CreateAccount(ctx context.Context, accountInfo *v2.AccountInfo, credentialOptions *v2.CredentialOptions) (CreateAccountResponse, []*v2.PlaintextData, annotations.Annotations, error)
 }
 
 type CredentialManager interface {
-	Rotate(ctx context.Context, resourceId *v2.ResourceId, credentialOptions *v2.CredentialOptions) ([]*crypto.PlaintextCredential, annotations.Annotations, error)
+	Rotate(ctx context.Context, resourceId *v2.ResourceId, credentialOptions *v2.CredentialOptions) ([]*v2.PlaintextData, annotations.Annotations, error)
 }
 
 type EventProvider interface {
 	ListEvents(ctx context.Context, earliestEvent *timestamppb.Timestamp, pToken *pagination.StreamToken) ([]*v2.Event, *pagination.StreamState, annotations.Annotations, error)
+}
+
+type TicketManager interface {
+	GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, annotations.Annotations, error)
+	CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error)
+	GetTicketSchema(ctx context.Context, schemaID string) (*v2.TicketSchema, annotations.Annotations, error)
+	ListTicketSchemas(ctx context.Context, pToken *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error)
 }
 
 type ConnectorBuilder interface {
@@ -75,6 +82,91 @@ type builderImpl struct {
 	credentialManagers     map[string]CredentialManager
 	eventFeed              EventProvider
 	cb                     ConnectorBuilder
+	ticketManager          TicketManager
+}
+
+func (b *builderImpl) ListTicketSchemas(ctx context.Context, request *v2.TicketsServiceListTicketSchemasRequest) (*v2.TicketsServiceListTicketSchemasResponse, error) {
+	if b.ticketManager == nil {
+		return nil, fmt.Errorf("error: ticket manager not implemented")
+	}
+
+	out, nextPageToken, annos, err := b.ticketManager.ListTicketSchemas(ctx, &pagination.Token{
+		Size:  int(request.PageSize),
+		Token: request.PageToken,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error: listing ticket schemas failed: %w", err)
+	}
+	if request.PageToken != "" && request.PageToken == nextPageToken {
+		return nil, fmt.Errorf("error: listing ticket schemas failed: next page token is the same as the current page token. this is most likely a connector bug")
+	}
+
+	return &v2.TicketsServiceListTicketSchemasResponse{
+		List:          out,
+		NextPageToken: nextPageToken,
+		Annotations:   annos,
+	}, nil
+}
+
+func (b *builderImpl) CreateTicket(ctx context.Context, request *v2.TicketsServiceCreateTicketRequest) (*v2.TicketsServiceCreateTicketResponse, error) {
+	if b.ticketManager == nil {
+		return nil, fmt.Errorf("error: ticket manager not implemented")
+	}
+
+	reqBody := request.GetRequest()
+	if reqBody == nil {
+		return nil, fmt.Errorf("error: request body is nil")
+	}
+	cTicket := &v2.Ticket{
+		DisplayName:  reqBody.GetDisplayName(),
+		Description:  reqBody.GetDescription(),
+		Status:       reqBody.GetStatus(),
+		Type:         reqBody.GetType(),
+		Labels:       reqBody.GetLabels(),
+		CustomFields: reqBody.GetCustomFields(),
+	}
+
+	ticket, annos, err := b.ticketManager.CreateTicket(ctx, cTicket, request.GetSchema())
+	if err != nil {
+		return nil, fmt.Errorf("error: creating ticket failed: %w", err)
+	}
+
+	return &v2.TicketsServiceCreateTicketResponse{
+		Ticket:      ticket,
+		Annotations: annos,
+	}, nil
+}
+
+func (b *builderImpl) GetTicket(ctx context.Context, request *v2.TicketsServiceGetTicketRequest) (*v2.TicketsServiceGetTicketResponse, error) {
+	if b.ticketManager == nil {
+		return nil, fmt.Errorf("error: ticket manager not implemented")
+	}
+
+	ticket, annos, err := b.ticketManager.GetTicket(ctx, request.GetId())
+	if err != nil {
+		return nil, fmt.Errorf("error: getting ticket failed: %w", err)
+	}
+
+	return &v2.TicketsServiceGetTicketResponse{
+		Ticket:      ticket,
+		Annotations: annos,
+	}, nil
+}
+
+func (b *builderImpl) GetTicketSchema(ctx context.Context, request *v2.TicketsServiceGetTicketSchemaRequest) (*v2.TicketsServiceGetTicketSchemaResponse, error) {
+	if b.ticketManager == nil {
+		return nil, fmt.Errorf("error: ticket manager not implemented")
+	}
+
+	ticketSchema, annos, err := b.ticketManager.GetTicketSchema(ctx, request.GetId())
+	if err != nil {
+		return nil, fmt.Errorf("error: getting ticket metadata failed: %w", err)
+	}
+
+	return &v2.TicketsServiceGetTicketSchemaResponse{
+		Schema:      ticketSchema,
+		Annotations: annos,
+	}, nil
 }
 
 // NewConnector creates a new ConnectorServer for a new resource.
@@ -89,10 +181,18 @@ func NewConnector(ctx context.Context, in interface{}) (types.ConnectorServer, e
 			accountManager:         nil,
 			credentialManagers:     make(map[string]CredentialManager),
 			cb:                     c,
+			ticketManager:          nil,
 		}
 
 		if b, ok := c.(EventProvider); ok {
 			ret.eventFeed = b
+		}
+
+		if ticketManager, ok := c.(TicketManager); ok {
+			if ret.ticketManager != nil {
+				return nil, fmt.Errorf("error: cannot set multiple ticket managers")
+			}
+			ret.ticketManager = ticketManager
 		}
 
 		for _, rb := range c.ResourceSyncers(ctx) {
@@ -188,6 +288,9 @@ func (b *builderImpl) ListResources(ctx context.Context, request *v2.ResourcesSe
 	if err != nil {
 		return nil, fmt.Errorf("error: listing resources failed: %w", err)
 	}
+	if request.PageToken != "" && request.PageToken == nextPageToken {
+		return nil, fmt.Errorf("error: listing resources failed: next page token is the same as the current page token. this is most likely a connector bug")
+	}
 
 	return &v2.ResourcesServiceListResourcesResponse{
 		List:          out,
@@ -209,6 +312,9 @@ func (b *builderImpl) ListEntitlements(ctx context.Context, request *v2.Entitlem
 	})
 	if err != nil {
 		return nil, fmt.Errorf("error: listing entitlements failed: %w", err)
+	}
+	if request.PageToken != "" && request.PageToken == nextPageToken {
+		return nil, fmt.Errorf("error: listing entitlements failed: next page token is the same as the current page token. this is most likely a connector bug")
 	}
 
 	return &v2.EntitlementsServiceListEntitlementsResponse{
@@ -232,6 +338,9 @@ func (b *builderImpl) ListGrants(ctx context.Context, request *v2.GrantsServiceL
 	if err != nil {
 		return nil, fmt.Errorf("error: listing grants failed: %w", err)
 	}
+	if request.PageToken != "" && request.PageToken == nextPageToken {
+		return nil, fmt.Errorf("error: listing grants failed: next page token is the same as the current page token. this is most likely a connector bug")
+	}
 
 	return &v2.GrantsServiceListGrantsResponse{
 		List:          out,
@@ -254,22 +363,45 @@ func (b *builderImpl) GetMetadata(ctx context.Context, request *v2.ConnectorServ
 
 // getCapabilities gets all capabilities for a connector.
 func getCapabilities(ctx context.Context, b *builderImpl) *v2.ConnectorCapabilities {
+	connectorCaps := make(map[v2.Capability]struct{})
 	resourceTypeCapabilities := []*v2.ResourceTypeCapability{}
 	for _, rb := range b.resourceBuilders {
 		resourceTypeCapability := &v2.ResourceTypeCapability{
 			ResourceType: rb.ResourceType(ctx),
 			// Currently by default all resource types support sync.
-			Capabilities: []v2.ResourceTypeCapability_Capability{v2.ResourceTypeCapability_CAPABILITY_SYNC},
+			Capabilities: []v2.Capability{v2.Capability_CAPABILITY_SYNC},
 		}
+		connectorCaps[v2.Capability_CAPABILITY_SYNC] = struct{}{}
 		if _, ok := rb.(ResourceProvisioner); ok {
-			resourceTypeCapability.Capabilities = append(resourceTypeCapability.Capabilities, v2.ResourceTypeCapability_CAPABILITY_PROVISION)
+			resourceTypeCapability.Capabilities = append(resourceTypeCapability.Capabilities, v2.Capability_CAPABILITY_PROVISION)
+			connectorCaps[v2.Capability_CAPABILITY_PROVISION] = struct{}{}
+		} else if _, ok = rb.(ResourceProvisionerV2); ok {
+			resourceTypeCapability.Capabilities = append(resourceTypeCapability.Capabilities, v2.Capability_CAPABILITY_PROVISION)
+			connectorCaps[v2.Capability_CAPABILITY_PROVISION] = struct{}{}
 		}
 		resourceTypeCapabilities = append(resourceTypeCapabilities, resourceTypeCapability)
 	}
 	sort.Slice(resourceTypeCapabilities, func(i, j int) bool {
 		return resourceTypeCapabilities[i].ResourceType.GetId() < resourceTypeCapabilities[j].ResourceType.GetId()
 	})
-	return &v2.ConnectorCapabilities{ResourceTypeCapabilities: resourceTypeCapabilities}
+
+	if b.eventFeed != nil {
+		connectorCaps[v2.Capability_CAPABILITY_EVENT_FEED] = struct{}{}
+	}
+
+	if b.ticketManager != nil {
+		connectorCaps[v2.Capability_CAPABILITY_TICKETING] = struct{}{}
+	}
+
+	var caps []v2.Capability
+	for c := range connectorCaps {
+		caps = append(caps, c)
+	}
+
+	return &v2.ConnectorCapabilities{
+		ResourceTypeCapabilities: resourceTypeCapabilities,
+		ConnectorCapabilities:    caps,
+	}
 }
 
 // Validate validates the connector.
@@ -406,21 +538,21 @@ func (b *builderImpl) RotateCredential(ctx context.Context, request *v2.RotateCr
 		return nil, status.Error(codes.Unimplemented, "resource type does not have credential manager configured")
 	}
 
-	plaintextCredentials, annos, err := manager.Rotate(ctx, request.GetResourceId(), request.GetCredentialOptions())
+	plaintexts, annos, err := manager.Rotate(ctx, request.GetResourceId(), request.GetCredentialOptions())
 	if err != nil {
 		l.Error("error: rotate credentials on resource failed", zap.Error(err))
 		return nil, fmt.Errorf("error: rotate credentials on resource failed: %w", err)
 	}
 
-	pkem, err := crypto.NewPubKeyEncryptionManager(request.GetCredentialOptions(), request.GetEncryptionConfigs())
+	pkem, err := crypto.NewEncryptionManager(request.GetCredentialOptions(), request.GetEncryptionConfigs())
 	if err != nil {
 		l.Error("error: creating encryption manager failed", zap.Error(err))
 		return nil, fmt.Errorf("error: creating encryption manager failed: %w", err)
 	}
 
 	var encryptedDatas []*v2.EncryptedData
-	for _, plaintextCredential := range plaintextCredentials {
-		encryptedData, err := pkem.Encrypt(plaintextCredential)
+	for _, plaintextCredential := range plaintexts {
+		encryptedData, err := pkem.Encrypt(ctx, plaintextCredential)
 		if err != nil {
 			return nil, err
 		}
@@ -440,21 +572,21 @@ func (b *builderImpl) CreateAccount(ctx context.Context, request *v2.CreateAccou
 		l.Error("error: connector does not have account manager configured")
 		return nil, status.Error(codes.Unimplemented, "connector does not have credential manager configured")
 	}
-	result, plaintextCredentials, annos, err := b.accountManager.CreateAccount(ctx, request.GetAccountInfo(), request.GetCredentialOptions())
+	result, plaintexts, annos, err := b.accountManager.CreateAccount(ctx, request.GetAccountInfo(), request.GetCredentialOptions())
 	if err != nil {
 		l.Error("error: create account failed", zap.Error(err))
 		return nil, fmt.Errorf("error: create account failed: %w", err)
 	}
 
-	pkem, err := crypto.NewPubKeyEncryptionManager(request.GetCredentialOptions(), request.GetEncryptionConfigs())
+	pkem, err := crypto.NewEncryptionManager(request.GetCredentialOptions(), request.GetEncryptionConfigs())
 	if err != nil {
 		l.Error("error: creating encryption manager failed", zap.Error(err))
 		return nil, fmt.Errorf("error: creating encryption manager failed: %w", err)
 	}
 
 	var encryptedDatas []*v2.EncryptedData
-	for _, plaintextCredential := range plaintextCredentials {
-		encryptedData, err := pkem.Encrypt(plaintextCredential)
+	for _, plaintextCredential := range plaintexts {
+		encryptedData, err := pkem.Encrypt(ctx, plaintextCredential)
 		if err != nil {
 			return nil, err
 		}

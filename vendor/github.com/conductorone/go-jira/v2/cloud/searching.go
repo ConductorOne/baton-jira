@@ -1,6 +1,9 @@
 package cloud
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type (
 	searchParam struct {
@@ -12,6 +15,13 @@ type (
 
 	searchF func(search) search
 )
+
+func WithExpand(expands ...string) searchF {
+	return func(s search) search {
+		s = append(s, searchParam{name: "expand", value: strings.Join(expands, ",")})
+		return s
+	}
+}
 
 // WithMaxResults sets the max results to return
 func WithMaxResults(maxResults int) searchF {

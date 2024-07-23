@@ -28,7 +28,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		return nil, "", nil, err
 	}
 
-	projects, _, err := j.client.Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
+	projects, _, err := j.client.Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize), jira.WithExpand("issueTypes"))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}

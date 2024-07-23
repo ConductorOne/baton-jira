@@ -46,3 +46,17 @@ func WithUsername(username string) searchF {
 		return s
 	}
 }
+
+func WithProjectId(projectId string) searchF {
+	return func(s search) search {
+		s = append(s, searchParam{name: "projectId", value: projectId})
+		return s
+	}
+}
+
+func WithStatusCategory(statusCategory string) searchF {
+	return func(s search) search {
+		s = append(s, searchParam{name: "statusCategory", value: statusCategory})
+		return s
+	}
+}

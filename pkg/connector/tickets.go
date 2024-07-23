@@ -66,12 +66,15 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	return ret, nextPageToken, nil, nil
 }
 
-func (j *Jira) getTicketStatuses(ctx context.Context) ([]*v2.TicketStatus, error) {
+func (j *Jira) getTicketStatuses(ctx context.Context, projectId string) ([]*v2.TicketStatus, error) {
 	if j.ticketStatuses != nil {
 		return j.ticketStatuses, nil
 	}
 
-	statuses, _, err := j.client.Status.GetAllStatuses(ctx)
+	statuses, _, err := j.client.Status.SearchStatusesPaginated(ctx,
+		jira.WithProjectId(projectId),
+		jira.WithStatusCategory("DONE"),
+		jira.WithMaxResults(100))
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +82,7 @@ func (j *Jira) getTicketStatuses(ctx context.Context) ([]*v2.TicketStatus, error
 	ret := make([]*v2.TicketStatus, 0, len(statuses))
 	for _, status := range statuses {
 		ret = append(ret, &v2.TicketStatus{
-			Id:          status.ID,
+			Id:          status.Id,
 			DisplayName: status.Name,
 		})
 	}
@@ -140,7 +143,7 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 		CustomFields: customFields,
 	}
 
-	statuses, err := j.getTicketStatuses(ctx)
+	statuses, err := j.getTicketStatuses(ctx, project.ID)
 	if err != nil {
 		return nil, err
 	}

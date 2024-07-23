@@ -37,7 +37,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 
 	offset := 0
 	// get offset from page token if its not empty
-	if p != nil {
+	if p != nil && p.Token != "" {
 		var err error
 		offset, err = strconv.Atoi(p.Token)
 		if err != nil {

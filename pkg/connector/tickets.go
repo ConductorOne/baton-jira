@@ -20,6 +20,17 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
+type TicketManager interface {
+	GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, annotations.Annotations, error)
+	CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error)
+	GetTicketSchema(ctx context.Context, schemaID string) (*v2.TicketSchema, annotations.Annotations, error)
+	ListTicketSchemas(ctx context.Context, pToken *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error)
+}
+
+func ticketBuilder(j *Jira) TicketManager {
+	return j
+}
+
 func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error) {
 	var ret []*v2.TicketSchema
 

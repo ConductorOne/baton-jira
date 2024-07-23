@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"strconv"
 	"time"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -34,18 +35,19 @@ func ticketBuilder(j *Jira) TicketManager {
 func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error) {
 	var ret []*v2.TicketSchema
 
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
-	if err != nil {
-		return nil, "", nil, err
+	offset := 0
+	// get offset from page token if its not empty
+	if p != nil {
+		var err error
+		offset, err = strconv.Atoi(p.Token)
+		if err != nil {
+			return nil, "", nil, err
+		}
 	}
 
-	projects, _, err := j.client.Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize), jira.WithExpand("issueTypes"))
+	projects, _, err := j.client.Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects")
-	}
-
-	if len(projects) == 0 {
-		return nil, "", nil, errors.New("no projects found")
 	}
 
 	for _, project := range projects {
@@ -55,12 +57,13 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 		ret = append(ret, schema)
 	}
-	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
-	if err != nil {
-		return nil, "", nil, err
+
+	nextPageToken := ""
+	if len(ret) > 1 {
+		nextPageToken = fmt.Sprintf("%d", offset+len(ret))
 	}
 
-	return ret, nextPage, nil, nil
+	return ret, nextPageToken, nil, nil
 }
 
 func (j *Jira) getTicketStatuses(ctx context.Context) ([]*v2.TicketStatus, error) {

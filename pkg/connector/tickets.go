@@ -73,7 +73,6 @@ func (j *Jira) getTicketStatuses(ctx context.Context, projectId string) ([]*v2.T
 
 	statuses, _, err := j.client.Status.SearchStatusesPaginated(ctx,
 		jira.WithProjectId(projectId),
-		jira.WithStatusCategory("DONE"),
 		jira.WithMaxResults(100))
 	if err != nil {
 		return nil, err

@@ -2,7 +2,6 @@ package connector
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -32,7 +31,7 @@ func ticketBuilder(j *Jira) TicketManager {
 	return j
 }
 
-func getJiraStatuses(ctx context.Context, client *jira.Client) ([]jira.JiraStatus, error) {
+func getJiraStatusesForProject(ctx context.Context, client *jira.Client, projectId string) ([]jira.JiraStatus, error) {
 	var jiraStatuses []jira.JiraStatus
 	statusOffset := 0
 	statusMaxResults := 100
@@ -43,7 +42,8 @@ func getJiraStatuses(ctx context.Context, client *jira.Client) ([]jira.JiraStatu
 			jira.WithExpand("usages"),
 			jira.WithStartAt(statusOffset),
 			jira.WithMaxResults(statusOffset+statusMaxResults),
-			jira.WithStatusCategory("DONE"))
+			jira.WithStatusCategory("DONE"),
+			jira.WithProjectId(projectId))
 		if err != nil {
 			return nil, err
 		}
@@ -70,18 +70,13 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 	}
 
-	jiraStatuses, err := getJiraStatuses(ctx, j.client)
-	if err != nil {
-		return nil, "", nil, err
-	}
-
 	projects, _, err := j.client.Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}
 
 	for _, project := range projects {
-		schema, err := j.schemaForProject(ctx, project, jiraStatuses)
+		schema, err := j.schemaForProject(ctx, project)
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -121,7 +116,7 @@ func (j *Jira) getTicketStatuses(ctx context.Context, projectId string, statuses
 	return ret, nil
 }
 
-func (j *Jira) schemaForProject(ctx context.Context, project jira.Project, jiraStatuses []jira.JiraStatus) (*v2.TicketSchema, error) {
+func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.TicketSchema, error) {
 	var ticketTypes []*v2.TicketType
 	customFields := make(map[string]*v2.TicketCustomField)
 
@@ -172,6 +167,11 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project, jiraS
 		CustomFields: customFields,
 	}
 
+	jiraStatuses, err := getJiraStatusesForProject(ctx, j.client, project.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	// iterate through statues, if global or done or projectId
 	statuses, err := j.getTicketStatuses(ctx, project.ID, jiraStatuses)
 	if err != nil {
@@ -189,17 +189,12 @@ func (j *Jira) GetTicketSchema(ctx context.Context, schemaID string) (*v2.Ticket
 		return schema, nil, nil
 	}
 
-	jiraStatuses, err := getJiraStatuses(ctx, j.client)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	project, _, err := j.client.Project.Get(ctx, schemaID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	ret, err := j.schemaForProject(ctx, *project, jiraStatuses)
+	ret, err := j.schemaForProject(ctx, *project)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -450,8 +445,6 @@ func (j *Jira) createIssue(ctx context.Context, projectID string, summary string
 			Name: "Task",
 		}
 	}
-	issue_str, _ := json.Marshal(i)
-	fmt.Printf("\n\n@btipling json: %s \n\n", issue_str)
 	issue, _, err := j.client.Issue.Create(ctx, i)
 	if err != nil {
 		l.Error("error creating issue", zap.Error(err))

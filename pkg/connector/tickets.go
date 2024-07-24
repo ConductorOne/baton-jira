@@ -27,10 +27,6 @@ type TicketManager interface {
 	ListTicketSchemas(ctx context.Context, pToken *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error)
 }
 
-func ticketBuilder(j *Jira) TicketManager {
-	return j
-}
-
 func getJiraStatusesForProject(ctx context.Context, client *jira.Client, projectId string) ([]jira.JiraStatus, error) {
 	var jiraStatuses []jira.JiraStatus
 	statusOffset := 0

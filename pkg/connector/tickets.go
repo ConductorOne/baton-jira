@@ -32,6 +32,31 @@ func ticketBuilder(j *Jira) TicketManager {
 	return j
 }
 
+func getJiraStatuses(ctx context.Context, client *jira.Client) ([]jira.JiraStatus, error) {
+	var jiraStatuses []jira.JiraStatus
+	statusOffset := 0
+	statusMaxResults := 100
+
+	for {
+		// Fetch statuses here and pass in to schemaForProject
+		statuses, resp, err := client.Status.SearchStatusesPaginated(ctx,
+			jira.WithExpand("usages"),
+			jira.WithStartAt(statusOffset),
+			jira.WithMaxResults(statusOffset+statusMaxResults),
+			jira.WithStatusCategory("done"))
+		if err != nil {
+			return nil, err
+		}
+		jiraStatuses = append(jiraStatuses, statuses...)
+		if resp.Total == 0 {
+			break
+		}
+		statusOffset += resp.Total
+	}
+
+	return jiraStatuses, nil
+}
+
 func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error) {
 	var ret []*v2.TicketSchema
 
@@ -45,13 +70,18 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 	}
 
+	jiraStatuses, err := getJiraStatuses(ctx, j.client)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
 	projects, _, err := j.client.Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}
 
 	for _, project := range projects {
-		schema, err := j.schemaForProject(ctx, project)
+		schema, err := j.schemaForProject(ctx, project, jiraStatuses)
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -66,38 +96,31 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	return ret, nextPageToken, nil, nil
 }
 
-func (j *Jira) getTicketStatuses(ctx context.Context, projectId string) ([]*v2.TicketStatus, error) {
-	if j.ticketStatuses != nil {
-		return j.ticketStatuses, nil
-	}
-
-	statuses, _, err := j.client.Status.GetAllStatuses(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+func (j *Jira) getTicketStatuses(ctx context.Context, projectId string, statuses []jira.JiraStatus) ([]*v2.TicketStatus, error) {
 	// filter statuses by project id
-	var filteredStatuses []jira.Status
+	var filteredStatuses []jira.JiraStatus
 	for _, status := range statuses {
-		if status.Scope != nil && status.Scope.Project != nil && status.Scope.Project.Id == projectId {
-			filteredStatuses = append(filteredStatuses, status)
+		if len(status.Usages) > 0 {
+			for _, usage := range status.Usages {
+				if usage.Project != nil && usage.Project.Id == projectId || (status.Scope != nil && status.Scope.Type == "GLOBAL") {
+					filteredStatuses = append(filteredStatuses, status)
+				}
+			}
 		}
 	}
 
 	ret := make([]*v2.TicketStatus, 0, len(filteredStatuses))
 	for _, status := range filteredStatuses {
 		ret = append(ret, &v2.TicketStatus{
-			Id:          status.ID,
+			Id:          status.Id,
 			DisplayName: status.Name,
 		})
 	}
 
-	j.ticketStatuses = ret
-
 	return ret, nil
 }
 
-func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.TicketSchema, error) {
+func (j *Jira) schemaForProject(ctx context.Context, project jira.Project, jiraStatuses []jira.JiraStatus) (*v2.TicketSchema, error) {
 	var ticketTypes []*v2.TicketType
 	customFields := make(map[string]*v2.TicketCustomField)
 
@@ -148,7 +171,8 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 		CustomFields: customFields,
 	}
 
-	statuses, err := j.getTicketStatuses(ctx, project.ID)
+	// iterate through statues, if global or done or projectId
+	statuses, err := j.getTicketStatuses(ctx, project.ID, jiraStatuses)
 	if err != nil {
 		return nil, err
 	}
@@ -164,12 +188,17 @@ func (j *Jira) GetTicketSchema(ctx context.Context, schemaID string) (*v2.Ticket
 		return schema, nil, nil
 	}
 
+	jiraStatuses, err := getJiraStatuses(ctx, j.client)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	project, _, err := j.client.Project.Get(ctx, schemaID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	ret, err := j.schemaForProject(ctx, *project)
+	ret, err := j.schemaForProject(ctx, *project, jiraStatuses)
 	if err != nil {
 		return nil, nil, err
 	}

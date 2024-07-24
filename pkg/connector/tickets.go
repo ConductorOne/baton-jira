@@ -43,7 +43,7 @@ func getJiraStatuses(ctx context.Context, client *jira.Client) ([]jira.JiraStatu
 			jira.WithExpand("usages"),
 			jira.WithStartAt(statusOffset),
 			jira.WithMaxResults(statusOffset+statusMaxResults),
-			jira.WithStatusCategory("done"))
+			jira.WithStatusCategory("DONE"))
 		if err != nil {
 			return nil, err
 		}

@@ -79,7 +79,7 @@ func (j *Jira) getTicketStatuses(ctx context.Context, projectId string) ([]*v2.T
 	// filter statuses by project id
 	var filteredStatuses []jira.Status
 	for _, status := range statuses {
-		if status.Scope.Project.Id == projectId {
+		if status.Scope != nil && status.Scope.Project != nil && status.Scope.Project.Id == projectId {
 			filteredStatuses = append(filteredStatuses, status)
 		}
 	}

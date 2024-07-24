@@ -71,17 +71,23 @@ func (j *Jira) getTicketStatuses(ctx context.Context, projectId string) ([]*v2.T
 		return j.ticketStatuses, nil
 	}
 
-	statuses, _, err := j.client.Status.SearchStatusesPaginated(ctx,
-		jira.WithProjectId(projectId),
-		jira.WithMaxResults(100))
+	statuses, _, err := j.client.Status.GetAllStatuses(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	ret := make([]*v2.TicketStatus, 0, len(statuses))
+	// filter statuses by project id
+	var filteredStatuses []jira.Status
 	for _, status := range statuses {
+		if status.Scope.Project.Id == projectId {
+			filteredStatuses = append(filteredStatuses, status)
+		}
+	}
+
+	ret := make([]*v2.TicketStatus, 0, len(filteredStatuses))
+	for _, status := range filteredStatuses {
 		ret = append(ret, &v2.TicketStatus{
-			Id:          status.Id,
+			Id:          status.ID,
 			DisplayName: status.Name,
 		})
 	}

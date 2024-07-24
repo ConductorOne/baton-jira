@@ -2,8 +2,8 @@ package cloud
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"net/url"
 )
 
 // StatusService handles staties for the Jira instance / API.
@@ -21,7 +21,7 @@ type Status struct {
 	Name           string         `json:"name" structs:"name"`
 	ID             string         `json:"id" structs:"id"`
 	StatusCategory StatusCategory `json:"statusCategory" structs:"statusCategory"`
-	Scope          *Scope         `json:"scope" structs:"scope"`
+	Scope          Scope          `json:"scope" structs:"scope"`
 }
 
 type JiraStatus struct {
@@ -94,13 +94,13 @@ func (s *StatusService) SearchStatusesPaginated(ctx context.Context, tweaks ...s
 		search = f(search)
 	}
 
-	queryString := ""
+	params := url.Values{}
 	for _, param := range search {
-		queryString += fmt.Sprintf("%s=%s&", param.name, param.value)
+		params.Set(param.name, param.value)
 	}
 
-	if queryString != "" {
-		apiEndpoint += "?" + queryString
+	if len(params) > 0 {
+		apiEndpoint += "?" + params.Encode()
 	}
 
 	req, err := s.client.NewRequest(ctx, http.MethodGet, apiEndpoint, nil)

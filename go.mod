@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/conductorone/baton-sdk v0.1.39-0.20240530205352-74438ef2cb4b
-	github.com/conductorone/go-jira/v2 v2.0.0-20240724000626-94926e0c13c4
+	github.com/conductorone/go-jira/v2 v2.0.0-20240724221807-6d049e81cbc6
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	go.uber.org/zap v1.27.0
 )

@@ -11,9 +11,8 @@ import (
 
 type (
 	Jira struct {
-		client         *jira.Client
-		ticketSchemas  map[string]*v2.TicketSchema
-		ticketStatuses []*v2.TicketStatus
+		client        *jira.Client
+		ticketSchemas map[string]*v2.TicketSchema
 	}
 
 	JiraBuilder interface {

@@ -104,6 +104,7 @@ func (j *Jira) getTicketStatuses(ctx context.Context, projectId string, statuses
 			for _, usage := range status.Usages {
 				if usage.Project != nil && usage.Project.Id == projectId || (status.Scope != nil && status.Scope.Type == "GLOBAL") {
 					filteredStatuses = append(filteredStatuses, status)
+					break
 				}
 			}
 		}

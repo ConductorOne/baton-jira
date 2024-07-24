@@ -21,6 +21,7 @@ type Status struct {
 	Name           string         `json:"name" structs:"name"`
 	ID             string         `json:"id" structs:"id"`
 	StatusCategory StatusCategory `json:"statusCategory" structs:"statusCategory"`
+	Scope          Scope          `json:"scope" structs:"scope"`
 }
 
 type JiraStatus struct {

@@ -181,7 +181,7 @@ github.com/conductorone/baton-sdk/pkg/ugrpc
 github.com/conductorone/baton-sdk/pkg/uhttp
 github.com/conductorone/baton-sdk/pkg/us3
 github.com/conductorone/baton-sdk/pkg/utls
-# github.com/conductorone/go-jira/v2 v2.0.0-20240723193435-8ed7ed0f7978
+# github.com/conductorone/go-jira/v2 v2.0.0-20240724000626-94926e0c13c4
 ## explicit; go 1.22
 github.com/conductorone/go-jira/v2/cloud
 # github.com/doug-martin/goqu/v9 v9.19.0

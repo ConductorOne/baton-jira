@@ -272,14 +272,6 @@ func (j *Jira) issueToTicket(ctx context.Context, issue *jira.Issue) (*v2.Ticket
 	}
 	ret.CustomFields = retCustomFields
 
-	valid, err := sdkTicket.ValidateTicket(ctx, schema, ret)
-	if err != nil {
-		return nil, err
-	}
-	if !valid {
-		return nil, errors.New("ticket is invalid")
-	}
-
 	return ret, nil
 }
 

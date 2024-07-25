@@ -67,7 +67,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 	}
 
-	projects, _, err := j.client.Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"))
+	projects, resp, err := j.client.Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}
@@ -81,7 +81,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	}
 
 	nextPageToken := ""
-	if len(ret) > 1 {
+	if offset < resp.Total {
 		nextPageToken = fmt.Sprintf("%d", offset+len(ret))
 	}
 

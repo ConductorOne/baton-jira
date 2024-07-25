@@ -288,6 +288,7 @@ func (j *Jira) GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, anno
 // This is returning nil for annotations.
 func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error) {
 	ticketOptions := []FieldOption{
+		WithStatus(ticket.GetStatus().GetId()),
 		WithType(ticket.GetType().GetId()),
 		WithDescription(ticket.GetDescription()),
 		WithLabels(ticket.GetLabels()...),
@@ -325,7 +326,17 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 				componentIDs = append(componentIDs, component.GetId())
 			}
 			ticketOptions = append(ticketOptions, WithComponents(componentIDs...))
+		case "issue_type":
+			issueType, err := sdkTicket.GetPickObjectValue(ticketFields[id])
+			if err != nil {
+				return nil, nil, err
+			}
 
+			if issueType.GetId() == "" {
+				return nil, nil, errors.New("error: unable to create ticket, issue type is required")
+			}
+
+			ticketOptions = append(ticketOptions, WithType(issueType.GetId()))
 		default:
 			val, err := sdkTicket.GetCustomFieldValue(ticketFields[id])
 			if err != nil {

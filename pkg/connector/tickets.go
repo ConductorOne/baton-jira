@@ -288,7 +288,6 @@ func (j *Jira) GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, anno
 // This is returning nil for annotations.
 func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error) {
 	ticketOptions := []FieldOption{
-		WithStatus(ticket.GetStatus().GetId()),
 		WithType(ticket.GetType().GetId()),
 		WithDescription(ticket.GetDescription()),
 		WithLabels(ticket.GetLabels()...),

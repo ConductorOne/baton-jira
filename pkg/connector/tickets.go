@@ -45,11 +45,10 @@ func getJiraStatusesForProject(ctx context.Context, client *jira.Client, project
 
 		jiraStatuses = append(jiraStatuses, statuses...)
 
-		totalGot := statusOffset + resp.MaxResults
-		if totalGot >= resp.Total {
+		if statusOffset >= resp.Total {
 			break
 		}
-		statusOffset += resp.Total
+		statusOffset += resp.MaxResults
 	}
 
 	return jiraStatuses, nil

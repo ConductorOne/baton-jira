@@ -6,10 +6,12 @@ import (
 	"os"
 
 	"github.com/conductorone/baton-jira/pkg/connector"
-	"github.com/conductorone/baton-sdk/pkg/cli"
+	configSchema "github.com/conductorone/baton-sdk/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
+	"github.com/conductorone/baton-sdk/pkg/field"
 	"github.com/conductorone/baton-sdk/pkg/types"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -18,15 +20,13 @@ var version = "dev"
 func main() {
 	ctx := context.Background()
 
-	cfg := &config{}
-	cmd, err := cli.NewCmd(ctx, "baton-jira", cfg, validateConfig, getConnector)
+	_, cmd, err := configSchema.DefineConfiguration(ctx, "baton-jira", getConnector, field.NewConfiguration(configurationFields))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
 	cmd.Version = version
-	cmdFlags(cmd)
 
 	err = cmd.Execute()
 	if err != nil {
@@ -35,15 +35,15 @@ func main() {
 	}
 }
 
-func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, error) {
+func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 
 	builder := connector.JiraBasicAuthBuilder{
 		Base: &connector.JiraOptions{
-			Url: cfg.JiraUrl,
+			Url: v.GetString("jira-url"),
 		},
-		Username: cfg.Email,
-		ApiToken: cfg.ApiToken,
+		Username: v.GetString("jira-email"),
+		ApiToken: v.GetString("jira-api-token"),
 	}
 
 	jiraConnector, err := builder.New()
@@ -52,7 +52,12 @@ func getConnector(ctx context.Context, cfg *config) (types.ConnectorServer, erro
 		return nil, err
 	}
 
-	c, err := connectorbuilder.NewConnector(ctx, jiraConnector)
+	opts := make([]connectorbuilder.Opt, 0)
+	if v.GetBool(field.TicketingField.FieldName) {
+		opts = append(opts, connectorbuilder.WithTicketingEnabled())
+	}
+
+	c, err := connectorbuilder.NewConnector(ctx, jiraConnector, opts...)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

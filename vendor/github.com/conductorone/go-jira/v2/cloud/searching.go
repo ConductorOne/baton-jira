@@ -1,6 +1,9 @@
 package cloud
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type (
 	searchParam struct {
@@ -12,6 +15,13 @@ type (
 
 	searchF func(search) search
 )
+
+func WithExpand(expands ...string) searchF {
+	return func(s search) search {
+		s = append(s, searchParam{name: "expand", value: strings.Join(expands, ",")})
+		return s
+	}
+}
 
 // WithMaxResults sets the max results to return
 func WithMaxResults(maxResults int) searchF {
@@ -33,6 +43,20 @@ func WithAccountId(accountId string) searchF {
 func WithUsername(username string) searchF {
 	return func(s search) search {
 		s = append(s, searchParam{name: "username", value: username})
+		return s
+	}
+}
+
+func WithProjectId(projectId string) searchF {
+	return func(s search) search {
+		s = append(s, searchParam{name: "projectId", value: projectId})
+		return s
+	}
+}
+
+func WithStatusCategory(statusCategory string) searchF {
+	return func(s search) search {
+		s = append(s, searchParam{name: "statusCategory", value: statusCategory})
 		return s
 	}
 }

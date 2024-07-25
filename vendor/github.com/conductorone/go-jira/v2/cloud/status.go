@@ -3,6 +3,7 @@ package cloud
 import (
 	"context"
 	"net/http"
+	"net/url"
 )
 
 // StatusService handles staties for the Jira instance / API.
@@ -20,6 +21,46 @@ type Status struct {
 	Name           string         `json:"name" structs:"name"`
 	ID             string         `json:"id" structs:"id"`
 	StatusCategory StatusCategory `json:"statusCategory" structs:"statusCategory"`
+	Scope          Scope          `json:"scope" structs:"scope"`
+}
+
+type JiraStatus struct {
+	Description    string           `json:"description"`
+	Id             string           `json:"id"`
+	Name           string           `json:"name"`
+	StatusCategory string           `json:"statusCategory"`
+	Scope          *Scope           `json:"scope"`
+	Usages         []*Usage         `json:"usages"`
+	WorkflowUsages []*WorkflowUsage `json:"workflowUsages"`
+}
+
+type Scope struct {
+	Project *ProjectId `json:"project"`
+	Type    string     `json:"type"`
+}
+
+type Usage struct {
+	IssueTypes []string   `json:"issueTypes"`
+	Project    *ProjectId `json:"project"`
+}
+
+type ProjectId struct {
+	Id string `json:"id"`
+}
+
+type WorkflowUsage struct {
+	WorkflowId   string `json:"workflowId"`
+	WorkflowName string `json:"workflowName"`
+}
+
+type searchStatusResponse struct {
+	MaxResults int          `json:"maxResults,omitempty" structs:"maxResults,omitempty"`
+	Self       string       `json:"self,omitempty" structs:"self,omitempty"`
+	NextPage   string       `json:"nextPage,omitempty" structs:"nextPage,omitempty"`
+	StartAt    int          `json:"startAt,omitempty" structs:"startAt,omitempty"`
+	Total      int          `json:"total,omitempty" structs:"total,omitempty"`
+	IsLast     bool         `json:"isLast,omitempty" structs:"isLast,omitempty"`
+	Values     []JiraStatus `json:"values,omitempty" structs:"values,omitempty"`
 }
 
 // GetAllStatuses returns a list of all statuses associated with workflows.
@@ -43,4 +84,35 @@ func (s *StatusService) GetAllStatuses(ctx context.Context) ([]Status, *Response
 	}
 
 	return statusList, resp, nil
+}
+
+func (s *StatusService) SearchStatusesPaginated(ctx context.Context, tweaks ...searchF) ([]JiraStatus, *Response, error) {
+	apiEndpoint := "rest/api/3/statuses/search"
+
+	search := []searchParam{}
+	for _, f := range tweaks {
+		search = f(search)
+	}
+
+	params := url.Values{}
+	for _, param := range search {
+		params.Set(param.name, param.value)
+	}
+
+	if len(params) > 0 {
+		apiEndpoint += "?" + params.Encode()
+	}
+
+	req, err := s.client.NewRequest(ctx, http.MethodGet, apiEndpoint, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	response := new(searchStatusResponse)
+	resp, err := s.client.Do(req, response)
+	if err != nil {
+		return nil, resp, NewJiraError(resp, err)
+	}
+
+	return response.Values, resp, nil
 }

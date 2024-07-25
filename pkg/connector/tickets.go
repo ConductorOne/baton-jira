@@ -36,7 +36,7 @@ func getJiraStatusesForProject(ctx context.Context, client *jira.Client, project
 		// Fetch statuses here and pass in to schemaForProject
 		statuses, resp, err := client.Status.SearchStatusesPaginated(ctx,
 			jira.WithStartAt(statusOffset),
-			jira.WithMaxResults(statusOffset+statusMaxResults),
+			jira.WithMaxResults(statusMaxResults),
 			jira.WithStatusCategory("DONE"),
 			jira.WithProjectId(projectId))
 		if err != nil {
@@ -45,10 +45,10 @@ func getJiraStatusesForProject(ctx context.Context, client *jira.Client, project
 
 		jiraStatuses = append(jiraStatuses, statuses...)
 
+		statusOffset += resp.MaxResults
 		if statusOffset >= resp.Total {
 			break
 		}
-		statusOffset += resp.MaxResults
 	}
 
 	return jiraStatuses, nil
@@ -329,10 +329,6 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 			issueType, err := sdkTicket.GetPickObjectValue(ticketFields[id])
 			if err != nil {
 				return nil, nil, err
-			}
-
-			if issueType.GetId() == "" {
-				return nil, nil, errors.New("error: unable to create ticket, issue type is required")
 			}
 
 			ticketOptions = append(ticketOptions, WithType(issueType.GetId()))

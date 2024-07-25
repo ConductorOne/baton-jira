@@ -42,8 +42,11 @@ func getJiraStatusesForProject(ctx context.Context, client *jira.Client, project
 		if err != nil {
 			return nil, err
 		}
+
 		jiraStatuses = append(jiraStatuses, statuses...)
-		if resp.Total == 0 {
+
+		totalGot := statusOffset + resp.MaxResults
+		if totalGot >= resp.Total {
 			break
 		}
 		statusOffset += resp.Total
@@ -86,17 +89,9 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	return ret, nextPageToken, nil, nil
 }
 
-func (j *Jira) getTicketStatuses(ctx context.Context, projectId string, statuses []jira.JiraStatus) ([]*v2.TicketStatus, error) {
-	// filter statuses by project id
-	var filteredStatuses []jira.JiraStatus
+func (j *Jira) getTicketStatuses(statuses []jira.JiraStatus) ([]*v2.TicketStatus, error) {
+	ret := make([]*v2.TicketStatus, 0, len(statuses))
 	for _, status := range statuses {
-		if status.Scope != nil && status.Scope.Project == nil && status.Scope.Project.Id == projectId {
-			filteredStatuses = append(filteredStatuses, status)
-		}
-	}
-
-	ret := make([]*v2.TicketStatus, 0, len(filteredStatuses))
-	for _, status := range filteredStatuses {
 		ret = append(ret, &v2.TicketStatus{
 			Id:          status.Id,
 			DisplayName: status.Name,
@@ -108,6 +103,8 @@ func (j *Jira) getTicketStatuses(ctx context.Context, projectId string, statuses
 
 func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.TicketSchema, error) {
 	var ticketTypes []*v2.TicketType
+	var issueTypeAllowedValues []*v2.TicketCustomFieldObjectValue
+
 	customFields := make(map[string]*v2.TicketCustomField)
 
 	var components []*v2.TicketCustomFieldObjectValue
@@ -119,6 +116,10 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 				Id:          issueType.ID,
 				DisplayName: issueType.Name,
 			})
+			issueTypeAllowedValues = append(issueTypeAllowedValues, &v2.TicketCustomFieldObjectValue{
+				Id:          issueType.ID,
+				DisplayName: issueType.Name,
+			})
 		}
 	}
 	for _, component := range project.Components {
@@ -127,6 +128,13 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 			DisplayName: component.Name,
 		})
 	}
+
+	customFields["issue_type"] = sdkTicket.PickObjectValueFieldSchema(
+		"issue_type",
+		"Issue Type",
+		true,
+		issueTypeAllowedValues,
+	)
 
 	// Add a required field for the project
 	customFields["project"] = sdkTicket.PickObjectValueFieldSchema(
@@ -163,22 +171,16 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 	}
 
 	// iterate through statues, if global or done or projectId
-	statuses, err := j.getTicketStatuses(ctx, project.ID, jiraStatuses)
+	statuses, err := j.getTicketStatuses(jiraStatuses)
 	if err != nil {
 		return nil, err
 	}
 	ret.Statuses = statuses
 
-	j.ticketSchemas[project.Key] = ret
-
 	return ret, nil
 }
 
 func (j *Jira) GetTicketSchema(ctx context.Context, schemaID string) (*v2.TicketSchema, annotations.Annotations, error) {
-	if schema, ok := j.ticketSchemas[schemaID]; ok {
-		return schema, nil, nil
-	}
-
 	project, _, err := j.client.Project.Get(ctx, schemaID)
 	if err != nil {
 		return nil, nil, err
@@ -253,6 +255,11 @@ func (j *Jira) issueToTicket(ctx context.Context, issue *jira.Issue) (*v2.Ticket
 				})
 			}
 			retCustomFields[id] = sdkTicket.PickMultipleObjectValuesField(cf.GetId(), components)
+		case "issue_type":
+			retCustomFields[id] = sdkTicket.PickObjectValueField(cf.GetId(), &v2.TicketCustomFieldObjectValue{
+				Id:          issue.Fields.Type.ID,
+				DisplayName: issue.Fields.Type.Name,
+			})
 		}
 	}
 	ret.CustomFields = retCustomFields
@@ -281,7 +288,7 @@ func (j *Jira) GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, anno
 // This is returning nil for annotations.
 func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error) {
 	ticketOptions := []FieldOption{
-		// WithStatus(ticket.GetStatus().GetId()),
+		WithStatus(ticket.GetStatus().GetId()),
 		WithType(ticket.GetType().GetId()),
 		WithDescription(ticket.GetDescription()),
 		WithLabels(ticket.GetLabels()...),

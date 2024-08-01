@@ -68,6 +68,8 @@ func (s *IssueService) GetCreateMeta(ctx context.Context, options *GetQueryOptio
 		req.URL.RawQuery = q.Encode()
 	}
 
+	fmt.Printf("url %s", req.URL.String())
+
 	meta := new(CreateMetaInfo)
 	resp, err := s.client.Do(req, meta)
 

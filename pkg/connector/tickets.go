@@ -126,10 +126,12 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string)
 		case model.TypeString:
 			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 		case model.TypeArray:
-			if isMultiSelect {
+			if isMultiSelect && hasAllowedValues {
 				customField = sdkTicket.PickMultipleObjectValuesFieldSchema(id, field.Name, false, allowedValues)
-			} else if hasAllowedValues {
+			} else if !isMultiSelect && hasAllowedValues {
 				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
+			} else if isMultiSelect && !hasAllowedValues {
+				customField = sdkTicket.StringsFieldSchema(id, field.Name, false)
 			} else {
 				customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 			}
@@ -137,7 +139,7 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string)
 			customField = sdkTicket.TimestampFieldSchema(id, field.Name, false)
 		case model.TypeNumber:
 			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
-		case model.TypeObject, model.TypeGroup, model.TypeUser:
+		case model.TypeObject, model.TypeGroup, model.TypeUser, model.TypeOption:
 			if hasAllowedValues {
 				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
 			} else {

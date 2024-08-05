@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	model "github.com/conductorone/baton-jira/pkg/model"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
@@ -57,12 +56,12 @@ func (j *Jira) getJiraStatusesForProject(ctx context.Context, projectId string) 
 	return jiraStatuses, nil
 }
 
-func (j *Jira) constructMetaDataFields(issues []*jira.MetaIssueType) (map[string]model.MetaDataFields, error) {
-	fieldsMap := make(map[string]model.MetaDataFields)
+func (j *Jira) constructMetaDataFields(issues []*jira.MetaIssueType) (map[string]jira.MetaDataFields, error) {
+	fieldsMap := make(map[string]jira.MetaDataFields)
 
 	for _, issueType := range issues {
 		for key, field := range issueType.Fields {
-			var metaDataField model.MetaDataFields
+			var metaDataField jira.MetaDataFields
 
 			jsonData, err := json.Marshal(field)
 			if err != nil {
@@ -125,9 +124,9 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string,
 		id := field.Key
 
 		switch field.Schema.Type {
-		case model.TypeString:
+		case jira.TypeString:
 			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
-		case model.TypeArray:
+		case jira.TypeArray:
 			switch {
 			case isMultiSelect && hasAllowedValues:
 				customField = sdkTicket.PickMultipleObjectValuesFieldSchema(id, field.Name, false, allowedValues)
@@ -138,11 +137,11 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string,
 			default:
 				customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 			}
-		case model.TypeDate, model.TypeDateTime:
+		case jira.TypeDate, jira.TypeDateTime:
 			customField = sdkTicket.TimestampFieldSchema(id, field.Name, false)
-		case model.TypeNumber:
+		case jira.TypeNumber:
 			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
-		case model.TypeObject, model.TypeGroup, model.TypeUser, model.TypeOption:
+		case jira.TypeObject, jira.TypeGroup, jira.TypeUser, jira.TypeOption:
 			if hasAllowedValues {
 				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
 			} else {

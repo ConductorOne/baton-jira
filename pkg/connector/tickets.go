@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	model "github.com/conductorone/baton-jira/pkg/model"
@@ -61,9 +62,6 @@ func (j *Jira) constructMetaDataFields(issues []*jira.MetaIssueType) (map[string
 
 	for _, issueType := range issues {
 		for key, field := range issueType.Fields {
-			if issueType.Name == "Epic" || issueType.Name == "Bug" {
-				continue
-			}
 			var metaDataField model.MetaDataFields
 
 			jsonData, err := json.Marshal(field)
@@ -83,10 +81,11 @@ func (j *Jira) constructMetaDataFields(issues []*jira.MetaIssueType) (map[string
 	return fieldsMap, nil
 }
 
-func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string) ([]*v2.TicketCustomField, error) {
+func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string, issueTypeIds []string) ([]*v2.TicketCustomField, error) {
 	metadata, _, err := j.client.Issue.GetCreateMeta(ctx, &jira.GetQueryOptions{
-		ProjectKeys: projectKey,
-		Expand:      "projects.issuetypes.fields",
+		ProjectKeys:  projectKey,
+		Expand:       "projects.issuetypes.fields",
+		IssueTypeIds: strings.Join(issueTypeIds, ","),
 	})
 	if err != nil {
 		return nil, err
@@ -215,6 +214,7 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 	customFields := make(map[string]*v2.TicketCustomField)
 
 	var components []*v2.TicketCustomFieldObjectValue
+	var issueTypeIds []string
 
 	for _, issueType := range project.IssueTypes {
 		if issueType.Name == "Epic" || issueType.Name == "Bug" {
@@ -230,6 +230,7 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 				Id:          issueType.ID,
 				DisplayName: issueType.Name,
 			})
+			issueTypeIds = append(issueTypeIds, issueType.ID)
 		}
 	}
 	for _, component := range project.Components {
@@ -239,7 +240,7 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 		})
 	}
 
-	otherCustomFields, err := j.getCustomFieldsForProject(ctx, project.Key)
+	otherCustomFields, err := j.getCustomFieldsForProject(ctx, project.Key, issueTypeIds)
 	if err != nil {
 		return nil, err
 	}

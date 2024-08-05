@@ -126,13 +126,14 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string)
 		case model.TypeString:
 			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 		case model.TypeArray:
-			if isMultiSelect && hasAllowedValues {
+			switch {
+			case isMultiSelect && hasAllowedValues:
 				customField = sdkTicket.PickMultipleObjectValuesFieldSchema(id, field.Name, false, allowedValues)
-			} else if !isMultiSelect && hasAllowedValues {
+			case !isMultiSelect && hasAllowedValues:
 				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
-			} else if isMultiSelect && !hasAllowedValues {
+			case isMultiSelect && !hasAllowedValues:
 				customField = sdkTicket.StringsFieldSchema(id, field.Name, false)
-			} else {
+			default:
 				customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 			}
 		case model.TypeDate, model.TypeDateTime:

@@ -61,6 +61,9 @@ func (j *Jira) constructMetaDataFields(issues []*jira.MetaIssueType) (map[string
 
 	for _, issueType := range issues {
 		for key, field := range issueType.Fields {
+			if issueType.Name == "Epic" || issueType.Name == "Bug" {
+				continue
+			}
 			var metaDataField model.MetaDataFields
 
 			jsonData, err := json.Marshal(field)
@@ -214,6 +217,9 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 	var components []*v2.TicketCustomFieldObjectValue
 
 	for _, issueType := range project.IssueTypes {
+		if issueType.Name == "Epic" || issueType.Name == "Bug" {
+			continue
+		}
 		// TODO: Maybe we care about subtasks?
 		if !issueType.Subtask {
 			ticketTypes = append(ticketTypes, &v2.TicketType{

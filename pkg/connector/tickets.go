@@ -194,6 +194,8 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string,
 			}
 		case jira.TypeDate, jira.TypeDateTime:
 			customField = sdkTicket.TimestampFieldSchema(id, field.Name, false)
+		case jira.TypeNumber:
+			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 		case jira.TypeObject, jira.TypeGroup, jira.TypeUser, jira.TypeOption:
 			if hasAllowedValues {
 				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
@@ -512,7 +514,7 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 			}
 
 			// The ticket doesn't have this key set, so we skip it
-			if metaFieldValue == nil || metaFieldValue == "" {
+			if metaFieldValue == nil {
 				continue
 			}
 

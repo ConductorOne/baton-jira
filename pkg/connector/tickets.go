@@ -203,11 +203,8 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string,
 				customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 			}
 		default:
-			if field.Required {
-				l := ctxzap.Extract(ctx)
-				l.Error("unsupported mandatory type", zap.String("field", field.Name), zap.String("type", field.Schema.Type))
-				continue
-			}
+			// Default to string, even if its not we this field would still be required to create a ticket
+			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 		}
 		customFields = append(customFields, customField)
 	}
@@ -623,10 +620,11 @@ func (j *Jira) createIssue(ctx context.Context, projectID string, summary string
 		}
 	}
 
-	issue, _, err := j.client.Issue.Create(ctx, i)
+	issue, resp, err := j.client.Issue.Create(ctx, i)
 	if err != nil {
-		l.Error("error creating issue", zap.Error(err))
-		return nil, err
+		jerr := jira.NewJiraError(resp, err)
+		l.Error("error creating issue", zap.Error(jerr))
+		return nil, jerr
 	}
 
 	return issue, nil

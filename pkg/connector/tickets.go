@@ -39,7 +39,7 @@ func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interf
 		Id string `json:"id"`
 	}
 
-	jiraPickerStruct := []*JiraPickerStruct{}
+	pickObjects := []*JiraPickerStruct{}
 
 	switch v := field.GetValue().(type) {
 	case *v2.TicketCustomField_StringValue:
@@ -52,7 +52,10 @@ func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interf
 		return v.BoolValue.GetValue(), nil
 
 	case *v2.TicketCustomField_TimestampValue:
-		return v.TimestampValue.GetValue(), nil
+		// must be in ISO 8601 date time format (RFC3339)
+		// https://support.atlassian.com/cloud-automation/docs/advanced-field-editing-using-json/
+		// -> Date time picker custom field
+		return v.TimestampValue.GetValue().AsTime().Format(time.RFC3339), nil
 
 	case *v2.TicketCustomField_PickStringValue:
 		return v.PickStringValue.GetValue(), nil
@@ -69,9 +72,9 @@ func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interf
 		return nil, nil
 	case *v2.TicketCustomField_PickMultipleObjectValues:
 		for _, value := range v.PickMultipleObjectValues.GetValues() {
-			jiraPickerStruct = append(jiraPickerStruct, &JiraPickerStruct{Id: value.GetId()})
+			pickObjects = append(pickObjects, &JiraPickerStruct{Id: value.GetId()})
 		}
-		return jiraPickerStruct, nil
+		return pickObjects, nil
 
 	default:
 		return false, errors.New("error: unknown custom field type")
@@ -191,8 +194,6 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string,
 			}
 		case jira.TypeDate, jira.TypeDateTime:
 			customField = sdkTicket.TimestampFieldSchema(id, field.Name, false)
-		case jira.TypeNumber:
-			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 		case jira.TypeObject, jira.TypeGroup, jira.TypeUser, jira.TypeOption:
 			if hasAllowedValues {
 				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
@@ -505,7 +506,7 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 
 			ticketOptions = append(ticketOptions, WithType(issueType.GetId()))
 		default:
-			metaFieldValue, err := j.customFieldSchemaToMetaField(cf)
+			metaFieldValue, err := j.customFieldSchemaToMetaField(ticketFields[id])
 			if err != nil {
 				return nil, nil, err
 			}

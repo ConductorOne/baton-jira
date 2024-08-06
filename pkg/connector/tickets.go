@@ -64,12 +64,11 @@ func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interf
 		return v.PickMultipleStringValues.GetValues(), nil
 
 	case *v2.TicketCustomField_PickObjectValue:
-		if v.PickObjectValue.GetValue().GetId() != "" {
+		if v.PickObjectValue.GetValue() != nil {
 			return &JiraPickerStruct{
 				Id: v.PickObjectValue.GetValue().GetId(),
 			}, nil
 		}
-		return nil, nil
 	case *v2.TicketCustomField_PickMultipleObjectValues:
 		for _, value := range v.PickMultipleObjectValues.GetValues() {
 			pickObjects = append(pickObjects, &JiraPickerStruct{Id: value.GetId()})
@@ -80,6 +79,7 @@ func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interf
 		return false, errors.New("error: unknown custom field type")
 	}
 
+	return nil, nil
 }
 
 func (j *Jira) getJiraStatusesForProject(ctx context.Context, projectId string) ([]jira.JiraStatus, error) {
@@ -133,11 +133,11 @@ func (j *Jira) constructMetaDataFields(issues []*jira.MetaIssueType) (map[string
 	return fieldsMap, nil
 }
 
-func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string, issueTypeIds []string) ([]*v2.TicketCustomField, error) {
+func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string, issueTypeIDs []string) ([]*v2.TicketCustomField, error) {
 	metadata, _, err := j.client.Issue.GetCreateMeta(ctx, &jira.GetQueryOptions{
 		ProjectKeys:  projectKey,
 		Expand:       "projects.issuetypes.fields",
-		IssueTypeIds: strings.Join(issueTypeIds, ","),
+		IssueTypeIds: strings.Join(issueTypeIDs, ","),
 	})
 	if err != nil {
 		return nil, err
@@ -266,7 +266,7 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 	customFields := make(map[string]*v2.TicketCustomField)
 
 	var components []*v2.TicketCustomFieldObjectValue
-	var issueTypeIds []string
+	var issueTypeIDs []string
 
 	for _, issueType := range project.IssueTypes {
 		if issueType.Name == "Epic" || issueType.Name == "Bug" {
@@ -282,7 +282,7 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 				Id:          issueType.ID,
 				DisplayName: issueType.Name,
 			})
-			issueTypeIds = append(issueTypeIds, issueType.ID)
+			issueTypeIDs = append(issueTypeIDs, issueType.ID)
 		}
 	}
 	for _, component := range project.Components {
@@ -292,7 +292,7 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 		})
 	}
 
-	otherCustomFields, err := j.getCustomFieldsForProject(ctx, project.Key, issueTypeIds)
+	otherCustomFields, err := j.getCustomFieldsForProject(ctx, project.Key, issueTypeIDs)
 	if err != nil {
 		return nil, err
 	}

@@ -38,31 +38,22 @@ func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interf
 	type JiraPickerStruct struct {
 		Id string `json:"id"`
 	}
-
-	pickObjects := []*JiraPickerStruct{}
-
 	switch v := field.GetValue().(type) {
 	case *v2.TicketCustomField_StringValue:
 		return v.StringValue.GetValue(), nil
-
 	case *v2.TicketCustomField_StringValues:
 		return v.StringValues.GetValues(), nil
-
 	case *v2.TicketCustomField_BoolValue:
 		return v.BoolValue.GetValue(), nil
-
 	case *v2.TicketCustomField_TimestampValue:
 		// must be in ISO 8601 date time format (RFC3339)
 		// https://support.atlassian.com/cloud-automation/docs/advanced-field-editing-using-json/
 		// -> Date time picker custom field
 		return v.TimestampValue.GetValue().AsTime().Format(time.RFC3339), nil
-
 	case *v2.TicketCustomField_PickStringValue:
 		return v.PickStringValue.GetValue(), nil
-
 	case *v2.TicketCustomField_PickMultipleStringValues:
 		return v.PickMultipleStringValues.GetValues(), nil
-
 	case *v2.TicketCustomField_PickObjectValue:
 		if v.PickObjectValue.GetValue() != nil {
 			return &JiraPickerStruct{
@@ -70,11 +61,11 @@ func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interf
 			}, nil
 		}
 	case *v2.TicketCustomField_PickMultipleObjectValues:
+		pickObjects := []*JiraPickerStruct{}
 		for _, value := range v.PickMultipleObjectValues.GetValues() {
 			pickObjects = append(pickObjects, &JiraPickerStruct{Id: value.GetId()})
 		}
 		return pickObjects, nil
-
 	default:
 		return false, errors.New("error: unknown custom field type")
 	}
@@ -143,10 +134,11 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string,
 		return nil, err
 	}
 
+	if len(metadata.Projects) == 0 {
+		return nil, nil
+	}
 	j.metaProject = metadata.Projects[0]
-
-	project := metadata.Projects[0] // we should only be getting one project back
-	fieldsMap, err := j.constructMetaDataFields(project.IssueTypes)
+	fieldsMap, err := j.constructMetaDataFields(j.metaProject.IssueTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -185,10 +177,10 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string,
 			switch {
 			case isMultiSelect && hasAllowedValues:
 				customField = sdkTicket.PickMultipleObjectValuesFieldSchema(id, field.Name, false, allowedValues)
-			case !isMultiSelect && hasAllowedValues:
-				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
 			case isMultiSelect && !hasAllowedValues:
 				customField = sdkTicket.StringsFieldSchema(id, field.Name, false)
+			case !isMultiSelect && hasAllowedValues:
+				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
 			default:
 				customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 			}

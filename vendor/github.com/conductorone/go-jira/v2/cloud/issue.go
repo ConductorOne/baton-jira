@@ -544,9 +544,12 @@ type GetQueryOptions struct {
 	// Properties is the list of properties to return for the issue. By default no properties are returned.
 	Properties string `url:"properties,omitempty"`
 	// FieldsByKeys if true then fields in issues will be referenced by keys instead of ids
-	FieldsByKeys  bool   `url:"fieldsByKeys,omitempty"`
-	UpdateHistory bool   `url:"updateHistory,omitempty"`
-	ProjectKeys   string `url:"projectKeys,omitempty"`
+	FieldsByKeys   bool   `url:"fieldsByKeys,omitempty"`
+	UpdateHistory  bool   `url:"updateHistory,omitempty"`
+	ProjectKeys    string `url:"projectKeys,omitempty"`
+	ProjectIds     string `url:"projectIds,omitempty"`
+	IssueTypeIds   string `url:"issueTypeIds,omitempty"`
+	IssueTypeNames string `url:"issueTypeNames,omitempty"`
 }
 
 // GetWorklogsQueryOptions specifies the optional parameters for the Get Worklogs method

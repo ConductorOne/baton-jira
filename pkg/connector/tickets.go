@@ -2,11 +2,13 @@ package connector
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -27,14 +29,58 @@ type TicketManager interface {
 	ListTicketSchemas(ctx context.Context, pToken *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error)
 }
 
-func getJiraStatusesForProject(ctx context.Context, client *jira.Client, projectId string) ([]jira.JiraStatus, error) {
+// example https://developer.atlassian.com/server/jira/platform/jira-rest-api-example-create-issue-7897248/
+func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interface{}, error) {
+	if field == nil {
+		return nil, nil
+	}
+
+	type JiraPickerStruct struct {
+		Id string `json:"id"`
+	}
+	switch v := field.GetValue().(type) {
+	case *v2.TicketCustomField_StringValue:
+		return v.StringValue.GetValue(), nil
+	case *v2.TicketCustomField_StringValues:
+		return v.StringValues.GetValues(), nil
+	case *v2.TicketCustomField_BoolValue:
+		return v.BoolValue.GetValue(), nil
+	case *v2.TicketCustomField_TimestampValue:
+		// must be in ISO 8601 date time format (RFC3339)
+		// https://support.atlassian.com/cloud-automation/docs/advanced-field-editing-using-json/
+		// -> Date time picker custom field
+		return v.TimestampValue.GetValue().AsTime().Format(time.RFC3339), nil
+	case *v2.TicketCustomField_PickStringValue:
+		return v.PickStringValue.GetValue(), nil
+	case *v2.TicketCustomField_PickMultipleStringValues:
+		return v.PickMultipleStringValues.GetValues(), nil
+	case *v2.TicketCustomField_PickObjectValue:
+		if v.PickObjectValue.GetValue() != nil {
+			return &JiraPickerStruct{
+				Id: v.PickObjectValue.GetValue().GetId(),
+			}, nil
+		}
+	case *v2.TicketCustomField_PickMultipleObjectValues:
+		pickObjects := []*JiraPickerStruct{}
+		for _, value := range v.PickMultipleObjectValues.GetValues() {
+			pickObjects = append(pickObjects, &JiraPickerStruct{Id: value.GetId()})
+		}
+		return pickObjects, nil
+	default:
+		return false, errors.New("error: unknown custom field type")
+	}
+
+	return nil, nil
+}
+
+func (j *Jira) getJiraStatusesForProject(ctx context.Context, projectId string) ([]jira.JiraStatus, error) {
 	var jiraStatuses []jira.JiraStatus
 	statusOffset := 0
 	statusMaxResults := 100
 
 	for {
 		// Fetch statuses here and pass in to schemaForProject
-		statuses, resp, err := client.Status.SearchStatusesPaginated(ctx,
+		statuses, resp, err := j.client.Status.SearchStatusesPaginated(ctx,
 			jira.WithStartAt(statusOffset),
 			jira.WithMaxResults(statusMaxResults),
 			jira.WithStatusCategory("DONE"),
@@ -52,6 +98,110 @@ func getJiraStatusesForProject(ctx context.Context, client *jira.Client, project
 	}
 
 	return jiraStatuses, nil
+}
+
+func (j *Jira) constructMetaDataFields(issues []*jira.MetaIssueType) (map[string]jira.MetaDataFields, error) {
+	fieldsMap := make(map[string]jira.MetaDataFields)
+
+	for _, issueType := range issues {
+		for key, field := range issueType.Fields {
+			var metaDataField jira.MetaDataFields
+
+			jsonData, err := json.Marshal(field)
+			if err != nil {
+				return nil, err
+			}
+
+			err = json.Unmarshal(jsonData, &metaDataField)
+			if err != nil {
+				return nil, err
+			}
+
+			fieldsMap[key] = metaDataField
+		}
+	}
+
+	return fieldsMap, nil
+}
+
+func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string, issueTypeIDs []string) ([]*v2.TicketCustomField, error) {
+	metadata, _, err := j.client.Issue.GetCreateMeta(ctx, &jira.GetQueryOptions{
+		ProjectKeys:  projectKey,
+		Expand:       "projects.issuetypes.fields",
+		IssueTypeIds: strings.Join(issueTypeIDs, ","),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(metadata.Projects) == 0 {
+		return nil, nil
+	}
+	j.metaProject = metadata.Projects[0]
+	fieldsMap, err := j.constructMetaDataFields(j.metaProject.IssueTypes)
+	if err != nil {
+		return nil, err
+	}
+
+	customFields := make([]*v2.TicketCustomField, 0, len(fieldsMap))
+	for _, field := range fieldsMap {
+		var customField *v2.TicketCustomField
+		var allowedValues []*v2.TicketCustomFieldObjectValue
+
+		if !field.Required || field.Schema.Custom == "" {
+			continue
+		}
+
+		hasAllowedValues := len(field.AllowedValues) > 0
+		isMultiSelect := field.Schema.Items != ""
+
+		if hasAllowedValues {
+			for _, choice := range field.AllowedValues {
+				displayName := choice.Name
+				if displayName == "" {
+					displayName = choice.Value
+				}
+				allowedValues = append(allowedValues, &v2.TicketCustomFieldObjectValue{
+					Id:          choice.Id,
+					DisplayName: displayName,
+				})
+			}
+		}
+
+		id := field.Key
+
+		switch field.Schema.Type {
+		case jira.TypeString:
+			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
+		case jira.TypeArray:
+			switch {
+			case isMultiSelect && hasAllowedValues:
+				customField = sdkTicket.PickMultipleObjectValuesFieldSchema(id, field.Name, false, allowedValues)
+			case isMultiSelect && !hasAllowedValues:
+				customField = sdkTicket.StringsFieldSchema(id, field.Name, false)
+			case !isMultiSelect && hasAllowedValues:
+				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
+			default:
+				customField = sdkTicket.StringFieldSchema(id, field.Name, false)
+			}
+		case jira.TypeDate, jira.TypeDateTime:
+			customField = sdkTicket.TimestampFieldSchema(id, field.Name, false)
+		case jira.TypeNumber:
+			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
+		case jira.TypeObject, jira.TypeGroup, jira.TypeUser, jira.TypeOption:
+			if hasAllowedValues {
+				customField = sdkTicket.PickObjectValueFieldSchema(id, field.Name, false, allowedValues)
+			} else {
+				customField = sdkTicket.StringFieldSchema(id, field.Name, false)
+			}
+		default:
+			// Default to string, even if its not we this field would still be required to create a ticket
+			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
+		}
+		customFields = append(customFields, customField)
+	}
+
+	return customFields, nil
 }
 
 func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error) {
@@ -107,8 +257,12 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 	customFields := make(map[string]*v2.TicketCustomField)
 
 	var components []*v2.TicketCustomFieldObjectValue
+	var issueTypeIDs []string
 
 	for _, issueType := range project.IssueTypes {
+		if issueType.Name == "Epic" || issueType.Name == "Bug" {
+			continue
+		}
 		// TODO: Maybe we care about subtasks?
 		if !issueType.Subtask {
 			ticketTypes = append(ticketTypes, &v2.TicketType{
@@ -119,6 +273,7 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 				Id:          issueType.ID,
 				DisplayName: issueType.Name,
 			})
+			issueTypeIDs = append(issueTypeIDs, issueType.ID)
 		}
 	}
 	for _, component := range project.Components {
@@ -126,6 +281,15 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 			Id:          component.ID,
 			DisplayName: component.Name,
 		})
+	}
+
+	otherCustomFields, err := j.getCustomFieldsForProject(ctx, project.Key, issueTypeIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, cf := range otherCustomFields {
+		customFields[cf.GetId()] = cf
 	}
 
 	customFields["issue_type"] = sdkTicket.PickObjectValueFieldSchema(
@@ -164,7 +328,7 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 		CustomFields: customFields,
 	}
 
-	jiraStatuses, err := getJiraStatusesForProject(ctx, j.client, project.ID)
+	jiraStatuses, err := j.getJiraStatusesForProject(ctx, project.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -333,17 +497,17 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 
 			ticketOptions = append(ticketOptions, WithType(issueType.GetId()))
 		default:
-			val, err := sdkTicket.GetCustomFieldValue(ticketFields[id])
+			metaFieldValue, err := j.customFieldSchemaToMetaField(ticketFields[id])
 			if err != nil {
 				return nil, nil, err
 			}
 
 			// The ticket doesn't have this key set, so we skip it
-			if val == nil {
+			if metaFieldValue == nil {
 				continue
 			}
 
-			ticketOptions = append(ticketOptions, WithCustomField(cf.GetId(), val))
+			ticketOptions = append(ticketOptions, WithCustomField(cf.GetId(), metaFieldValue))
 		}
 	}
 
@@ -447,10 +611,12 @@ func (j *Jira) createIssue(ctx context.Context, projectID string, summary string
 			Name: "Task",
 		}
 	}
-	issue, _, err := j.client.Issue.Create(ctx, i)
+
+	issue, resp, err := j.client.Issue.Create(ctx, i)
 	if err != nil {
-		l.Error("error creating issue", zap.Error(err))
-		return nil, err
+		jerr := jira.NewJiraError(resp, err)
+		l.Error("error creating issue", zap.Error(jerr))
+		return nil, jerr
 	}
 
 	return issue, nil

@@ -3,7 +3,7 @@ module github.com/conductorone/baton-jira
 go 1.22
 
 require (
-	github.com/conductorone/baton-sdk v0.2.12
+	github.com/conductorone/baton-sdk v0.2.18
 	github.com/conductorone/go-jira/v2 v2.0.0-20240805194325-e5892b355505
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	go.uber.org/zap v1.27.0
@@ -12,6 +12,7 @@ require (
 require (
 	filippo.io/age v1.1.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/allegro/bigcache/v3 v3.1.0 // indirect
 	github.com/deckarep/golang-set/v2 v2.6.0 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect

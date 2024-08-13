@@ -516,7 +516,7 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 		return nil, nil, err
 	}
 	if !valid {
-		return nil, nil, errors.New("error: unable to create ticket, ticket is invalid")
+		return nil, nil, errors.Join(errors.New("error: unable to create ticket, ticket is invalid"), sdkTicket.ErrTicketValidationError)
 	}
 
 	iss, err := j.createIssue(ctx, projectID, ticket.GetDisplayName(), ticketOptions...)

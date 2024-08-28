@@ -251,7 +251,6 @@ func (j *Jira) getTicketStatuses(statuses []jira.JiraStatus) ([]*v2.TicketStatus
 }
 
 func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.TicketSchema, error) {
-	var ticketTypes []*v2.TicketType
 	var issueTypeAllowedValues []*v2.TicketCustomFieldObjectValue
 
 	customFields := make(map[string]*v2.TicketCustomField)
@@ -265,10 +264,6 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 		}
 		// TODO: Maybe we care about subtasks?
 		if !issueType.Subtask {
-			ticketTypes = append(ticketTypes, &v2.TicketType{
-				Id:          issueType.ID,
-				DisplayName: issueType.Name,
-			})
 			issueTypeAllowedValues = append(issueTypeAllowedValues, &v2.TicketCustomFieldObjectValue{
 				Id:          issueType.ID,
 				DisplayName: issueType.Name,
@@ -324,7 +319,6 @@ func (j *Jira) schemaForProject(ctx context.Context, project jira.Project) (*v2.
 	ret := &v2.TicketSchema{
 		Id:           project.Key,
 		DisplayName:  project.Name,
-		Types:        ticketTypes,
 		CustomFields: customFields,
 	}
 
@@ -452,7 +446,6 @@ func (j *Jira) GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, anno
 func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error) {
 	ticketOptions := []FieldOption{
 		WithStatus(ticket.GetStatus().GetId()),
-		WithType(ticket.GetType().GetId()),
 		WithDescription(ticket.GetDescription()),
 		WithLabels(ticket.GetLabels()...),
 	}

@@ -1,12 +1,14 @@
 {
   "schema_id": "KAN",
   "status_id": "10019",
-  "type_id": "10001",
   "display_name": "A test ticket",
   "description": "A test description",
   "labels": ["baton"],
   "custom_fields": {
     "project": {
+      "id": "10000"
+    },
+    "issue_type": {
       "id": "10000"
     }
   }

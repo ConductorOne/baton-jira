@@ -3,7 +3,7 @@ module github.com/conductorone/baton-jira
 go 1.22
 
 require (
-	github.com/conductorone/baton-sdk v0.2.18
+	github.com/conductorone/baton-sdk v0.2.25
 	github.com/conductorone/go-jira/v2 v2.0.0-20240805194325-e5892b355505
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	go.uber.org/zap v1.27.0

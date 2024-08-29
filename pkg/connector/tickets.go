@@ -557,6 +557,9 @@ func WithType(id string) FieldOption {
 }
 
 func WithLabels(labels ...string) FieldOption {
+	for i, label := range labels {
+		labels[i] = strings.ReplaceAll(label, " ", "_")
+	}
 	return func(issue *jira.Issue) {
 		issue.Fields.Labels = labels
 	}

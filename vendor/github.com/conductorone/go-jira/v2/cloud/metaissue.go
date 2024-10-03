@@ -52,9 +52,9 @@ type Choice struct {
 }
 
 type Schema struct {
-	Type     string `json:"type"`
-	Custom   string `json:"custom"`
-	CustomId int    `json:"customId"`
+	Type     string `json:"type,omitempty"`
+	Custom   string `json:"custom,omitempty"`
+	CustomId int    `json:"customId,omitempty"`
 	Items    string `json:"items,omitempty"`
 }
 

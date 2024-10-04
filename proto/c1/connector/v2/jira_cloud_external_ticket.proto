@@ -6,7 +6,7 @@ message CustomField {
   string type = 1;
 }
 
-message IssueTypeProject {
+message JCIssueTypeProject {
   string project_id = 1;
   string project_name = 2;
   string project_key = 3;

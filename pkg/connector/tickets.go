@@ -198,7 +198,7 @@ func (j *Jira) schemaForProjectIssueType(ctx context.Context, project *jira.Proj
 		displayName = fmt.Sprintf("%s (%s)", displayName, project.Key)
 	}
 
-	projectAnno := &pbjira.IssueTypeProject{
+	projectAnno := &pbjira.JCIssueTypeProject{
 		ProjectId:   project.ID,
 		ProjectName: project.Name,
 		ProjectKey:  project.Key,
@@ -698,8 +698,8 @@ func GeCustomFieldTypeAnnotation(annotations []*anypb.Any) string {
 	return ""
 }
 
-func GetProjectAnnotation(annotations []*anypb.Any) *pbjira.IssueTypeProject {
-	pta := &pbjira.IssueTypeProject{}
+func GetProjectAnnotation(annotations []*anypb.Any) *pbjira.JCIssueTypeProject {
+	pta := &pbjira.JCIssueTypeProject{}
 	for _, a := range annotations {
 		if a.MessageIs(pta) {
 			err := a.UnmarshalTo(pta)

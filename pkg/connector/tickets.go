@@ -637,6 +637,8 @@ func (j *Jira) createIssue(ctx context.Context, projectID string, summary string
 		}
 	}
 
+	l.Info("creating issue", zap.Any("issue", i))
+
 	issue, resp, err := j.client.Issue.Create(ctx, i)
 	if err != nil {
 		jerr := jira.NewJiraError(resp, err)

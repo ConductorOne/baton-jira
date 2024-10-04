@@ -31,6 +31,10 @@ type TicketManager interface {
 	ListTicketSchemas(ctx context.Context, pToken *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error)
 }
 
+type JiraName struct {
+	Name string `json:"name,omitempty"`
+}
+
 // example https://developer.atlassian.com/server/jira/platform/jira-rest-api-example-create-issue-7897248/
 func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interface{}, error) {
 	if field == nil {
@@ -55,7 +59,7 @@ func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interf
 				AccountID: strValue,
 			}, nil
 		case jira.TypeGroup:
-			return jira.Group{
+			return JiraName{
 				Name: strValue,
 			}, nil
 		case jira.TypeNumber:

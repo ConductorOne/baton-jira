@@ -1,0 +1,7 @@
+syntax = "proto3";
+package c1.connector.v2;
+option go_package = "github.com/conductorone/baton-jira/pb/c1/connector/v2";
+
+message CustomField {
+  string type = 1;
+}

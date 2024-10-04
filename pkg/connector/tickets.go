@@ -11,12 +11,14 @@ import (
 	"strings"
 	"time"
 
+	pbjira "github.com/conductorone/baton-jira/pb/c1/connector/v2"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	sdkTicket "github.com/conductorone/baton-sdk/pkg/types/ticket"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	jira "github.com/conductorone/go-jira/v2/cloud"
@@ -27,6 +29,10 @@ type TicketManager interface {
 	CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error)
 	GetTicketSchema(ctx context.Context, schemaID string) (*v2.TicketSchema, annotations.Annotations, error)
 	ListTicketSchemas(ctx context.Context, pToken *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error)
+}
+
+type JiraName struct {
+	Name string `json:"name,omitempty"`
 }
 
 // example https://developer.atlassian.com/server/jira/platform/jira-rest-api-example-create-issue-7897248/
@@ -40,7 +46,31 @@ func (j *Jira) customFieldSchemaToMetaField(field *v2.TicketCustomField) (interf
 	}
 	switch v := field.GetValue().(type) {
 	case *v2.TicketCustomField_StringValue:
-		return v.StringValue.GetValue(), nil
+		strValue := v.StringValue.GetValue()
+		if len(strValue) == 0 {
+			return nil, nil
+		}
+
+		typ := GeCustomFieldTypeAnnotation(field.Annotations)
+
+		switch typ {
+		case jira.TypeUser:
+			return jira.User{
+				AccountID: strValue,
+			}, nil
+		case jira.TypeGroup:
+			return JiraName{
+				Name: strValue,
+			}, nil
+		case jira.TypeNumber:
+			v, err := strconv.Atoi(strValue)
+			if err != nil {
+				return nil, err
+			}
+			return v, nil
+		}
+		return strValue, nil
+
 	case *v2.TicketCustomField_StringValues:
 		return v.StringValues.GetValues(), nil
 	case *v2.TicketCustomField_BoolValue:
@@ -187,6 +217,7 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string,
 		case jira.TypeDate, jira.TypeDateTime:
 			customField = sdkTicket.TimestampFieldSchema(id, field.Name, false)
 		case jira.TypeNumber:
+			// TODO(lauren) use number field type
 			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 		case jira.TypeObject, jira.TypeGroup, jira.TypeUser, jira.TypeOption:
 			if hasAllowedValues {
@@ -198,6 +229,8 @@ func (j *Jira) getCustomFieldsForProject(ctx context.Context, projectKey string,
 			// Default to string, even if its not we this field would still be required to create a ticket
 			customField = sdkTicket.StringFieldSchema(id, field.Name, false)
 		}
+		customFieldAnno := &pbjira.CustomField{Type: field.Schema.Type}
+		customField.Annotations = annotations.New(customFieldAnno)
 		customFields = append(customFields, customField)
 	}
 
@@ -608,6 +641,8 @@ func (j *Jira) createIssue(ctx context.Context, projectID string, summary string
 		}
 	}
 
+	l.Info("creating issue", zap.Any("issue", i))
+
 	issue, resp, err := j.client.Issue.Create(ctx, i)
 	if err != nil {
 		jerr := jira.NewJiraError(resp, err)
@@ -625,4 +660,20 @@ func (j *Jira) generateIssueURL(issueKey string) (string, error) {
 	}
 	baseURL.Path = path.Join("browse", issueKey)
 	return baseURL.String(), nil
+}
+
+// We don't error if the annotation is not found
+// Because it may not be present for existing configs.
+func GeCustomFieldTypeAnnotation(annotations []*anypb.Any) string {
+	cf := &pbjira.CustomField{}
+	for _, v := range annotations {
+		if v.MessageIs(cf) {
+			err := v.UnmarshalTo(cf)
+			if err != nil {
+				return ""
+			}
+			return cf.GetType()
+		}
+	}
+	return ""
 }

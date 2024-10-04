@@ -663,7 +663,7 @@ func (j *Jira) generateIssueURL(issueKey string) (string, error) {
 }
 
 // We don't error if the annotation is not found
-// Because it may not be present for existing configs
+// Because it may not be present for existing configs.
 func GeCustomFieldTypeAnnotation(annotations []*anypb.Any) string {
 	cf := &pbjira.CustomField{}
 	for _, v := range annotations {

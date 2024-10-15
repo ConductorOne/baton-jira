@@ -2,7 +2,6 @@ package connector
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -148,30 +147,6 @@ func (j *Jira) getJiraStatusesForProject(ctx context.Context, projectId string) 
 	}
 
 	return jiraStatuses, nil
-}
-
-func (j *Jira) constructMetaDataFields(issues []*jira.MetaIssueType) (map[string]jira.MetaDataFields, error) {
-	fieldsMap := make(map[string]jira.MetaDataFields)
-
-	for _, issueType := range issues {
-		for key, field := range issueType.Fields {
-			var metaDataField jira.MetaDataFields
-
-			jsonData, err := json.Marshal(field)
-			if err != nil {
-				return nil, err
-			}
-
-			err = json.Unmarshal(jsonData, &metaDataField)
-			if err != nil {
-				return nil, err
-			}
-
-			fieldsMap[key] = metaDataField
-		}
-	}
-
-	return fieldsMap, nil
 }
 
 func (j *Jira) schemaForProjectIssueType(ctx context.Context, project *jira.Project, issueType *jira.IssueType, statuses []*v2.TicketStatus, includeProjectInName bool) (*v2.TicketSchema, error) {

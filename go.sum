@@ -54,8 +54,8 @@ github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDk
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
 github.com/conductorone/baton-sdk v0.2.34 h1:AACW62113a4j4+GGtxpXRBbZT0IB/phVuAizUY2ZFuo=
 github.com/conductorone/baton-sdk v0.2.34/go.mod h1:hmd/Oz3DPIKD+9QmkusZaA18ZoiinnTDdrxh2skcdUc=
-github.com/conductorone/go-jira/v2 v2.0.0-20241004225805-fdb598da80b3 h1:x/nS/XmAZmmYa2ma9tdg0s5ul4xuUIAqRCYN4Y9Nog8=
-github.com/conductorone/go-jira/v2 v2.0.0-20241004225805-fdb598da80b3/go.mod h1:eMJODGFmHWC1egXOWdPaYfiACqNcHaS5Cnf1VMHVRBU=
+github.com/conductorone/go-jira/v2 v2.0.0-20241007173812-7864e16dd923 h1:p8hkX1HB/iCaXfkV5Hxh3bptigZpq+TbwfI2EokEAOM=
+github.com/conductorone/go-jira/v2 v2.0.0-20241007173812-7864e16dd923/go.mod h1:eMJODGFmHWC1egXOWdPaYfiACqNcHaS5Cnf1VMHVRBU=
 github.com/cpuguy83/go-md2man/v2 v2.0.3/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

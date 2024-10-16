@@ -16,6 +16,13 @@ type CreateMetaInfo struct {
 	Projects []*MetaProject `json:"projects,omitempty"`
 }
 
+type CreateMetaIssueType struct {
+	MaxResults int               `json:"maxResults,omitempty"`
+	StartAt    int               `json:"startAt,omitempty"`
+	Total      int               `json:"total,omitempty"`
+	Values     []*MetaDataFields `json:"fields,omitempty"`
+}
+
 // EditMetaInfo contains information about fields and their attributed to edit a ticket.
 type EditMetaInfo struct {
 	Fields tcontainer.MarshalMap `json:"fields,omitempty"`
@@ -39,6 +46,7 @@ type MetaDataFields struct {
 	Required        bool     `json:"required"`
 	Schema          Schema   `json:"schema"`
 	Name            string   `json:"name"`
+	FieldId         string   `json:"fieldId"`
 	Key             string   `json:"key"`
 	HasDefaultValue bool     `json:"hasDefaultValue"`
 	AllowedValues   []Choice `json:"allowedValues,omitempty"`
@@ -113,6 +121,31 @@ func (s *IssueService) GetCreateMeta(ctx context.Context, options *GetQueryOptio
 	}
 
 	return meta, resp, nil
+}
+
+func (s *IssueService) GetCreateMetaIssueType(ctx context.Context, projectKey, issueTypeId string, options *GetQueryIssueTypeOptions) ([]*MetaDataFields, *Response, error) {
+	apiEndpoint := fmt.Sprintf("rest/api/2/issue/createmeta/%s/issuetypes/%s", projectKey, issueTypeId)
+
+	req, err := s.client.NewRequest(ctx, http.MethodGet, apiEndpoint, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if options != nil {
+		q, err := query.Values(options)
+		if err != nil {
+			return nil, nil, err
+		}
+		req.URL.RawQuery = q.Encode()
+	}
+
+	meta := new(CreateMetaIssueType)
+	resp, err := s.client.Do(req, meta)
+	if err != nil {
+		return nil, resp, err
+	}
+
+	return meta.Values, resp, nil
 }
 
 // GetEditMeta makes the api call to get the edit meta information for an issue

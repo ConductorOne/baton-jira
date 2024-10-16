@@ -11,8 +11,7 @@ import (
 
 type (
 	Jira struct {
-		client      *jira.Client
-		metaProject *jira.MetaProject
+		client *jira.Client
 	}
 
 	JiraBuilder interface {

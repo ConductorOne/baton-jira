@@ -23,6 +23,14 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
+var ignoreRequiredSystem = map[string]bool{
+	"issuetype": true,
+	"project":   true,
+	"assignee":  true,
+	"summary":   true,
+	"reporter":  true,
+}
+
 type TicketManager interface {
 	GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, annotations.Annotations, error)
 	CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error)
@@ -203,8 +211,14 @@ func (j *Jira) getCustomFieldsForIssueType(ctx context.Context, projectId string
 
 	for _, field := range issueFields {
 		// TODO(lauren) remove custom?
-		if field.Schema.Custom == "" {
-			continue
+		if !field.Required {
+			if field.Schema.Custom == "" && field.FieldId != "components" {
+				continue
+			}
+		} else {
+			if _, ok := ignoreRequiredSystem[field.FieldId]; ok {
+				continue
+			}
 		}
 		customField := convertMetadataFieldToCustomField(field)
 		customFields = append(customFields, customField)

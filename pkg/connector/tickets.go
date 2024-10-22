@@ -572,6 +572,49 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 	return ret, nil, nil
 }
 
+func (j *Jira) BulkCreateTickets(ctx context.Context, request *v2.TicketsServiceBulkCreateTicketRequest) (*v2.TicketsServiceBulkCreateTicketResponse, error) {
+	tickets := make([]*v2.TicketsServiceCreateTicketResponse, 0)
+	for _, ticketReq := range request.GetTicketRequests() {
+		reqBody := ticketReq.GetRequest()
+		ticketBody := &v2.Ticket{
+			DisplayName:  reqBody.GetDisplayName(),
+			Description:  reqBody.GetDescription(),
+			Status:       reqBody.GetStatus(),
+			Labels:       reqBody.GetLabels(),
+			CustomFields: reqBody.GetCustomFields(),
+			RequestedFor: reqBody.GetRequestedFor(),
+		}
+		ticket, annos, err := j.CreateTicket(ctx, ticketBody, ticketReq.GetSchema())
+		// So we can track the external ticket ref annotation
+		annos.Merge(ticketReq.GetAnnotations()...)
+		var ticketResp *v2.TicketsServiceCreateTicketResponse
+		if err != nil {
+			ticketResp = &v2.TicketsServiceCreateTicketResponse{Ticket: ticket, Annotations: annos, Error: err.Error()}
+		} else {
+			ticketResp = &v2.TicketsServiceCreateTicketResponse{Ticket: ticket, Annotations: annos}
+		}
+		tickets = append(tickets, ticketResp)
+	}
+	return &v2.TicketsServiceBulkCreateTicketResponse{Tickets: tickets}, nil
+}
+
+func (j *Jira) BulkGetTickets(ctx context.Context, request *v2.TicketsServiceBulkGetTicketRequest) (*v2.TicketsServiceBulkGetTicketResponse, error) {
+	tickets := make([]*v2.TicketsServiceGetTicketResponse, 0)
+	for _, ticketReq := range request.GetTicketRequests() {
+		ticket, annos, err := j.GetTicket(ctx, ticketReq.GetId())
+		// So we can track the external ticket ref annotation
+		annos.Merge(ticketReq.GetAnnotations()...)
+		var ticketResp *v2.TicketsServiceGetTicketResponse
+		if err != nil {
+			ticketResp = &v2.TicketsServiceGetTicketResponse{Ticket: ticket, Annotations: annos, Error: err.Error()}
+		} else {
+			ticketResp = &v2.TicketsServiceGetTicketResponse{Ticket: ticket, Annotations: annos}
+		}
+		tickets = append(tickets, ticketResp)
+	}
+	return &v2.TicketsServiceBulkGetTicketResponse{Tickets: tickets}, nil
+}
+
 type FieldOption func(issue *jira.Issue)
 
 func WithStatus(statusId string) FieldOption {

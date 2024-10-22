@@ -1,0 +1,22 @@
+{
+"tickets": [{
+  "schema_id": "KAB:10009",
+  "display_name": "A test ticket",
+  "description": "A test description",
+  "labels": ["baton"],
+  "custom_fields": {}
+}, {
+    "schema_id": "KAB:10009",
+    "display_name": "A second test ticket",
+    "description": "A second test description",
+    "labels": ["baton2"],
+    "custom_fields": {}
+  },
+  {
+    "schema_id": "IT:10007",
+    "display_name": "An invalid test ticket",
+    "description": "An invalid ticket test description",
+    "labels": ["invalid"],
+    "custom_fields": {}
+  }]
+}

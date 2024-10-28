@@ -572,7 +572,7 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 	return ret, nil, nil
 }
 
-func (j *Jira) BulkCreateTickets(ctx context.Context, request *v2.TicketsServiceBulkCreateTicketRequest) (*v2.TicketsServiceBulkCreateTicketResponse, error) {
+func (j *Jira) BulkCreateTickets(ctx context.Context, request *v2.TicketsServiceBulkCreateTicketsRequest) (*v2.TicketsServiceBulkCreateTicketsResponse, error) {
 	tickets := make([]*v2.TicketsServiceCreateTicketResponse, 0)
 	for _, ticketReq := range request.GetTicketRequests() {
 		reqBody := ticketReq.GetRequest()
@@ -595,10 +595,10 @@ func (j *Jira) BulkCreateTickets(ctx context.Context, request *v2.TicketsService
 		}
 		tickets = append(tickets, ticketResp)
 	}
-	return &v2.TicketsServiceBulkCreateTicketResponse{Tickets: tickets}, nil
+	return &v2.TicketsServiceBulkCreateTicketsResponse{Tickets: tickets}, nil
 }
 
-func (j *Jira) BulkGetTickets(ctx context.Context, request *v2.TicketsServiceBulkGetTicketRequest) (*v2.TicketsServiceBulkGetTicketResponse, error) {
+func (j *Jira) BulkGetTickets(ctx context.Context, request *v2.TicketsServiceBulkGetTicketsRequest) (*v2.TicketsServiceBulkGetTicketsResponse, error) {
 	tickets := make([]*v2.TicketsServiceGetTicketResponse, 0)
 	for _, ticketReq := range request.GetTicketRequests() {
 		ticket, annos, err := j.GetTicket(ctx, ticketReq.GetId())
@@ -612,7 +612,7 @@ func (j *Jira) BulkGetTickets(ctx context.Context, request *v2.TicketsServiceBul
 		}
 		tickets = append(tickets, ticketResp)
 	}
-	return &v2.TicketsServiceBulkGetTicketResponse{Tickets: tickets}, nil
+	return &v2.TicketsServiceBulkGetTicketsResponse{Tickets: tickets}, nil
 }
 
 type FieldOption func(issue *jira.Issue)

@@ -56,6 +56,8 @@ github.com/conductorone/baton-sdk v0.2.43 h1:7WdVF3OnAqbnNFqJ5PT//6EQqUa4B0JVr4K
 github.com/conductorone/baton-sdk v0.2.43/go.mod h1:hmd/Oz3DPIKD+9QmkusZaA18ZoiinnTDdrxh2skcdUc=
 github.com/conductorone/go-jira/v2 v2.0.0-20241007173812-7864e16dd923 h1:p8hkX1HB/iCaXfkV5Hxh3bptigZpq+TbwfI2EokEAOM=
 github.com/conductorone/go-jira/v2 v2.0.0-20241007173812-7864e16dd923/go.mod h1:eMJODGFmHWC1egXOWdPaYfiACqNcHaS5Cnf1VMHVRBU=
+github.com/conductorone/go-jira/v2 v2.0.0-20250116021943-bb163df61d53 h1:8eyJhyjwX7inqxWdR1gNyT/EBP0JCQD8+pjmzYKqjP4=
+github.com/conductorone/go-jira/v2 v2.0.0-20250116021943-bb163df61d53/go.mod h1:eMJODGFmHWC1egXOWdPaYfiACqNcHaS5Cnf1VMHVRBU=
 github.com/cpuguy83/go-md2man/v2 v2.0.3/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

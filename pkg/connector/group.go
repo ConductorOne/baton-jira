@@ -174,7 +174,7 @@ func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, e
 		return nil, err
 	}
 
-	_, resp, err := u.client.Group.AddUserByGroupName(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
+	_, resp, err := u.client.Group.AddUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
 	if err != nil {
 		l.Error(
 			"failed to add user to group",
@@ -220,7 +220,7 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, err
 	}
 
-	resp, err := u.client.Group.RemoveUserByGroupName(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
+	resp, err := u.client.Group.RemoveUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
 	if err != nil {
 		l.Error(
 			"failed to remove user from group",

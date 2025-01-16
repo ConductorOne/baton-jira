@@ -16,7 +16,7 @@ jobs:
           token: ${{ secrets.RELENG_GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
 
@@ -24,6 +24,10 @@ jobs:
         run: go build -o connector ./cmd/baton-jira
 
       - name: Run and save output
+        env:
+          JIRA_API_TOKEN: example
+          JIRA_EMAIL: example
+          JIRA_URL: https://example.com
         run: ./connector capabilities > baton_capabilities.json
 
       - name: Commit changes

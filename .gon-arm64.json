@@ -1,5 +1,5 @@
 {
-  "source": ["./dist/macos-arm64_darwin_arm64/baton-jira"],
+  "source": ["./dist/macos-arm64_darwin_arm64_v8.0/baton-jira"],
   "bundle_id": "com.conductorone.baton-jira",
   "apple_id": {
     "username" : "justin.gallardo@conductorone.com"

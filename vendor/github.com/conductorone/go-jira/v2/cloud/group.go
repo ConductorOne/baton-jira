@@ -154,6 +154,33 @@ func (s *GroupService) AddUserByGroupName(ctx context.Context, groupName string,
 	return responseGroup, resp, nil
 }
 
+// Add adds a user to a group.
+//
+// The account ID of the user, which uniquely identifies the user across all Atlassian products.
+// For example, 5b10ac8d82e05b22cc7d4ef5.
+//
+// Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-groups/#api-rest-api-3-group-user-post
+func (s *GroupService) AddUserByGroupId(ctx context.Context, groupId string, accountID string) (*Group, *Response, error) {
+	apiEndpoint := fmt.Sprintf("/rest/api/3/group/user?groupId=%s", groupId)
+	var user struct {
+		AccountID string `json:"accountId"`
+	}
+	user.AccountID = accountID
+	req, err := s.client.NewRequest(ctx, http.MethodPost, apiEndpoint, &user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	responseGroup := new(Group)
+	resp, err := s.client.Do(req, responseGroup)
+	if err != nil {
+		jerr := NewJiraError(resp, err)
+		return nil, resp, jerr
+	}
+
+	return responseGroup, resp, nil
+}
+
 // Remove removes a user from a group.
 //
 // The account ID of the user, which uniquely identifies the user across all Atlassian products.
@@ -163,6 +190,29 @@ func (s *GroupService) AddUserByGroupName(ctx context.Context, groupName string,
 // Caller must close resp.Body
 func (s *GroupService) RemoveUserByGroupName(ctx context.Context, groupName string, accountID string) (*Response, error) {
 	apiEndpoint := fmt.Sprintf("/rest/api/3/group/user?groupname=%s&accountId=%s", groupName, accountID)
+	req, err := s.client.NewRequest(ctx, http.MethodDelete, apiEndpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.client.Do(req, nil)
+	if err != nil {
+		jerr := NewJiraError(resp, err)
+		return resp, jerr
+	}
+
+	return resp, nil
+}
+
+// Remove removes a user from a group using Group ID.
+//
+// The account ID of the user, which uniquely identifies the user across all Atlassian products.
+// For example, 5b10ac8d82e05b22cc7d4ef5.
+//
+// Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-groups/#api-rest-api-3-group-user-delete
+// Caller must close resp.Body
+func (s *GroupService) RemoveUserByGroupId(ctx context.Context, groupId string, accountID string) (*Response, error) {
+	apiEndpoint := fmt.Sprintf("/rest/api/3/group/user?groupId=%s&accountId=%s", groupId, accountID)
 	req, err := s.client.NewRequest(ctx, http.MethodDelete, apiEndpoint, nil)
 	if err != nil {
 		return nil, err

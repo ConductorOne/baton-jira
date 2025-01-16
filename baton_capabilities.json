@@ -54,8 +54,8 @@
     }
   ],
   "connectorCapabilities":  [
+    "CAPABILITY_TICKETING",
     "CAPABILITY_SYNC",
-    "CAPABILITY_PROVISION",
-    "CAPABILITY_TICKETING"
+    "CAPABILITY_PROVISION"
   ]
 }

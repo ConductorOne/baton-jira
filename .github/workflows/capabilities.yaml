@@ -25,9 +25,9 @@ jobs:
 
       - name: Run and save output
         env:
-          JIRA_API_TOKEN: example
-          JIRA_EMAIL: example
-          JIRA_URL: https://example.com
+          BATON_JIRA_API_TOKEN: example
+          BATON_JIRA_EMAIL: example
+          BATON_JIRA_URL: https://example.com
         run: ./connector capabilities > baton_capabilities.json
 
       - name: Commit changes

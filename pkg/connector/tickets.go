@@ -325,12 +325,27 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}
 
+	filteredProjects := projects
+	if len(j.projectIDs) > 0 {
+		filteredProjects = make([]jira.Project, 0)
+		projectIDSet := make(map[string]bool)
+		for _, id := range j.projectIDs {
+			projectIDSet[id] = true
+		}
+
+		for _, project := range projects {
+			if projectIDSet[project.ID] {
+				filteredProjects = append(filteredProjects, project)
+			}
+		}
+	}
+
 	multipleProjects := false
-	if len(projects) > 1 {
+	if len(filteredProjects) > 1 {
 		multipleProjects = true
 	}
 
-	for _, project := range projects {
+	for _, project := range filteredProjects {
 		statuses, err := j.getTicketStatuses(ctx, project.ID)
 		if err != nil {
 			return nil, "", nil, err

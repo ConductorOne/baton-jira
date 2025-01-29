@@ -326,15 +326,15 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	}
 
 	filteredProjects := projects
-	if len(j.projectIDs) > 0 {
+	if len(j.projectKeys) > 0 {
 		filteredProjects = make([]jira.Project, 0)
-		projectIDSet := make(map[string]bool)
-		for _, id := range j.projectIDs {
-			projectIDSet[id] = true
+		projectKeySet := make(map[string]bool)
+		for _, key := range j.projectKeys {
+			projectKeySet[key] = true
 		}
 
 		for _, project := range projects {
-			if projectIDSet[project.ID] {
+			if projectKeySet[project.Key] {
 				filteredProjects = append(filteredProjects, project)
 			}
 		}

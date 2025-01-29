@@ -39,18 +39,18 @@ func main() {
 func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 
-	var projectIDs []string
-	if projIDsStr := v.GetString("jira-project-ids"); projIDsStr != "" {
-		projectIDs = strings.Split(projIDsStr, ",")
-		for i := range projectIDs {
-			projectIDs[i] = strings.TrimSpace(projectIDs[i])
+	var projectKeys []string
+	if projKeysStr := v.GetString("jira-project-keys"); projKeysStr != "" {
+		projectKeys = strings.Split(projKeysStr, ",")
+		for i := range projectKeys {
+			projectKeys[i] = strings.TrimSpace(projectKeys[i])
 		}
 	}
 
 	builder := connector.JiraBasicAuthBuilder{
 		Base: &connector.JiraOptions{
-			Url:        v.GetString("jira-url"),
-			ProjectIDs: projectIDs,
+			Url:         v.GetString("jira-url"),
+			ProjectKeys: projectKeys,
 		},
 		Username: v.GetString("jira-email"),
 		ApiToken: v.GetString("jira-api-token"),

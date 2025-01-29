@@ -11,8 +11,8 @@ import (
 
 type (
 	Jira struct {
-		client     *jira.Client
-		projectIDs []string
+		client      *jira.Client
+		projectKeys []string
 	}
 
 	JiraBuilder interface {
@@ -20,8 +20,8 @@ type (
 	}
 
 	JiraOptions struct {
-		Url        string
-		ProjectIDs []string
+		Url         string
+		ProjectKeys []string
 	}
 
 	JiraBasicAuthBuilder struct {
@@ -44,8 +44,8 @@ func (b *JiraBasicAuthBuilder) New() (*Jira, error) {
 	}
 
 	return &Jira{
-		client:     client,
-		projectIDs: b.Base.ProjectIDs,
+		client:      client,
+		projectKeys: b.Base.ProjectKeys,
 	}, nil
 }
 

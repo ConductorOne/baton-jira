@@ -143,7 +143,7 @@ func (j *Jira) getJiraStatusesForProject(ctx context.Context, projectId string) 
 			jira.WithStatusCategory("DONE"),
 			jira.WithProjectId(projectId))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error getting statuses for project %s: %w", projectId, err)
 		}
 
 		jiraStatuses = append(jiraStatuses, statuses...)
@@ -162,7 +162,7 @@ func (j *Jira) schemaForProjectIssueType(ctx context.Context, project *jira.Proj
 
 	issueTypeCustomFields, err := j.getCustomFieldsForIssueType(ctx, project.ID, issueType)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting custom fields for issue type %s: %w", issueType.ID, err)
 	}
 
 	for _, cf := range issueTypeCustomFields {
@@ -236,7 +236,7 @@ func (j *Jira) GetIssueTypeFields(ctx context.Context, projectKey, issueTypeId s
 		issueFields, resp, err := j.client.Issue.GetCreateMetaIssueType(ctx, projectKey, issueTypeId, opts)
 		if err != nil {
 			l.Error("error getting issue type fields", zap.Error(err))
-			return nil, err
+			return nil, fmt.Errorf("error getting issue type fields for project %s and issue type %s: %w", projectKey, issueTypeId, err)
 		}
 
 		allMetaFields = append(allMetaFields, issueFields...)

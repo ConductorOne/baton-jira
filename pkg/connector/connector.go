@@ -11,8 +11,9 @@ import (
 
 type (
 	Jira struct {
-		client      *jira.Client
-		projectKeys []string
+		client       *jira.Client
+		projectKeys  []string
+		skipProjects bool
 	}
 
 	JiraBuilder interface {
@@ -32,7 +33,7 @@ type (
 	}
 )
 
-func (b *JiraBasicAuthBuilder) New() (*Jira, error) {
+func (b *JiraBasicAuthBuilder) New(skipProjects bool) (*Jira, error) {
 	transport := jira.BasicAuthTransport{
 		Username: b.Username,
 		APIToken: b.ApiToken,
@@ -44,8 +45,9 @@ func (b *JiraBasicAuthBuilder) New() (*Jira, error) {
 	}
 
 	return &Jira{
-		client:      client,
-		projectKeys: b.Base.ProjectKeys,
+		client:       client,
+		projectKeys:  b.Base.ProjectKeys,
+		skipProjects: skipProjects,
 	}, nil
 }
 
@@ -64,12 +66,17 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 }
 
 func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	return []connectorbuilder.ResourceSyncer{
+	syncers := []connectorbuilder.ResourceSyncer{
 		userBuilder(o.client),
 		groupBuilder(o.client),
-		projectBuilder(o.client),
 		roleBuilder(o.client),
 	}
+
+	if !o.skipProjects {
+		syncers = append(syncers, projectBuilder(o.client))
+	}
+
+	return syncers
 }
 
 func (o *Jira) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {

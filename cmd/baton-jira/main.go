@@ -49,7 +49,7 @@ func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, e
 		ApiToken: v.GetString(apiTokenField.FieldName),
 	}
 
-	jiraConnector, err := builder.New()
+	jiraConnector, err := builder.New(v.GetBool("skip-projects"))
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

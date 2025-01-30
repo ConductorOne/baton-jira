@@ -143,7 +143,7 @@ func (j *Jira) getJiraStatusesForProject(ctx context.Context, projectId string) 
 			jira.WithStatusCategory("DONE"),
 			jira.WithProjectId(projectId))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error getting statuses for project %s: %w", projectId, err)
 		}
 
 		jiraStatuses = append(jiraStatuses, statuses...)
@@ -162,7 +162,7 @@ func (j *Jira) schemaForProjectIssueType(ctx context.Context, project *jira.Proj
 
 	issueTypeCustomFields, err := j.getCustomFieldsForIssueType(ctx, project.ID, issueType)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting custom fields for issue type %s in project %s: %w", issueType.ID, project.ID, err)
 	}
 
 	for _, cf := range issueTypeCustomFields {
@@ -236,7 +236,7 @@ func (j *Jira) GetIssueTypeFields(ctx context.Context, projectKey, issueTypeId s
 		issueFields, resp, err := j.client.Issue.GetCreateMetaIssueType(ctx, projectKey, issueTypeId, opts)
 		if err != nil {
 			l.Error("error getting issue type fields", zap.Error(err))
-			return nil, err
+			return nil, fmt.Errorf("error getting issue type fields for project %s and issue type %s: %w", projectKey, issueTypeId, err)
 		}
 
 		allMetaFields = append(allMetaFields, issueFields...)
@@ -325,12 +325,27 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}
 
+	filteredProjects := projects
+	if len(j.projectKeys) > 0 {
+		filteredProjects = make([]jira.Project, 0)
+		projectKeySet := make(map[string]bool)
+		for _, key := range j.projectKeys {
+			projectKeySet[key] = true
+		}
+
+		for _, project := range projects {
+			if projectKeySet[project.Key] {
+				filteredProjects = append(filteredProjects, project)
+			}
+		}
+	}
+
 	multipleProjects := false
-	if len(projects) > 1 {
+	if len(filteredProjects) > 1 {
 		multipleProjects = true
 	}
 
-	for _, project := range projects {
+	for _, project := range filteredProjects {
 		statuses, err := j.getTicketStatuses(ctx, project.ID)
 		if err != nil {
 			return nil, "", nil, err

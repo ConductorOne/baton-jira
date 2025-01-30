@@ -38,12 +38,15 @@ func main() {
 func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 
+	projectKeys := v.GetStringSlice(projectKeysField.FieldName)
+
 	builder := connector.JiraBasicAuthBuilder{
 		Base: &connector.JiraOptions{
-			Url: v.GetString("jira-url"),
+			Url:         v.GetString(jiraUrlField.FieldName),
+			ProjectKeys: projectKeys,
 		},
-		Username: v.GetString("jira-email"),
-		ApiToken: v.GetString("jira-api-token"),
+		Username: v.GetString(emailField.FieldName),
+		ApiToken: v.GetString(apiTokenField.FieldName),
 	}
 
 	jiraConnector, err := builder.New()

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/connector"
 	configSchema "github.com/conductorone/baton-sdk/pkg/config"
@@ -39,13 +38,7 @@ func main() {
 func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, error) {
 	l := ctxzap.Extract(ctx)
 
-	var projectKeys []string
-	if projKeysStr := v.GetString("jira-project-keys"); projKeysStr != "" {
-		projectKeys = strings.Split(projKeysStr, ",")
-		for i := range projectKeys {
-			projectKeys[i] = strings.TrimSpace(projectKeys[i])
-		}
-	}
+	projectKeys := v.GetStringSlice("jira-project-keys")
 
 	builder := connector.JiraBasicAuthBuilder{
 		Base: &connector.JiraOptions{

@@ -162,7 +162,7 @@ func (j *Jira) schemaForProjectIssueType(ctx context.Context, project *jira.Proj
 
 	issueTypeCustomFields, err := j.getCustomFieldsForIssueType(ctx, project.ID, issueType)
 	if err != nil {
-		return nil, fmt.Errorf("error getting custom fields for issue type %s: %w", issueType.ID, err)
+		return nil, fmt.Errorf("error getting custom fields for issue type %s in project %s: %w", issueType.ID, project.ID, err)
 	}
 
 	for _, cf := range issueTypeCustomFields {

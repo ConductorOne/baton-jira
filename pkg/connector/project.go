@@ -19,8 +19,9 @@ var resourceTypeProject = &v2.ResourceType{
 }
 
 type projectResourceType struct {
-	resourceType *v2.ResourceType
-	client       *jira.Client
+	resourceType            *v2.ResourceType
+	client                  *jira.Client
+	skipProjectParticipants bool
 }
 
 func projectResource(ctx context.Context, project *jira.Project) (*v2.Resource, error) {
@@ -36,10 +37,11 @@ func (g *projectResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
-func projectBuilder(client *jira.Client) *projectResourceType {
+func projectBuilder(client *jira.Client, skipProjectParticipants bool) *projectResourceType {
 	return &projectResourceType{
-		resourceType: resourceTypeProject,
-		client:       client,
+		resourceType:            resourceTypeProject,
+		client:                  client,
+		skipProjectParticipants: skipProjectParticipants,
 	}
 }
 
@@ -75,12 +77,16 @@ func (p *projectResourceType) getRolesForProjectId(ctx context.Context, projectI
 func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
-	assigmentOptions := []ent.EntitlementOption{
-		ent.WithGrantableTo(resourceTypeUser),
-		ent.WithDescription(fmt.Sprintf("Participating on %s project", resource.DisplayName)),
-		ent.WithDisplayName(fmt.Sprintf("%s project %s", resource.DisplayName, participateEntitlement)),
+	var assigmentOptions []ent.EntitlementOption
+
+	if !u.skipProjectParticipants {
+		assigmentOptions = []ent.EntitlementOption{
+			ent.WithGrantableTo(resourceTypeUser),
+			ent.WithDescription(fmt.Sprintf("Participating on %s project", resource.DisplayName)),
+			ent.WithDisplayName(fmt.Sprintf("%s project %s", resource.DisplayName, participateEntitlement)),
+		}
+		rv = append(rv, ent.NewAssignmentEntitlement(resource, participateEntitlement, assigmentOptions...))
 	}
-	rv = append(rv, ent.NewAssignmentEntitlement(resource, participateEntitlement, assigmentOptions...))
 
 	assigmentOptions = []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
@@ -141,11 +147,15 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 			return nil, "", nil, wrapError(err, "failed to get roles for project")
 		}
 
-		roleGrants, err := getRoleGrants(ctx, p, resource, projectRoles)
+		roleGrants, err := getRoleGrants(ctx, resource, projectRoles)
 		if err != nil {
 			return nil, "", nil, wrapError(err, "failed to get role grants")
 		}
 		rv = append(rv, roleGrants...)
+	}
+
+	if p.skipProjectParticipants {
+		return rv, "", nil, nil
 	}
 
 	participateGrants, isLastPage, err := getGrantsForAllUsersIfProjectIsPublic(ctx, p, resource, project, int(offset), resourcePageSize)
@@ -196,7 +206,7 @@ func getGrantsForAllUsersIfProjectIsPublic(ctx context.Context, p *projectResour
 
 	lastPage := true
 	if !project.IsPrivate {
-		users, _, err := p.client.User.Find(ctx, "", jira.WithStartAt(offset), jira.WithMaxResults(count))
+		users, _, err := p.client.User.FindUsersWithBrowsePermission(ctx, ".", jira.WithStartAt(offset), jira.WithMaxResults(count), jira.WithProjectKey(project.Key))
 		if err != nil {
 			return nil, lastPage, err
 		}
@@ -217,7 +227,7 @@ func getGrantsForAllUsersIfProjectIsPublic(ctx context.Context, p *projectResour
 	return rv, lastPage, nil
 }
 
-func getRoleGrants(ctx context.Context, p *projectResourceType, resource *v2.Resource, roles []jira.Role) ([]*v2.Grant, error) {
+func getRoleGrants(ctx context.Context, resource *v2.Resource, roles []jira.Role) ([]*v2.Grant, error) {
 	var rv []*v2.Grant
 
 	for _, role := range roles {
@@ -229,7 +239,7 @@ func getRoleGrants(ctx context.Context, p *projectResourceType, resource *v2.Res
 
 		grant := grant.NewGrant(
 			resource,
-			participateEntitlement,
+			role.Name,
 			roleResource.Id,
 			grant.WithAnnotation(
 				&v2.GrantExpandable{

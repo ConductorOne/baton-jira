@@ -268,3 +268,37 @@ func (s *UserService) Find(ctx context.Context, property string, tweaks ...searc
 	}
 	return users, resp, nil
 }
+
+// FindUsersWithBrowsePermission searches for users with browse permission
+// It can find users by email or display name using the query parameter
+//
+// Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v2/api-group-user-search/#api-rest-api-2-user-viewissue-search-get
+func (s *UserService) FindUsersWithBrowsePermission(ctx context.Context, property string, tweaks ...searchF) ([]User, *Response, error) {
+	search := []searchParam{
+		{
+			name:  "query",
+			value: property,
+		},
+	}
+	for _, f := range tweaks {
+		search = f(search)
+	}
+
+	var queryString = ""
+	for _, param := range search {
+		queryString += param.name + "=" + param.value + "&"
+	}
+
+	apiEndpoint := fmt.Sprintf("/rest/api/2/user/viewissue/search?%s", queryString[:len(queryString)-1])
+	req, err := s.client.NewRequest(ctx, http.MethodGet, apiEndpoint, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	users := []User{}
+	resp, err := s.client.Do(req, &users)
+	if err != nil {
+		return nil, resp, NewJiraError(resp, err)
+	}
+	return users, resp, nil
+}

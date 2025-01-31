@@ -188,7 +188,7 @@ github.com/conductorone/baton-sdk/pkg/uhttp
 github.com/conductorone/baton-sdk/pkg/us3
 github.com/conductorone/baton-sdk/pkg/ustrings
 github.com/conductorone/baton-sdk/pkg/utls
-# github.com/conductorone/go-jira/v2 v2.0.0-20250116021943-bb163df61d53
+# github.com/conductorone/go-jira/v2 v2.0.0-20250131193944-593fb408766f
 ## explicit; go 1.22
 github.com/conductorone/go-jira/v2/cloud
 # github.com/deckarep/golang-set/v2 v2.7.0

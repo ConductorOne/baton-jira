@@ -6,7 +6,7 @@ toolchain go1.23.4
 
 require (
 	github.com/conductorone/baton-sdk v0.2.63
-	github.com/conductorone/go-jira/v2 v2.0.0-20250203070912-4b47cf6a1655
+	github.com/conductorone/go-jira/v2 v2.0.0-20250203211408-08a564babcc9
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	go.uber.org/zap v1.27.0
 )

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
@@ -13,14 +14,20 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
+const (
+	atlassianUserRoleActor  = "atlassian-user-role-actor"
+	atlassianGroupRoleActor = "atlassian-group-role-actor"
+)
+
 var resourceTypeProject = &v2.ResourceType{
 	Id:          "project",
 	DisplayName: "Project",
 }
 
 type projectResourceType struct {
-	resourceType *v2.ResourceType
-	client       *jira.Client
+	resourceType            *v2.ResourceType
+	client                  *client.Client
+	skipProjectParticipants bool
 }
 
 func projectResource(ctx context.Context, project *jira.Project) (*v2.Resource, error) {
@@ -36,51 +43,27 @@ func (g *projectResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
-func projectBuilder(client *jira.Client) *projectResourceType {
+func projectBuilder(c *client.Client, skipProjectParticipants bool) *projectResourceType {
 	return &projectResourceType{
-		resourceType: resourceTypeProject,
-		client:       client,
+		resourceType:            resourceTypeProject,
+		client:                  c,
+		skipProjectParticipants: skipProjectParticipants,
 	}
-}
-
-func (p *projectResourceType) getRolesForProject(ctx context.Context, project *jira.Project) ([]jira.Role, error) {
-	var rv []jira.Role
-
-	for _, roleLink := range project.Roles {
-		roleId, err := parseRoleIdFromRoleLink(roleLink)
-		if err != nil {
-			return nil, err
-		}
-
-		role, _, err := p.client.Role.Get(ctx, roleId)
-		if err != nil {
-			return nil, err
-		}
-
-		rv = append(rv, *role)
-	}
-
-	return rv, nil
-}
-
-func (p *projectResourceType) getRolesForProjectId(ctx context.Context, projectID string) ([]jira.Role, error) {
-	project, _, err := p.client.Project.Get(ctx, projectID)
-	if err != nil {
-		return nil, err
-	}
-
-	return p.getRolesForProject(ctx, project)
 }
 
 func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
-	assigmentOptions := []ent.EntitlementOption{
-		ent.WithGrantableTo(resourceTypeUser),
-		ent.WithDescription(fmt.Sprintf("Participating on %s project", resource.DisplayName)),
-		ent.WithDisplayName(fmt.Sprintf("%s project %s", resource.DisplayName, participateEntitlement)),
+	var assigmentOptions []ent.EntitlementOption
+
+	if !u.skipProjectParticipants {
+		assigmentOptions = []ent.EntitlementOption{
+			ent.WithGrantableTo(resourceTypeUser),
+			ent.WithDescription(fmt.Sprintf("Participating on %s project", resource.DisplayName)),
+			ent.WithDisplayName(fmt.Sprintf("%s project %s", resource.DisplayName, participateEntitlement)),
+		}
+		rv = append(rv, ent.NewAssignmentEntitlement(resource, participateEntitlement, assigmentOptions...))
 	}
-	rv = append(rv, ent.NewAssignmentEntitlement(resource, participateEntitlement, assigmentOptions...))
 
 	assigmentOptions = []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser),
@@ -89,34 +72,11 @@ func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 	}
 	rv = append(rv, ent.NewAssignmentEntitlement(resource, leadEntitlement, assigmentOptions...))
 
-	roles, err := u.getRolesForProjectId(ctx, resource.Id.Resource)
-	if err != nil {
-		return nil, "", nil, err
-	}
-	rv = append(rv, getPermissionEntitlementsFromRoles(resource, roles)...)
-
 	return rv, "", nil, nil
 }
 
-func getPermissionEntitlementsFromRoles(resource *v2.Resource, roles []jira.Role) []*v2.Entitlement {
-	var rv []*v2.Entitlement
-
-	for _, role := range roles {
-		permissionOptions := []ent.EntitlementOption{
-			ent.WithGrantableTo(resourceTypeUser),
-			ent.WithDescription(fmt.Sprintf("Role in %s project", resource.DisplayName)),
-			ent.WithDisplayName(fmt.Sprintf("%s project %s", resource.DisplayName, role.Name)),
-		}
-
-		entitlement := ent.NewPermissionEntitlement(resource, role.Name, permissionOptions...)
-		rv = append(rv, entitlement)
-	}
-
-	return rv
-}
-
 func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	project, _, err := p.client.Project.Get(ctx, resource.Id.Resource)
+	project, err := p.client.GetProject(ctx, resource.Id.Resource)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get project")
 	}
@@ -130,25 +90,18 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 	if offset == 0 {
 		// handle grants without pagination
-		leadGrants, err := getLeadGrants(ctx, resource, project)
+		leadGrants, err := p.getLeadGrants(ctx, resource, project)
 		if err != nil {
 			return nil, "", nil, wrapError(err, "failed to get lead grants")
 		}
 		rv = append(rv, leadGrants...)
-
-		projectRoles, err := p.getRolesForProject(ctx, project)
-		if err != nil {
-			return nil, "", nil, wrapError(err, "failed to get roles for project")
-		}
-
-		roleGrants, err := getRoleGrants(ctx, p, resource, projectRoles)
-		if err != nil {
-			return nil, "", nil, wrapError(err, "failed to get role grants")
-		}
-		rv = append(rv, roleGrants...)
 	}
 
-	participateGrants, isLastPage, err := getGrantsForAllUsersIfProjectIsPublic(ctx, p, resource, project, int(offset), resourcePageSize)
+	if p.skipProjectParticipants {
+		return rv, "", nil, nil
+	}
+
+	participateGrants, isLastPage, err := p.getGrantsForProjectUsers(ctx, resource, project, int(offset), resourcePageSize)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get participate grants")
 	}
@@ -166,7 +119,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 	return rv, nextPage, nil, nil
 }
 
-func getLeadGrants(ctx context.Context, resource *v2.Resource, project *jira.Project) ([]*v2.Grant, error) {
+func (p *projectResourceType) getLeadGrants(ctx context.Context, resource *v2.Resource, project *jira.Project) ([]*v2.Grant, error) {
 	var rv []*v2.Grant
 	if project.Lead.AccountID != "" {
 		lead := project.Lead
@@ -191,58 +144,28 @@ func getLeadGrants(ctx context.Context, resource *v2.Resource, project *jira.Pro
 	return rv, nil
 }
 
-func getGrantsForAllUsersIfProjectIsPublic(ctx context.Context, p *projectResourceType, resource *v2.Resource, project *jira.Project, offset int, count int) ([]*v2.Grant, bool, error) {
+func (p *projectResourceType) getGrantsForProjectUsers(ctx context.Context, resource *v2.Resource, project *jira.Project, offset int, count int) ([]*v2.Grant, bool, error) {
 	var rv []*v2.Grant
 
 	lastPage := true
-	if !project.IsPrivate {
-		users, _, err := p.client.User.Find(ctx, "", jira.WithStartAt(offset), jira.WithMaxResults(count))
+	users, _, err := p.client.Jira().User.FindUsersWithBrowsePermission(ctx, ".", jira.WithStartAt(offset), jira.WithMaxResults(count), jira.WithProjectKey(project.Key))
+	if err != nil {
+		return nil, lastPage, err
+	}
+
+	for i := range users {
+		userResource, err := userResource(ctx, &users[i])
 		if err != nil {
 			return nil, lastPage, err
 		}
 
-		for i := range users {
-			userResource, err := userResource(ctx, &users[i])
-			if err != nil {
-				return nil, lastPage, err
-			}
-
-			grant := grant.NewGrant(resource, participateEntitlement, userResource.Id)
-			rv = append(rv, grant)
-		}
-
-		lastPage = isLastPage(len(users), resourcePageSize)
-	}
-
-	return rv, lastPage, nil
-}
-
-func getRoleGrants(ctx context.Context, p *projectResourceType, resource *v2.Resource, roles []jira.Role) ([]*v2.Grant, error) {
-	var rv []*v2.Grant
-
-	for _, role := range roles {
-		role := role
-		roleResource, err := roleResource(&role)
-		if err != nil {
-			return nil, err
-		}
-
-		grant := grant.NewGrant(
-			resource,
-			participateEntitlement,
-			roleResource.Id,
-			grant.WithAnnotation(
-				&v2.GrantExpandable{
-					EntitlementIds:  []string{fmt.Sprintf("role:%d:%s", role.ID, appointedEntitlement)},
-					Shallow:         true,
-					ResourceTypeIds: []string{resourceTypeUser.Id},
-				},
-			),
-		)
+		grant := grant.NewGrant(resource, participateEntitlement, userResource.Id)
 		rv = append(rv, grant)
 	}
 
-	return rv, nil
+	lastPage = isLastPage(len(users), resourcePageSize)
+
+	return rv, lastPage, nil
 }
 
 func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
@@ -251,7 +174,7 @@ func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pag
 		return nil, "", nil, err
 	}
 
-	projects, _, err := u.client.Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
+	projects, _, err := u.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}

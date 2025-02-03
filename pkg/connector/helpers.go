@@ -10,6 +10,7 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
+	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
 func wrapError(err error, message string) error {
@@ -96,4 +97,23 @@ func parseRoleIdFromRoleLink(roleLink string) (int, error) {
 		return 0, fmt.Errorf("failed to parse role id: %w", err)
 	}
 	return roleID, nil
+}
+
+func projectRoleID(project *jira.Project, role *jira.Role) string {
+	return fmt.Sprintf("%s:%d", project.ID, role.ID)
+}
+
+func parseProjectRoleID(resourceID string) (string, int, error) {
+	parts := strings.SplitN(resourceID, ":", 2)
+	if len(parts) != 2 {
+		return "", 0, fmt.Errorf("invalid resource ID")
+	}
+
+	projectID := parts[0]
+	roleID, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid role ID")
+	}
+
+	return projectID, int(roleID), nil
 }

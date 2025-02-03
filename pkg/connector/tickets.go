@@ -137,7 +137,7 @@ func (j *Jira) getJiraStatusesForProject(ctx context.Context, projectId string) 
 
 	for {
 		// Fetch statuses here and pass in to schemaForProject
-		statuses, resp, err := j.client.Status.SearchStatusesPaginated(ctx,
+		statuses, resp, err := j.client.Jira().Status.SearchStatusesPaginated(ctx,
 			jira.WithStartAt(statusOffset),
 			jira.WithMaxResults(statusMaxResults),
 			jira.WithStatusCategory("DONE"),
@@ -233,7 +233,7 @@ func (j *Jira) GetIssueTypeFields(ctx context.Context, projectKey, issueTypeId s
 	allMetaFields := make([]*jira.MetaDataFields, 0)
 
 	for {
-		issueFields, resp, err := j.client.Issue.GetCreateMetaIssueType(ctx, projectKey, issueTypeId, opts)
+		issueFields, resp, err := j.client.Jira().Issue.GetCreateMetaIssueType(ctx, projectKey, issueTypeId, opts)
 		if err != nil {
 			l.Error("error getting issue type fields", zap.Error(err))
 			return nil, fmt.Errorf("error getting issue type fields for project %s and issue type %s: %w", projectKey, issueTypeId, err)
@@ -320,7 +320,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 	}
 
-	projects, resp, err := j.client.Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"))
+	projects, resp, err := j.client.Jira().Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}
@@ -398,7 +398,7 @@ func (j *Jira) GetTicketSchema(ctx context.Context, schemaID string) (*v2.Ticket
 		return nil, nil, err
 	}
 
-	project, _, err := j.client.Project.Get(ctx, projectKeyIssueTypeID.ProjectKey)
+	project, err := j.client.GetProject(ctx, projectKeyIssueTypeID.ProjectKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -465,7 +465,7 @@ func (j *Jira) issueToTicket(ctx context.Context, issue *jira.Issue) (*v2.Ticket
 }
 
 func (j *Jira) GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, annotations.Annotations, error) {
-	issue, _, err := j.client.Issue.Get(ctx, ticketId, nil)
+	issue, _, err := j.client.Jira().Issue.Get(ctx, ticketId, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -574,7 +574,7 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 		return nil, nil, err
 	}
 
-	fullIss, _, err := j.client.Issue.Get(ctx, iss.ID, nil)
+	fullIss, _, err := j.client.Jira().Issue.Get(ctx, iss.ID, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -710,7 +710,7 @@ func (j *Jira) createIssue(ctx context.Context, projectKey string, summary strin
 
 	l.Info("creating issue", zap.Any("issue", i))
 
-	issue, resp, err := j.client.Issue.Create(ctx, i)
+	issue, resp, err := j.client.Jira().Issue.Create(ctx, i)
 	if err != nil {
 		jerr := jira.NewJiraError(resp, err)
 		l.Error("error creating issue", zap.Error(jerr))
@@ -721,7 +721,7 @@ func (j *Jira) createIssue(ctx context.Context, projectKey string, summary strin
 }
 
 func (j *Jira) generateIssueURL(issueKey string) (string, error) {
-	baseURL, err := url.Parse(j.client.BaseURL.String())
+	baseURL, err := url.Parse(j.client.Jira().BaseURL.String())
 	if err != nil {
 		return "", err
 	}

@@ -54,6 +54,13 @@ func WithProjectId(projectId string) searchF {
 	}
 }
 
+func WithProjectKey(projectKey string) searchF {
+	return func(s search) search {
+		s = append(s, searchParam{name: "projectKey", value: projectKey})
+		return s
+	}
+}
+
 func WithStatusCategory(statusCategory string) searchF {
 	return func(s search) search {
 		s = append(s, searchParam{name: "statusCategory", value: statusCategory})

@@ -5,10 +5,11 @@ import (
 )
 
 var (
-	jiraUrlField     = field.StringField("jira-url", field.WithRequired(true), field.WithDescription("Url to Jira service."))
-	emailField       = field.StringField("jira-email", field.WithRequired(true), field.WithDescription("Email for Jira service."))
-	apiTokenField    = field.StringField("jira-api-token", field.WithRequired(true), field.WithDescription("API token for Jira service."))
-	projectKeysField = field.StringSliceField("jira-project-keys", field.WithDescription("Comma-separated list of Jira project keys to use for tickets."))
+	jiraUrlField                 = field.StringField("jira-url", field.WithRequired(true), field.WithDescription("Url to Jira service."))
+	emailField                   = field.StringField("jira-email", field.WithRequired(true), field.WithDescription("Email for Jira service."))
+	apiTokenField                = field.StringField("jira-api-token", field.WithRequired(true), field.WithDescription("API token for Jira service."))
+	projectKeysField             = field.StringSliceField("jira-project-keys", field.WithDescription("Comma-separated list of Jira project keys to use for tickets."))
+	skipProjectParticipantsField = field.BoolField("skip-project-participants", field.WithRequired(false), field.WithDescription("Skip syncing project participants."))
 )
 
 var configurationFields = []field.SchemaField{
@@ -16,4 +17,5 @@ var configurationFields = []field.SchemaField{
 	emailField,
 	apiTokenField,
 	projectKeysField,
+	skipProjectParticipantsField,
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
@@ -26,7 +27,7 @@ var resourceTypeGroup = &v2.ResourceType{
 
 type groupResourceType struct {
 	resourceType *v2.ResourceType
-	client       *jira.Client
+	client       *client.Client
 }
 
 func groupResource(ctx context.Context, group *jira.Group) (*v2.Resource, error) {
@@ -51,10 +52,10 @@ func (g *groupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
-func groupBuilder(client *jira.Client) *groupResourceType {
+func groupBuilder(c *client.Client) *groupResourceType {
 	return &groupResourceType{
 		resourceType: resourceTypeGroup,
-		client:       client,
+		client:       c,
 	}
 }
 
@@ -79,7 +80,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 		return nil, "", nil, err
 	}
 
-	groupMembers, _, err := u.client.Group.GetGroupMembers(
+	groupMembers, _, err := u.client.Jira().Group.GetGroupMembers(
 		ctx,
 		resource.Id.Resource,
 		jira.WithStartAt(int(offset)),
@@ -127,7 +128,7 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 		return nil, "", nil, err
 	}
 
-	groups, _, err := u.client.Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
+	groups, _, err := u.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to list groups")
 	}
@@ -174,7 +175,7 @@ func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, e
 		return nil, err
 	}
 
-	_, resp, err := u.client.Group.AddUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
+	_, resp, err := u.client.Jira().Group.AddUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
 	if err != nil {
 		l.Error(
 			"failed to add user to group",
@@ -220,7 +221,7 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, err
 	}
 
-	resp, err := u.client.Group.RemoveUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
+	resp, err := u.client.Jira().Group.RemoveUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
 	if err != nil {
 		l.Error(
 			"failed to remove user from group",

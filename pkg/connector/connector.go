@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 
+	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
@@ -11,8 +12,9 @@ import (
 
 type (
 	Jira struct {
-		client      *jira.Client
-		projectKeys []string
+		client                  *client.Client
+		projectKeys             []string
+		skipProjectParticipants bool
 	}
 
 	JiraBuilder interface {
@@ -32,30 +34,31 @@ type (
 	}
 )
 
-func (b *JiraBasicAuthBuilder) New() (*Jira, error) {
+func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool) (*Jira, error) {
 	transport := jira.BasicAuthTransport{
 		Username: b.Username,
 		APIToken: b.ApiToken,
 	}
 
-	client, err := jira.NewClient(b.Base.Url, transport.Client())
+	c, err := client.New(b.Base.Url, transport.Client())
 	if err != nil {
 		return nil, wrapError(err, "error creating jira client")
 	}
 
 	return &Jira{
-		client:      client,
-		projectKeys: b.Base.ProjectKeys,
+		client:                  c,
+		projectKeys:             b.Base.ProjectKeys,
+		skipProjectParticipants: skipProjectParticipants,
 	}, nil
 }
 
 func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
-	_, _, err := j.client.User.Find(ctx, "")
+	_, _, err := j.client.Jira().User.Find(ctx, "")
 	if err != nil {
 		return nil, wrapError(err, "failed to get users")
 	}
 
-	_, _, err = j.client.Project.GetAll(ctx, nil)
+	_, _, err = j.client.Jira().Project.GetAll(ctx, nil)
 	if err != nil {
 		return nil, wrapError(err, "failed to get projects")
 	}
@@ -67,8 +70,8 @@ func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceS
 	return []connectorbuilder.ResourceSyncer{
 		userBuilder(o.client),
 		groupBuilder(o.client),
-		projectBuilder(o.client),
-		roleBuilder(o.client),
+		projectRoleBuilder(o.client),
+		projectBuilder(o.client, o.skipProjectParticipants),
 	}
 }
 

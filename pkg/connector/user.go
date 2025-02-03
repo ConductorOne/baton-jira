@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
@@ -26,7 +27,7 @@ var (
 type (
 	userResourceType struct {
 		resourceType *v2.ResourceType
-		client       *jira.Client
+		client       *client.Client
 	}
 )
 
@@ -88,10 +89,10 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return u.resourceType
 }
 
-func userBuilder(client *jira.Client) *userResourceType {
+func userBuilder(c *client.Client) *userResourceType {
 	return &userResourceType{
 		resourceType: resourceTypeUser,
-		client:       client,
+		client:       c,
 	}
 }
 
@@ -109,7 +110,7 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 		return nil, "", nil, err
 	}
 
-	users, _, err := u.client.User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
+	users, _, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to list users")
 	}

@@ -10,4 +10,5 @@ var (
 	leadEntitlement = "lead"
 
 	appointedEntitlement = "appointed"
+	assignedEntitlement  = "assigned"
 )

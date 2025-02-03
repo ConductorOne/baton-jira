@@ -9,6 +9,5 @@ var (
 
 	leadEntitlement = "lead"
 
-	appointedEntitlement = "appointed"
-	assignedEntitlement  = "assigned"
+	assignedEntitlement = "assigned"
 )

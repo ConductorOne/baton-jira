@@ -39,7 +39,7 @@ func projectRoleResource(project *jira.Project, role *jira.Role) (*v2.Resource, 
 	}
 
 	displayName := fmt.Sprintf("%s - %s", project.Name, role.Name)
-	resourceID := fmt.Sprintf("%s:%d", project.ID, role.ID)
+	resourceID := projectRoleID(project, role)
 	roleTraitOptions := []rs.RoleTraitOption{
 		rs.WithRoleProfile(profile),
 	}
@@ -170,9 +170,6 @@ func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, to
 				return nil, "", nil, wrapError(err, "failed to create project role resource")
 			}
 			ret = append(ret, prr)
-		}
-		if err != nil {
-			return nil, "", nil, err
 		}
 	}
 

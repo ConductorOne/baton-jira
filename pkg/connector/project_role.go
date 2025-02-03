@@ -152,7 +152,7 @@ func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, to
 	for _, prj := range projects {
 		project, err := p.client.GetProject(ctx, prj.ID)
 		if err != nil {
-			return nil, "", nil, wrapError(err, "failed to get project")
+			return nil, "", nil, wrapError(err, fmt.Sprintf("failed to get project %s", prj.ID))
 		}
 		for _, roleLink := range project.Roles {
 			roleId, err := parseRoleIdFromRoleLink(roleLink)

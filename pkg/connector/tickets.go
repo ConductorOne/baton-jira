@@ -320,25 +320,12 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 	}
 
-	projects, resp, err := j.client.Jira().Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"))
+	projects, resp, err := j.client.Jira().Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"), jira.WithKeys(j.projectKeys...))
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects")
 	}
 
 	filteredProjects := projects
-	if len(j.projectKeys) > 0 {
-		filteredProjects = make([]jira.Project, 0)
-		projectKeySet := make(map[string]bool)
-		for _, key := range j.projectKeys {
-			projectKeySet[key] = true
-		}
-
-		for _, project := range projects {
-			if projectKeySet[project.Key] {
-				filteredProjects = append(filteredProjects, project)
-			}
-		}
-	}
 
 	multipleProjects := false
 	if len(filteredProjects) > 1 {

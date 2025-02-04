@@ -175,6 +175,16 @@ func (s *ProjectService) GetPermissionScheme(ctx context.Context, projectID stri
 	return ps, resp, nil
 }
 
+// WithKeys sets the keys to search
+func WithKeys(keys ...string) searchF {
+	return func(s search) search {
+		for _, key := range keys {
+			s = append(s, searchParam{name: "key", value: key})
+		}
+		return s
+	}
+}
+
 // Find searches for project paginated info from Jira
 //
 // Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v2/api-group-projects/#api-rest-api-2-project-search-get

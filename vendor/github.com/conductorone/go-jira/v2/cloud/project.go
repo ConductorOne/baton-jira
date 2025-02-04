@@ -176,10 +176,14 @@ func (s *ProjectService) GetPermissionScheme(ctx context.Context, projectID stri
 }
 
 // WithKeys sets the keys to search
+// https://developer.atlassian.com/cloud/jira/platform/rest/v2/api-group-projects/#api-rest-api-2-project-search-get
+// "The project keys to filter the results by. To include multiple keys,
+// provide an ampersand-separated list. For example, keys=PA&keys=PB. Up to
+// 50 project keys can be provided.
 func WithKeys(keys ...string) searchF {
 	return func(s search) search {
 		for _, key := range keys {
-			s = append(s, searchParam{name: "key", value: key})
+			s = append(s, searchParam{name: "keys", value: key})
 		}
 		return s
 	}

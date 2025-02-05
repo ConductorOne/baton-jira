@@ -310,6 +310,8 @@ func convertMetadataFieldToCustomField(metaDataField *jira.MetaDataFields) *v2.T
 func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error) {
 	var ret []*v2.TicketSchema
 
+	l := ctxzap.Extract(ctx)
+
 	offset := 0
 	// get offset from page token if its not empty
 	if p != nil && p.Token != "" {
@@ -348,7 +350,14 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 
 			schema, err := j.schemaForProjectIssueType(ctx, &project, &issueType, statuses, multipleProjects)
 			if err != nil {
-				return nil, "", nil, err
+				l.Warn(
+					"error getting schema for project issue type",
+					zap.String("error", err.Error()),
+					zap.String("issue_type", issueType.ID),
+					zap.String("issue_type_name", issueType.Name),
+					zap.String("project", project.Key),
+				)
+				continue
 			}
 			ret = append(ret, schema)
 		}

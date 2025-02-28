@@ -2,54 +2,145 @@
 
 # `baton-jira` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-jira.svg)](https://pkg.go.dev/github.com/conductorone/baton-jira) ![main ci](https://github.com/conductorone/baton-jira/actions/workflows/main.yaml/badge.svg)
 
-`baton-jira` is a connector for Jira built using the [Baton SDK](https://github.com/conductorone/baton-sdk). It works with both cloud or on-premise Jira V3 API.
+`baton-jira` is a connector for Jira built using the [Baton SDK](https://github.com/conductorone/baton-sdk). It works with both cloud or on-premise Jira installations through the Jira V3 API. This connector helps organizations manage and review access to Jira resources through automated discovery and provisioning capabilities.
+
+## Connector Capabilities
+
+This connector provides the following capabilities:
+
+- **Sync**: Discovers and syncs all users, groups, projects, and project roles from your Jira instance
+- **Provisioning**: Grants and revokes access to Jira groups and project roles
+- **Ticketing**: Creates and tracks Jira tickets for access requests/approvals workflows
+
+## Resource Types Synced
+
+The connector syncs the following Jira resources:
+
+- **Users**: All Jira user accounts (human and service accounts)
+- **Groups**: Jira groups and their memberships
+- **Projects**: All Jira projects (or filtered by project keys if specified)
+- **Project Roles**: Role-based permissions within projects (e.g., Administrators, Developers)
+
+## Value Provided
+
+- **Centralized Access Management**: Manage Jira access alongside other systems
+- **Automated Access Reviews**: Easily review who has access to which Jira projects and roles
+- **Streamlined Provisioning**: Grant or revoke access to groups and project roles
+- **Access Request Workflows**: Integrate with ticketing workflows for access approvals
 
 Check out [Baton](https://github.com/conductorone/baton) to learn more about the project in general.
 
 # Prerequisites
 
-This connector supports Jira Basic Auth. It requires an email address and api token to exchange for access token that later used throughout the communication with API. To obtain these credentials, you have to create API client in Jira. To do that you must have administrator role (more info on creating credentials [here](https://developer.atlassian.com/cloud/jira/platform/basic-auth-for-rest-apis/)). 
+This connector uses Jira Basic Auth, requiring an email address and API token. To use this connector, you need:
 
-After you have obtained an API token, you can use them with the connector. You can do this by setting `BATON_JIRA_EMAIL` and `BATON_JIRA_API_TOKEN` environment variables or by passing them as flags to baton-jira command.
+1. **Appropriate Permissions**: The account used needs permissions for the operations below (admin privileges provide all these, but more granular permissions can work too):
+   - View users, groups, and projects
+   - View project roles
+   - Manage group memberships (for provisioning)
+   - Manage project role memberships (for provisioning)
+   - Create issues (for ticketing)
+2. **API Token**: A personal API token for authentication (see below for creation steps)
+3. **Jira URL**: The URL of your Jira instance
+4. **Email Address**: The email associated with your Jira account
 
-# Getting Started
+## Creating an API Token
 
-Along with credentials, you must specify Jira URL that you want to use. You can change this by setting `BATON_JIRA_URL` environment variable or by passing `--jira-url` flag to `baton-jira` command.
+1. Log in to your Atlassian account at [id.atlassian.com](https://id.atlassian.com/)
+2. Navigate to **Security** in the left sidebar
+3. Under **API tokens**, click **Create and manage API tokens**
+4. Click **Create API token**
+5. Give your token a meaningful label (e.g., "Baton Access Management")
+6. Copy and securely store the generated token - it will only be shown once
 
-## brew
+For detailed instructions, see the [Atlassian documentation on API tokens](https://developer.atlassian.com/cloud/jira/platform/basic-auth-for-rest-apis/).
 
-```
+## Configuration Options
+
+The connector requires the following configuration:
+
+| Parameter | Description | Required | Environment Variable | Flag |
+|-----------|-------------|----------|----------------------|------|
+| Jira URL | URL of your Jira instance | Yes | `BATON_JIRA_URL` | `--jira-url` |
+| Email | Email address for Jira authentication | Yes | `BATON_JIRA_EMAIL` | `--jira-email` |
+| API Token | API token for Jira authentication | Yes | `BATON_JIRA_API_TOKEN` | `--jira-api-token` |
+| Project Keys | Comma-separated list of project keys to sync (optional) | No | `BATON_JIRA_PROJECT_KEYS` | `--jira-project-keys` |
+| Ticketing | Enable ticketing support | No | `BATON_TICKETING` | `--ticketing` |
+| Skip Project Participants | Skip syncing project participants (improves performance) | No | n/a | `--skip-project-participants` |
+
+## Installation Methods
+
+### Homebrew
+
+```bash
+# Install the connector
 brew install conductorone/baton/baton conductorone/baton/baton-jira
 
-BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN=token BATON_JIRA_URL=your-jira.atlassian.com baton-jira
+# Run the connector with your configuration
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='your-jira.atlassian.com' baton-jira
 baton resources
 ```
 
-## docker
+### Docker
 
-```
-docker run --rm -v $(pwd):/out -e BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN=token BATON_JIRA_URL=your-jira.atlassian.com ghcr.io/conductorone/baton-jira:latest -f "/out/sync.c1z"
+```bash
+# Run the connector with your configuration
+docker run --rm -v $(pwd):/out \
+  -e BATON_JIRA_EMAIL='user@domain' \
+  -e BATON_JIRA_API_TOKEN='token' \
+  -e BATON_JIRA_URL='your-jira.atlassian.com' \
+  ghcr.io/conductorone/baton-jira:latest -f "/out/sync.c1z"
+
+# View synced resources
 docker run --rm -v $(pwd):/out ghcr.io/conductorone/baton:latest -f "/out/sync.c1z" resources
 ```
 
-## source
+### From Source
 
-```
+```bash
+# Install the connector
 go install github.com/conductorone/baton/cmd/baton@main
 go install github.com/conductorone/baton-jira/cmd/baton-jira@main
 
-BATON_CLIENT_ID=client_id BATON_CLIENT_SECRET=client_secret baton-jira
+# Run the connector with your configuration
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='your-jira.atlassian.com' baton-jira
+
+# View synced resources
 baton resources
 ```
 
-# Data Model
+# Advanced Features
 
-`baton-jira` will fetch information about the following Jira resources:
+## Filtering by Project Keys
 
-- Users
-- Groups
-- Projects
-- Roles
+You can limit which projects are synced by specifying project keys:
+
+```bash
+BATON_JIRA_PROJECT_KEYS=PROJ1,PROJ2,PROJ3 baton-jira
+```
+
+This is useful for large Jira instances where you only need to manage access for specific projects.
+
+## Ticketing Support
+
+The connector can create and manage Jira tickets for access requests and approvals:
+
+```bash
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='your-jira.atlassian.com' BATON_TICKETING=true baton-jira
+```
+
+When ticketing is enabled, the connector will:
+- Discover available issue types from your Jira projects
+- Allow creation of tickets through the Baton API
+- Track ticket status for access requests
+
+## Performance Optimization
+
+For large Jira instances, you can improve sync performance by skipping project participants:
+
+```bash
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='your-jira.atlassian.com' --skip-project-participants baton-jira
+```
 
 # Contributing, Support and Issues
 

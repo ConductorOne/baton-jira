@@ -15,6 +15,8 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var resourceTypeGroup = &v2.ResourceType{
@@ -87,7 +89,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 		jira.WithMaxResults(resourcePageSize),
 	)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get group members")
+		return nil, "", nil, status.Error(codes.NotFound, "failed to get group members")
 	}
 
 	var rv []*v2.Grant

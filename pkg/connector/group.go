@@ -89,7 +89,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 		jira.WithMaxResults(resourcePageSize),
 	)
 	if err != nil {
-		if status.Code(err) == codes.NotFound {
+		if status.Code(err) == codes.Unknown {
 			return nil, "", nil, status.Error(codes.NotFound, fmt.Sprintf("failed to get group members: %v", err))
 		}
 		return nil, "", nil, wrapError(err, "failed to get group members")

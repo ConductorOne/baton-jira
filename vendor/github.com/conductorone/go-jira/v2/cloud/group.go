@@ -228,26 +228,26 @@ func (s *GroupService) RemoveUserByGroupId(ctx context.Context, groupId string, 
 }
 
 // Sets case insensitive search
-func WithCaseInsensitive() searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "caseInsensitive", value: "true"})
+func WithCaseInsensitive() UserSearchF {
+	return func(s UserSearch) UserSearch {
+		s = append(s, UserSearchParam{name: "caseInsensitive", value: "true"})
 		return s
 	}
 }
 
 // Sets query string for filtering group names.
-func WithGroupNameContains(contains string) searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "query", value: contains})
+func WithGroupNameContains(contains string) UserSearchF {
+	return func(s UserSearch) UserSearch {
+		s = append(s, UserSearchParam{name: "query", value: contains})
 		return s
 	}
 }
 
 // Sets excluded group names.
-func WithExcludedGroupNames(excluded []string) searchF {
-	return func(s search) search {
+func WithExcludedGroupNames(excluded []string) UserSearchF {
+	return func(s UserSearch) UserSearch {
 		for _, name := range excluded {
-			s = append(s, searchParam{name: "exclude", value: name})
+			s = append(s, UserSearchParam{name: "exclude", value: name})
 		}
 
 		return s
@@ -255,10 +255,10 @@ func WithExcludedGroupNames(excluded []string) searchF {
 }
 
 // Sets excluded group ids.
-func WithExcludedGroupsIds(excluded []string) searchF {
-	return func(s search) search {
+func WithExcludedGroupsIds(excluded []string) UserSearchF {
+	return func(s UserSearch) UserSearch {
 		for _, id := range excluded {
-			s = append(s, searchParam{name: "excludeId", value: id})
+			s = append(s, UserSearchParam{name: "excludeId", value: id})
 		}
 
 		return s
@@ -270,8 +270,8 @@ func WithExcludedGroupsIds(excluded []string) searchF {
 // Apart from returning groups it also returns total number of groups
 //
 // Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-groups/#api-rest-api-3-groups-picker-get
-func (s *GroupService) Find(ctx context.Context, tweaks ...searchF) ([]Group, *Response, error) {
-	search := []searchParam{}
+func (s *GroupService) Find(ctx context.Context, tweaks ...UserSearchF) ([]Group, *Response, error) {
+	search := []UserSearchParam{}
 	for _, f := range tweaks {
 		search = f(search)
 	}
@@ -304,8 +304,8 @@ func (s *GroupService) Find(ctx context.Context, tweaks ...searchF) ([]Group, *R
 // Bulk get groups
 //
 // Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-groups/#api-rest-api-3-group-bulk-get
-func (s *GroupService) Bulk(ctx context.Context, tweaks ...searchF) ([]BulkGroup, *Response, error) {
-	search := []searchParam{}
+func (s *GroupService) Bulk(ctx context.Context, tweaks ...UserSearchF) ([]BulkGroup, *Response, error) {
+	search := []UserSearchParam{}
 	for _, f := range tweaks {
 		search = f(search)
 	}
@@ -335,9 +335,9 @@ func (s *GroupService) Bulk(ctx context.Context, tweaks ...searchF) ([]BulkGroup
 	return result.Values, resp, nil
 }
 
-func WithInactiveUsers() searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "includeInactiveUsers", value: "true"})
+func WithInactiveUsers() UserSearchF {
+	return func(s UserSearch) UserSearch {
+		s = append(s, UserSearchParam{name: "includeInactiveUsers", value: "true"})
 		return s
 	}
 }
@@ -347,8 +347,8 @@ func WithInactiveUsers() searchF {
 // Apart from returning group members it also returns total number of group members
 //
 // Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-groups/#api-rest-api-3-group-member-get
-func (s *GroupService) GetGroupMembers(ctx context.Context, groupId string, tweaks ...searchF) ([]GroupMember, *Response, error) {
-	search := []searchParam{}
+func (s *GroupService) GetGroupMembers(ctx context.Context, groupId string, tweaks ...UserSearchF) ([]GroupMember, *Response, error) {
+	search := []UserSearchParam{}
 	for _, f := range tweaks {
 		search = f(search)
 	}

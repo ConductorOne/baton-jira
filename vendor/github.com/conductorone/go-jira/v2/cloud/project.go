@@ -180,10 +180,10 @@ func (s *ProjectService) GetPermissionScheme(ctx context.Context, projectID stri
 // "The project keys to filter the results by. To include multiple keys,
 // provide an ampersand-separated list. For example, keys=PA&keys=PB. Up to
 // 50 project keys can be provided.
-func WithKeys(keys ...string) searchF {
-	return func(s search) search {
+func WithKeys(keys ...string) UserSearchF {
+	return func(s UserSearch) UserSearch {
 		for _, key := range keys {
-			s = append(s, searchParam{name: "keys", value: key})
+			s = append(s, UserSearchParam{name: "keys", value: key})
 		}
 		return s
 	}
@@ -192,10 +192,10 @@ func WithKeys(keys ...string) searchF {
 // Find searches for project paginated info from Jira
 //
 // Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v2/api-group-projects/#api-rest-api-2-project-search-get
-func (s *ProjectService) Find(ctx context.Context, tweaks ...searchF) ([]Project, *Response, error) {
+func (s *ProjectService) Find(ctx context.Context, tweaks ...UserSearchF) ([]Project, *Response, error) {
 	apiEndpoint := "rest/api/2/project/search"
 
-	search := []searchParam{}
+	search := []UserSearchParam{}
 	for _, f := range tweaks {
 		search = f(search)
 	}

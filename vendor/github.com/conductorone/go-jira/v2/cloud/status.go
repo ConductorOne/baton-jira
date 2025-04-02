@@ -86,10 +86,10 @@ func (s *StatusService) GetAllStatuses(ctx context.Context) ([]Status, *Response
 	return statusList, resp, nil
 }
 
-func (s *StatusService) SearchStatusesPaginated(ctx context.Context, tweaks ...searchF) ([]JiraStatus, *Response, error) {
+func (s *StatusService) SearchStatusesPaginated(ctx context.Context, tweaks ...UserSearchF) ([]JiraStatus, *Response, error) {
 	apiEndpoint := "rest/api/3/statuses/search"
 
-	search := []searchParam{}
+	search := []UserSearchParam{}
 	for _, f := range tweaks {
 		search = f(search)
 	}

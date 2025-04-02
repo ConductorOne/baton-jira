@@ -1,69 +1,33 @@
 package cloud
 
 import (
-	"fmt"
 	"strings"
 )
 
-type (
-	searchParam struct {
-		name  string
-		value string
-	}
-
-	search []searchParam
-
-	searchF func(search) search
-)
-
-func WithExpand(expands ...string) searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "expand", value: strings.Join(expands, ",")})
+func WithExpand(expands ...string) UserSearchF {
+	return func(s UserSearch) UserSearch {
+		s = append(s, UserSearchParam{name: "expand", value: strings.Join(expands, ",")})
 		return s
 	}
 }
 
-// WithMaxResults sets the max results to return
-func WithMaxResults(maxResults int) searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "maxResults", value: fmt.Sprintf("%d", maxResults)})
+func WithProjectId(projectId string) UserSearchF {
+	return func(s UserSearch) UserSearch {
+		s = append(s, UserSearchParam{name: "projectId", value: projectId})
 		return s
 	}
 }
 
-// WithAccountId sets the account id to search
-func WithAccountId(accountId string) searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "accountId", value: accountId})
+func WithProjectKey(projectKey string) UserSearchF {
+	return func(s UserSearch) UserSearch {
+		s = append(s, UserSearchParam{name: "projectKey", value: projectKey})
 		return s
 	}
 }
 
-// WithUsername sets the username to search
-func WithUsername(username string) searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "username", value: username})
-		return s
-	}
-}
-
-func WithProjectId(projectId string) searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "projectId", value: projectId})
-		return s
-	}
-}
-
-func WithProjectKey(projectKey string) searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "projectKey", value: projectKey})
-		return s
-	}
-}
-
-func WithStatusCategory(statusCategory string) searchF {
-	return func(s search) search {
-		s = append(s, searchParam{name: "statusCategory", value: statusCategory})
+func WithStatusCategory(statusCategory string) UserSearchF {
+	return func(s UserSearch) UserSearch {
+		s = append(s, UserSearchParam{name: "statusCategory", value: statusCategory})
 		return s
 	}
 }

@@ -15,6 +15,8 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var resourceTypeGroup = &v2.ResourceType{
@@ -80,13 +82,16 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 		return nil, "", nil, err
 	}
 
-	groupMembers, _, err := u.client.Jira().Group.GetGroupMembers(
+	groupMembers, resp, err := u.client.Jira().Group.GetGroupMembers(
 		ctx,
 		resource.Id.Resource,
 		jira.WithStartAt(int(offset)),
 		jira.WithMaxResults(resourcePageSize),
 	)
 	if err != nil {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, "", nil, status.Error(codes.NotFound, fmt.Sprintf("failed to get group members: %v", err))
+		}
 		return nil, "", nil, wrapError(err, "failed to get group members")
 	}
 

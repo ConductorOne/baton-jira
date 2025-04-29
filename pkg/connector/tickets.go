@@ -281,7 +281,11 @@ func convertMetadataFieldToCustomField(metaDataField *jira.MetaDataFields) *v2.T
 		case isMultiSelect && hasAllowedValues:
 			customField = sdkTicket.PickMultipleObjectValuesFieldSchema(id, metaDataField.Name, metaDataField.Required, allowedValues)
 		case isMultiSelect && !hasAllowedValues:
-			customField = sdkTicket.StringsFieldSchema(id, metaDataField.Name, metaDataField.Required)
+			if metaDataField.Schema.Items == "component" {
+				customField = sdkTicket.PickMultipleObjectValuesFieldSchema(id, metaDataField.Name, metaDataField.Required, allowedValues)
+			} else {
+				customField = sdkTicket.StringsFieldSchema(id, metaDataField.Name, metaDataField.Required)
+			}
 		case !isMultiSelect && hasAllowedValues:
 			customField = sdkTicket.PickObjectValueFieldSchema(id, metaDataField.Name, metaDataField.Required, allowedValues)
 		default:
@@ -512,20 +516,6 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 		switch id {
 		case "project":
 			continue
-		case "components":
-			comps, err := sdkTicket.GetPickMultipleObjectValues(ticketFields[id])
-			if err != nil {
-				if errors.Is(err, sdkTicket.ErrFieldNil) {
-					continue
-				}
-				return nil, nil, err
-			}
-
-			componentIDs := make([]string, 0, len(comps))
-			for _, component := range comps {
-				componentIDs = append(componentIDs, component.GetId())
-			}
-			ticketOptions = append(ticketOptions, WithComponents(componentIDs...))
 		case "issue_type":
 			// If issueTypeID is empty, the config has not been updated to use issue type as schema
 			// So issue type is still stored in the custom fields

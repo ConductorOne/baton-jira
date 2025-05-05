@@ -1,8 +1,23 @@
-package main
+package config
 
 import (
 	"github.com/conductorone/baton-sdk/pkg/field"
 )
+
+func init() {
+	ticketField 		:= field.TicketingField
+	externalTicketField := &ticketField
+
+	externalTicketField.ExportTarget = field.ExportTargetGUI
+	Config = field.NewConfiguration([]field.SchemaField{
+		jiraUrlField,
+		emailField,
+		apiTokenField,
+		projectKeysField,
+		skipProjectParticipantsField,
+		*externalTicketField,
+	})
+}
 
 var (
 	jiraUrlField                 = field.StringField("jira-url", field.WithRequired(true), field.WithDescription("Url to Jira service."))
@@ -12,10 +27,5 @@ var (
 	skipProjectParticipantsField = field.BoolField("skip-project-participants", field.WithRequired(false), field.WithDescription("Skip syncing project participants."))
 )
 
-var configurationFields = []field.SchemaField{
-	jiraUrlField,
-	emailField,
-	apiTokenField,
-	projectKeysField,
-	skipProjectParticipantsField,
-}
+//go:generate go run ./gen
+var Config field.Configuration

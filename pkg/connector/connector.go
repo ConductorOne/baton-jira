@@ -79,5 +79,49 @@ func (o *Jira) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 	return &v2.ConnectorMetadata{
 		DisplayName: "Jira",
 		Description: "Connector syncing Jira users and their groups and projects to Baton.",
+		AccountCreationSchema: &v2.ConnectorAccountCreationSchema{
+			FieldMap: map[string]*v2.ConnectorAccountCreationSchema_Field{
+				"email": {
+					DisplayName: "Email",
+					Required:    true,
+					Description: "The email address of the user.",
+					Field: &v2.ConnectorAccountCreationSchema_Field_StringField{
+						StringField: &v2.ConnectorAccountCreationSchema_StringField{},
+					},
+					Placeholder: "Email",
+					Order:       1,
+				},
+				"name": {
+					DisplayName: "Name",
+					Required:    true,
+					Description: "User's name",
+					Field: &v2.ConnectorAccountCreationSchema_Field_StringField{
+						StringField: &v2.ConnectorAccountCreationSchema_StringField{},
+					},
+					Placeholder: "Name",
+					Order:       2,
+				},
+				"displayName": {
+					DisplayName: "Display Name",
+					Required:    false,
+					Description: "User's display name",
+					Field: &v2.ConnectorAccountCreationSchema_Field_StringField{
+						StringField: &v2.ConnectorAccountCreationSchema_StringField{},
+					},
+					Placeholder: "Display Name",
+					Order:       3,
+				},
+				"password": {
+					DisplayName: "Password",
+					Required:    false,
+					Description: "User's password",
+					Field: &v2.ConnectorAccountCreationSchema_Field_StringField{
+						StringField: &v2.ConnectorAccountCreationSchema_StringField{},
+					},
+					Placeholder: "Password",
+					Order:       4,
+				},
+			},
+		},
 	}, nil
 }

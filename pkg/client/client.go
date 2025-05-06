@@ -18,22 +18,6 @@ func (c *Client) Jira() *jira.Client {
 	return c.jira
 }
 
-func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Project, error) {
-	project, ok := c.projectCache.Load(projectID)
-	if ok {
-		return project.(*jira.Project), nil
-	}
-
-	prj, _, err := c.jira.Project.Get(ctx, projectID)
-	if err != nil {
-		return nil, err
-	}
-
-	c.projectCache.Store(projectID, prj)
-
-	return prj, nil
-}
-
 func (c *Client) GetRole(ctx context.Context, roleID int) (*jira.Role, error) {
 	role, ok := c.roleCache.Load(roleID)
 	if ok {

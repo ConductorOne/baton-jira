@@ -204,3 +204,63 @@ func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pag
 
 	return resources, nextPage, nil, nil
 }
+
+func (o *projectResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
+	// spaceID := entitlement.Resource.Id.Resource
+	// role := strings.Split(entitlement.Id, ":")[2]
+	//
+	// resUser, err := o.client.GetUserByID(ctx, principal.Id.Resource)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if len(resUser.Items) == 0 {
+	// 	return nil, fmt.Errorf("baton-contentful: no user found for ID %s", principal.Id.Resource)
+	// }
+	//
+	// roleID := ""
+	// admin := role == spaceAdmin
+	// if !admin {
+	// 	resSpaceRoles, err := o.client.ListSpaceRoles(ctx, spaceID)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("baton-contentful: failed to list space roles: %w", err)
+	// 	}
+	//
+	// 	for _, item := range resSpaceRoles.Items {
+	// 		if item.Name == role {
+	// 			roleID = item.Sys.ID
+	// 			break
+	// 		}
+	// 	}
+	// }
+	//
+	// email := resUser.Items[0].Email
+	// _, err = o.client.CreateSpaceMembership(ctx, spaceID, email, roleID, admin)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// return nil, nil
+	return nil, nil
+}
+
+func (o *projectResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
+	// principal := grant.Principal
+	// entitlement := grant.Entitlement
+	// spaceID := entitlement.Resource.Id.Resource
+	//
+	// resSpaceMembership, err := o.client.GetSpaceMembershipByUser(ctx, spaceID, principal.Id.Resource)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	//
+	// if len(resSpaceMembership.Items) == 0 {
+	// 	return annotations.New(&v2.GrantAlreadyRevoked{}), nil
+	// }
+	//
+	// spaceMembershipID := resSpaceMembership.Items[0].Sys.ID
+	// err = o.client.DeleteSpaceMembership(ctx, spaceID, spaceMembershipID)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("baton-contentful: failed to delete team membership: %w", err)
+	// }
+	// return nil, nil
+	return nil, nil
+}

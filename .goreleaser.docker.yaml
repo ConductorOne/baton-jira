@@ -11,6 +11,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    tags:
+      - "baton_lambda_support"
 dockers:
   - use: buildx
     goos: linux
@@ -35,6 +37,19 @@ dockers:
       - "--platform=linux/arm64/v8"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title=baton-jira"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source=https://github.com/conductorone/baton-jira"
+  - use: buildx
+    goos: linux
+    goarch: arm64
+    dockerfile: Dockerfile.lambda
+    image_templates:
+      - "168442440833.dkr.ecr.us-west-2.amazonaws.com/baton-jira:{{ .Version }}-arm64"
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
       - "--label=org.opencontainers.image.source=https://github.com/conductorone/baton-jira"

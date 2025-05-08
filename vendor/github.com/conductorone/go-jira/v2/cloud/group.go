@@ -2,7 +2,10 @@ package cloud
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 )
@@ -89,6 +92,11 @@ type bulkGetGroupsResult struct {
 	Values     []BulkGroup `json:"values"`
 }
 
+type APIError struct {
+	ErrorMessages []string          `json:"errorMessages"`
+	Errors        map[string]string `json:"errors"`
+}
+
 // Get returns a paginated list of members of the specified group and its subgroups.
 // Users in the page are ordered by user names.
 // User of this resource is required to have sysadmin or admin permissions.
@@ -160,25 +168,39 @@ func (s *GroupService) AddUserByGroupName(ctx context.Context, groupName string,
 // For example, 5b10ac8d82e05b22cc7d4ef5.
 //
 // Jira API docs: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-groups/#api-rest-api-3-group-user-post
-func (s *GroupService) AddUserByGroupId(ctx context.Context, groupId string, accountID string) (*Group, *Response, error) {
+func (s *GroupService) AddUserByGroupId(ctx context.Context, groupId string, accountID string) (*Response, error) {
 	apiEndpoint := fmt.Sprintf("/rest/api/3/group/user?groupId=%s", groupId)
 	var user struct {
 		AccountID string `json:"accountId"`
 	}
+
 	user.AccountID = accountID
 	req, err := s.client.NewRequest(ctx, http.MethodPost, apiEndpoint, &user)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	responseGroup := new(Group)
-	resp, err := s.client.Do(req, responseGroup)
+	resp, err := s.client.Do(req, nil)
 	if err != nil {
-		jerr := NewJiraError(resp, err)
-		return nil, resp, jerr
+		if resp != nil && resp.Response != nil {
+			apiErr := APIError{}
+			decodeErr := decodeAPIError(resp.Response, &apiErr)
+			if decodeErr == nil {
+				if len(apiErr.ErrorMessages) > 0 {
+					return resp, fmt.Errorf("jira API error: %s", apiErr.ErrorMessages[0])
+				}
+				if len(apiErr.Errors) > 0 {
+					for field, msg := range apiErr.Errors {
+						return resp, fmt.Errorf("jira API error: %s (field: %s)", msg, field)
+					}
+				}
+			}
+		}
+
+		return resp, fmt.Errorf("request failed: %w", err)
 	}
 
-	return responseGroup, resp, nil
+	return resp, nil
 }
 
 // Remove removes a user from a group.
@@ -376,4 +398,22 @@ func (s *GroupService) GetGroupMembers(ctx context.Context, groupId string, twea
 	}
 
 	return group.Values, resp, nil
+}
+
+func decodeAPIError(resp *http.Response, target *APIError) error {
+	if resp == nil || resp.Body == nil {
+		return errors.New("response or body is nil")
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("error reading response body: %w", err)
+	}
+
+	if err := json.Unmarshal(body, target); err != nil {
+		return fmt.Errorf("error decoding API error: %w", err)
+	}
+
+	return nil
 }

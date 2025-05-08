@@ -68,6 +68,8 @@ github.com/conductorone/dpop/integrations/dpop_oauth2 v0.2.3 h1:KhFaxiTzj9FteI9I
 github.com/conductorone/dpop/integrations/dpop_oauth2 v0.2.3/go.mod h1:2eI0qv+XaEhoCw0GKFF1yH4X8Mp4KLVEVnQKRFEy4zs=
 github.com/conductorone/go-jira/v2 v2.0.0-20250328233613-c40bf74e4876 h1:xbbvcbOVJA3BpFmb1Fl//oND/GNQoJqUpeOED/ba2d8=
 github.com/conductorone/go-jira/v2 v2.0.0-20250328233613-c40bf74e4876/go.mod h1:OrjKGnogFU21xIdvtF3SeYFUZhzcgoyNHy4qQXKMTtM=
+github.com/conductorone/go-jira/v2 v2.0.0-20250508184657-8640c200634e h1:Lls1CBimXgp0BcI0kHAZqpIdztW1MVJbSt3TKXprKDw=
+github.com/conductorone/go-jira/v2 v2.0.0-20250508184657-8640c200634e/go.mod h1:OrjKGnogFU21xIdvtF3SeYFUZhzcgoyNHy4qQXKMTtM=
 github.com/cpuguy83/go-md2man/v2 v2.0.4/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

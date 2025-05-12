@@ -10,11 +10,3 @@ type CreateUserBody struct {
 	//	- To create a user without product access, set this field to be an empty array.
 	Products []string `json:"products"`
 }
-
-type CreateUserResponse struct {
-	Name        string `json:"name"`
-	Email       string `json:"emailAddress"`
-	DisplayName string `json:"displayName"`
-	Key         string `json:"key"`
-	Self        string `json:"self"` // url
-}

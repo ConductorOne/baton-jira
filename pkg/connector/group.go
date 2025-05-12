@@ -180,7 +180,7 @@ func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, e
 		return nil, err
 	}
 
-	_, resp, err := u.client.Jira().Group.AddUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
+	resp, err := u.client.Jira().Group.AddUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
 	if err != nil {
 		l.Error(
 			"failed to add user to group",

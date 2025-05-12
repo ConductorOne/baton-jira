@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -180,8 +181,12 @@ func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, e
 		return nil, err
 	}
 
-	_, resp, err := u.client.Jira().Group.AddUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
+	resp, err := u.client.Jira().Group.AddUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
 	if err != nil {
+		if strings.Contains(err.Error(), "User is already a member of") {
+			return annotations.New(&v2.GrantAlreadyExists{}), nil
+		}
+
 		l.Error(
 			"failed to add user to group",
 			zap.Error(err),

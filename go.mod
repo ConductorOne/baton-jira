@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 require (
 	github.com/conductorone/baton-sdk v0.2.90
-	github.com/conductorone/go-jira/v2 v2.0.0-20250328233613-c40bf74e4876
+	github.com/conductorone/go-jira/v2 v2.0.0-20250508184657-8640c200634e
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22

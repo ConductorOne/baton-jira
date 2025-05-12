@@ -169,9 +169,6 @@ func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.Ac
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("baton-contentful: failed to create user: %w", err)
 	}
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("baton-contentful: failed to create user: %w", err)
-	}
 
 	resource, err := userResource(ctx, user)
 	if err != nil {

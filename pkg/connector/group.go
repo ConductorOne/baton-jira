@@ -187,6 +187,13 @@ func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, e
 			return annotations.New(&v2.GrantAlreadyExists{}), nil
 		}
 
+		l.Error(
+			"failed to add user to group",
+			zap.Error(err),
+			zap.String("group", entitlement.Resource.Id.Resource),
+			zap.String("user", principal.Id.Resource),
+		)
+
 		return nil, err
 	}
 

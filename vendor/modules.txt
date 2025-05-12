@@ -156,7 +156,7 @@ github.com/benbjohnson/clock
 # github.com/cenkalti/backoff/v4 v4.3.0
 ## explicit; go 1.18
 github.com/cenkalti/backoff/v4
-# github.com/conductorone/baton-sdk v0.2.99
+# github.com/conductorone/baton-sdk v0.3.2
 ## explicit; go 1.23.4
 github.com/conductorone/baton-sdk/internal/connector
 github.com/conductorone/baton-sdk/pb/c1/c1z/v1
@@ -219,7 +219,7 @@ github.com/conductorone/dpop/integrations/dpop_grpc
 # github.com/conductorone/dpop/integrations/dpop_oauth2 v0.2.4
 ## explicit; go 1.23.4
 github.com/conductorone/dpop/integrations/dpop_oauth2
-# github.com/conductorone/go-jira/v2 v2.0.0-20250328233613-c40bf74e4876
+# github.com/conductorone/go-jira/v2 v2.0.0-20250512145346-fb2f54e7345a
 ## explicit; go 1.22
 github.com/conductorone/go-jira/v2/cloud
 # github.com/deckarep/golang-set/v2 v2.8.0
@@ -720,7 +720,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# modernc.org/libc v1.65.0
+# modernc.org/libc v1.65.6
 ## explicit; go 1.23.0
 modernc.org/libc
 modernc.org/libc/errno

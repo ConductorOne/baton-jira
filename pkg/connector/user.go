@@ -160,7 +160,15 @@ func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.Ac
 		return nil, nil, nil, err
 	}
 
-	user, err := o.client.CreateUser(ctx, body)
+	user, _, err := o.client.Jira().User.Create(ctx, &jira.User{
+		Name:         body.Name,
+		Password:     body.Password,
+		EmailAddress: body.Email,
+		Products:     body.Products,
+	})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-contentful: failed to create user: %w", err)
+	}
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("baton-contentful: failed to create user: %w", err)
 	}
@@ -177,14 +185,29 @@ func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.Ac
 
 func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBody, error) {
 	pMap := accountInfo.Profile.AsMap()
-	name := pMap["name"].(string)
-	password := pMap["password"].(string)
-	displayName := pMap["displayName"].(string)
+	name, ok := pMap["name"].(string)
+	if !ok {
+		name = ""
+	}
+	password, ok := pMap["password"].(string)
+	if !ok {
+		password = ""
+	}
+
+	productsInterface := pMap["products"].([]any)
+	products := make([]string, len(productsInterface))
+	for i, product := range productsInterface {
+		productStr, ok := product.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid product type: %T", product)
+		}
+		products[i] = productStr
+	}
 
 	return &client.CreateUserBody{
-		Name:        name,
-		DisplayName: displayName,
-		Password:    password,
-		Email:       accountInfo.Login,
+		Name:     name,
+		Password: password,
+		Email:    accountInfo.Login,
+		Products: products,
 	}, nil
 }

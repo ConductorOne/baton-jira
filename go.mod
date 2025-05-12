@@ -5,8 +5,8 @@ go 1.24
 toolchain go1.24.2
 
 require (
-	github.com/conductorone/baton-sdk v0.2.99
-	github.com/conductorone/go-jira/v2 v2.0.0-20250328233613-c40bf74e4876
+	github.com/conductorone/baton-sdk v0.3.2
+	github.com/conductorone/go-jira/v2 v2.0.0-20250512145346-fb2f54e7345a
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
@@ -121,7 +121,7 @@ require (
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	modernc.org/libc v1.65.0 // indirect
+	modernc.org/libc v1.65.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.10.0 // indirect
 	modernc.org/sqlite v1.37.0 // indirect

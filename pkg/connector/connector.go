@@ -91,16 +91,6 @@ func (o *Jira) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 					Placeholder: "Email",
 					Order:       1,
 				},
-				"name": {
-					DisplayName: "Name",
-					Required:    false,
-					Description: "User's name",
-					Field: &v2.ConnectorAccountCreationSchema_Field_StringField{
-						StringField: &v2.ConnectorAccountCreationSchema_StringField{},
-					},
-					Placeholder: "Name",
-					Order:       2,
-				},
 				"products": {
 					DisplayName: "Products",
 					Required:    true,
@@ -109,17 +99,7 @@ func (o *Jira) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 						StringListField: &v2.ConnectorAccountCreationSchema_StringListField{},
 					},
 					Placeholder: "Products",
-					Order:       3,
-				},
-				"password": {
-					DisplayName: "Password",
-					Required:    false,
-					Description: "User's password",
-					Field: &v2.ConnectorAccountCreationSchema_Field_StringField{
-						StringField: &v2.ConnectorAccountCreationSchema_StringField{},
-					},
-					Placeholder: "Password",
-					Order:       4,
+					Order:       2,
 				},
 			},
 		},

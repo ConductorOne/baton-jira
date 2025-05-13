@@ -161,8 +161,6 @@ func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.Ac
 	}
 
 	user, _, err := o.client.Jira().User.Create(ctx, &jira.User{
-		Name:         body.Name,
-		Password:     body.Password,
 		EmailAddress: body.Email,
 		Products:     body.Products,
 	})
@@ -182,14 +180,6 @@ func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.Ac
 
 func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBody, error) {
 	pMap := accountInfo.Profile.AsMap()
-	name, ok := pMap["name"].(string)
-	if !ok {
-		name = ""
-	}
-	password, ok := pMap["password"].(string)
-	if !ok {
-		password = ""
-	}
 
 	productsInterface := pMap["products"].([]any)
 	products := make([]string, len(productsInterface))
@@ -202,8 +192,6 @@ func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBod
 	}
 
 	return &client.CreateUserBody{
-		Name:     name,
-		Password: password,
 		Email:    accountInfo.Login,
 		Products: products,
 	}, nil

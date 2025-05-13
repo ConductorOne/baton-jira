@@ -28,6 +28,7 @@ type User struct {
 	Locale           string           `json:"locale,omitempty" structs:"locale,omitempty"`
 	Groups           UserGroups       `json:"groups,omitempty" structs:"groups,omitempty"`
 	ApplicationRoles ApplicationRoles `json:"applicationRoles,omitempty" structs:"applicationRoles,omitempty"`
+	Products         []string         `json:"products,omitempty" structs:"products,omitempty"`
 }
 
 // UserGroup represents the group list

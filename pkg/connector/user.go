@@ -2,11 +2,13 @@ package connector
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	jira "github.com/conductorone/go-jira/v2/cloud"
@@ -136,4 +138,61 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 	}
 
 	return resources, nextPage, nil, nil
+}
+
+func (o *userResourceType) CreateAccountCapabilityDetails(ctx context.Context) (*v2.CredentialDetailsAccountProvisioning, annotations.Annotations, error) {
+	return &v2.CredentialDetailsAccountProvisioning{
+		SupportedCredentialOptions: []v2.CapabilityDetailCredentialOption{
+			v2.CapabilityDetailCredentialOption_CAPABILITY_DETAIL_CREDENTIAL_OPTION_NO_PASSWORD,
+		},
+		PreferredCredentialOption: v2.CapabilityDetailCredentialOption_CAPABILITY_DETAIL_CREDENTIAL_OPTION_NO_PASSWORD,
+	}, nil, nil
+}
+
+func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.AccountInfo, credentialOptions *v2.CredentialOptions) (
+	connectorbuilder.CreateAccountResponse,
+	[]*v2.PlaintextData,
+	annotations.Annotations,
+	error,
+) {
+	body, err := getCreateInvitationBody(accountInfo)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	user, _, err := o.client.Jira().User.Create(ctx, &jira.User{
+		EmailAddress: body.Email,
+		Products:     body.Products,
+	})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-contentful: failed to create user: %w", err)
+	}
+
+	resource, err := userResource(ctx, user)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-contentful: failed to create user resource: %w", err)
+	}
+
+	return &v2.CreateAccountResponse_SuccessResult{
+		Resource: resource,
+	}, nil, nil, nil
+}
+
+func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBody, error) {
+	pMap := accountInfo.Profile.AsMap()
+
+	productsInterface := pMap["products"].([]any)
+	products := make([]string, len(productsInterface))
+	for i, product := range productsInterface {
+		productStr, ok := product.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid product type: %T", product)
+		}
+		products[i] = productStr
+	}
+
+	return &client.CreateUserBody{
+		Email:    accountInfo.Login,
+		Products: products,
+	}, nil
 }

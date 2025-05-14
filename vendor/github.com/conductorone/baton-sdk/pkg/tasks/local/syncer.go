@@ -20,7 +20,6 @@ type localSyncer struct {
 	tmpDir                              string
 	externalResourceC1Z                 string
 	externalResourceEntitlementIdFilter string
-	targetedSyncResourceIDs             []string
 }
 
 type Option func(*localSyncer)
@@ -40,12 +39,6 @@ func WithExternalResourceC1Z(externalResourceC1Z string) Option {
 func WithExternalResourceEntitlementIdFilter(entitlementId string) Option {
 	return func(m *localSyncer) {
 		m.externalResourceEntitlementIdFilter = entitlementId
-	}
-}
-
-func WithTargetedSyncResourceIDs(resourceIDs []string) Option {
-	return func(m *localSyncer) {
-		m.targetedSyncResourceIDs = resourceIDs
 	}
 }
 
@@ -75,9 +68,7 @@ func (m *localSyncer) Process(ctx context.Context, task *v1.Task, cc types.Conne
 		sdkSync.WithC1ZPath(m.dbPath),
 		sdkSync.WithTmpDir(m.tmpDir),
 		sdkSync.WithExternalResourceC1ZPath(m.externalResourceC1Z),
-		sdkSync.WithExternalResourceEntitlementIdFilter(m.externalResourceEntitlementIdFilter),
-		sdkSync.WithTargetedSyncResourceIDs(m.targetedSyncResourceIDs),
-	)
+		sdkSync.WithExternalResourceEntitlementIdFilter(m.externalResourceEntitlementIdFilter))
 	if err != nil {
 		return err
 	}

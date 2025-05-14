@@ -242,8 +242,22 @@ func (s *GroupService) RemoveUserByGroupId(ctx context.Context, groupId string, 
 
 	resp, err := s.client.Do(req, nil)
 	if err != nil {
-		jerr := NewJiraError(resp, err)
-		return resp, jerr
+		if resp != nil && resp.Response != nil {
+			apiErr := APIError{}
+			decodeErr := decodeAPIError(resp.Response, &apiErr)
+			if decodeErr == nil {
+				if len(apiErr.ErrorMessages) > 0 {
+					return resp, fmt.Errorf("jira API error: %s", apiErr.ErrorMessages[0])
+				}
+				if len(apiErr.Errors) > 0 {
+					for field, msg := range apiErr.Errors {
+						return resp, fmt.Errorf("jira API error: %s (field: %s)", msg, field)
+					}
+				}
+			}
+		}
+
+		return resp, fmt.Errorf("request failed: %w", err)
 	}
 
 	return resp, nil

@@ -179,16 +179,33 @@ func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.Ac
 }
 
 func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBody, error) {
+	if accountInfo == nil {
+		return nil, fmt.Errorf("account info is nil")
+	}
+
 	pMap := accountInfo.Profile.AsMap()
 
-	productsInterface := pMap["products"].([]any)
-	products := make([]string, len(productsInterface))
-	for i, product := range productsInterface {
-		productStr, ok := product.(string)
+	// Default to empty products array
+	// Per models.go: "To create a user without product access, set this field to be an empty array."
+	var products []string
+
+	// Safely check if products field exists in the map
+	if productsValue, exists := pMap["products"]; exists && productsValue != nil {
+		// Type assertion with ok check
+		productsInterface, ok := productsValue.([]interface{})
 		if !ok {
-			return nil, fmt.Errorf("invalid product type: %T", product)
+			// Return error instead of panicking
+			return nil, fmt.Errorf("products field is not a list: %T", productsValue)
 		}
-		products[i] = productStr
+
+		products = make([]string, 0, len(productsInterface))
+		for _, product := range productsInterface {
+			productStr, ok := product.(string)
+			if !ok {
+				return nil, fmt.Errorf("invalid product type: %T", product)
+			}
+			products = append(products, productStr)
+		}
 	}
 
 	return &client.CreateUserBody{

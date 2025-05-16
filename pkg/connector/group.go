@@ -247,7 +247,7 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, err
 	}
 
-	if resp.StatusCode > 300 {
+	if resp.StatusCode >= 300 {
 		err := fmt.Errorf("baton-jira: failed to remove user from group: %s", resp.Status)
 
 		l.Error(

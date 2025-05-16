@@ -233,6 +233,10 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 
 	resp, err := u.client.Jira().Group.RemoveUserByGroupId(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
 	if err != nil {
+		if strings.Contains(err.Error(), "not a member of") {
+			return annotations.New(&v2.GrantAlreadyRevoked{}), nil
+		}
+
 		l.Error(
 			"failed to remove user from group",
 			zap.Error(err),
@@ -243,7 +247,7 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode >= 300 {
 		err := fmt.Errorf("baton-jira: failed to remove user from group: %s", resp.Status)
 
 		l.Error(

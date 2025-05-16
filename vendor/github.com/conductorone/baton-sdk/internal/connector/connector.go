@@ -35,7 +35,6 @@ const listenerFdEnv = "BATON_CONNECTOR_SERVICE_LISTENER_FD"
 type connectorClient struct {
 	connectorV2.ResourceTypesServiceClient
 	connectorV2.ResourcesServiceClient
-	connectorV2.ResourceGetterServiceClient
 	connectorV2.EntitlementsServiceClient
 	connectorV2.GrantsServiceClient
 	connectorV2.ConnectorServiceClient
@@ -56,14 +55,13 @@ var ErrConnectorNotImplemented = errors.New("client does not implement connector
 type wrapper struct {
 	mtx sync.RWMutex
 
-	server                  types.ConnectorServer
-	client                  types.ConnectorClient
-	serverStdin             io.WriteCloser
-	conn                    *grpc.ClientConn
-	provisioningEnabled     bool
-	ticketingEnabled        bool
-	fullSyncDisabled        bool
-	targetedSyncResourceIDs []string
+	server              types.ConnectorServer
+	client              types.ConnectorClient
+	serverStdin         io.WriteCloser
+	conn                *grpc.ClientConn
+	provisioningEnabled bool
+	ticketingEnabled    bool
+	fullSyncDisabled    bool
 
 	rateLimiter   ratelimitV1.RateLimiterServiceServer
 	rlCfg         *ratelimitV1.RateLimiterConfig
@@ -113,13 +111,6 @@ func WithTicketingEnabled() Option {
 	return func(ctx context.Context, w *wrapper) error {
 		w.ticketingEnabled = true
 
-		return nil
-	}
-}
-
-func WithTargetedSyncResourceIDs(resourceIDs []string) Option {
-	return func(ctx context.Context, w *wrapper) error {
-		w.targetedSyncResourceIDs = resourceIDs
 		return nil
 	}
 }
@@ -381,7 +372,6 @@ func Register(ctx context.Context, s grpc.ServiceRegistrar, srv types.ConnectorS
 	connectorV2.RegisterResourceTypesServiceServer(s, srv)
 	connectorV2.RegisterAssetServiceServer(s, srv)
 	connectorV2.RegisterEventServiceServer(s, srv)
-	connectorV2.RegisterResourceGetterServiceServer(s, srv)
 
 	if opts.TicketingEnabled {
 		connectorV2.RegisterTicketsServiceServer(s, srv)
@@ -431,6 +421,5 @@ func NewConnectorClient(ctx context.Context, cc grpc.ClientConnInterface) types.
 		EventServiceClient:             connectorV2.NewEventServiceClient(cc),
 		TicketsServiceClient:           connectorV2.NewTicketsServiceClient(cc),
 		ActionServiceClient:            connectorV2.NewActionServiceClient(cc),
-		ResourceGetterServiceClient:    connectorV2.NewResourceGetterServiceClient(cc),
 	}
 }

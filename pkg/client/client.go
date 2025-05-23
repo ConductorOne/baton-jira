@@ -8,6 +8,8 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
+type AuditRecord = jira.AuditRecord
+
 type Client struct {
 	jira         *jira.Client
 	projectCache sync.Map

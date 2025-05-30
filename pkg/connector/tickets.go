@@ -333,10 +333,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 
 	filteredProjects := projects
 
-	multipleProjects := false
-	if len(filteredProjects) > 1 {
-		multipleProjects = true
-	}
+	multipleProjects := len(projects) > 1
 
 	for _, project := range filteredProjects {
 		statuses, err := j.getTicketStatuses(ctx, project.ID)

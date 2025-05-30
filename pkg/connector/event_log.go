@@ -24,12 +24,14 @@ const (
 var auditFilters = []string{
 	"Deleted Jira issue",
 	"Field added to Screen",
+	"Field updated in Screen",
 	"Field removed from Screen",
+	"Sprint created",
+	"Issue type created",
 	"Issue type updated",
+	"Workflow created",
 	"Workflow updated",
 	"Project updated",
-	"Previous project keys released",
-	"Project avatar changed",
 }
 
 // auditPageToken handles pagination state for audit log requests.
@@ -97,7 +99,7 @@ func (c *Jira) ListEvents(
 				continue // Skip records without author.
 			}
 
-			event, err := c.convertToEvent(&record)
+			event, err := c.parseIntoUsageEvent(&record)
 			if err != nil {
 				logger.Error("failed to convert audit record to event",
 					zap.Error(err),
@@ -131,7 +133,7 @@ func (c *Jira) ListEvents(
 }
 
 // convertToEvent transforms a Jira audit record into a standardized event format.
-func (c *Jira) convertToEvent(record *client.AuditRecord) (*v2.Event, error) {
+func (c *Jira) parseIntoUsageEvent(record *client.AuditRecord) (*v2.Event, error) {
 	resourceType := c.determineResourceType(record.ObjectItem.TypeName)
 
 	metadata := map[string]interface{}{
@@ -141,29 +143,28 @@ func (c *Jira) convertToEvent(record *client.AuditRecord) (*v2.Event, error) {
 	}
 	c.enrichMetadata(metadata, record)
 
-	usageEvent := &v2.UsageEvent{
-		TargetResource: &v2.Resource{
-			Id: &v2.ResourceId{
-				ResourceType: "user",
-				Resource:     record.AuthorAccountId,
+	usageEvent := &v2.Event_UsageEvent{
+		UsageEvent: &v2.UsageEvent{
+			TargetResource: &v2.Resource{
+				Id: &v2.ResourceId{
+					ResourceType: resourceType.Id,
+					Resource:     record.ObjectItem.ID,
+				},
+				DisplayName: record.ObjectItem.Name,
 			},
-			DisplayName: record.AuthorKey,
-		},
-		ActorResource: &v2.Resource{
-			Id: &v2.ResourceId{
-				ResourceType: resourceType.Id,
-				Resource:     record.ObjectItem.ID,
+			ActorResource: &v2.Resource{
+				Id: &v2.ResourceId{
+					ResourceType: resourceTypeUser.Id,
+					Resource:     record.AuthorAccountId,
+				},
 			},
-			DisplayName: record.ObjectItem.Name,
 		},
 	}
 
 	return &v2.Event{
 		Id:         strconv.FormatInt(record.ID, 10),
 		OccurredAt: timestamppb.New(record.Created.Time),
-		Event: &v2.Event_UsageEvent{
-			UsageEvent: usageEvent,
-		},
+		Event:      usageEvent,
 	}, nil
 }
 

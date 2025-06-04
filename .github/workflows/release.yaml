@@ -44,7 +44,6 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::168442440833:role/GitHubActionsECRPushRole-baton-jira
           aws-region: us-west-2
-          aws-region: us-west-2
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 

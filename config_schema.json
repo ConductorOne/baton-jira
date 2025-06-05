@@ -1,0 +1,102 @@
+{
+  "fields": [
+    {
+      "name": "jira-api-token",
+      "displayName": "API token",
+      "description": "API token for Jira service.",
+      "isRequired": true,
+      "isSecret": true,
+      "stringField": {
+        "rules": {
+          "isRequired": true
+        }
+      }
+    },
+    {
+      "name": "jira-email",
+      "displayName": "Your Jira email address",
+      "description": "Email for Jira service.",
+      "isRequired": true,
+      "stringField": {
+        "rules": {
+          "isRequired": true
+        }
+      }
+    },
+    {
+      "name": "jira-project-keys",
+      "displayName": "Project keys",
+      "description": "Comma-separated list of Jira project keys to use for tickets.",
+      "stringSliceField": {}
+    },
+    {
+      "name": "jira-url",
+      "displayName": "Jira site domain",
+      "description": "Url to Jira service.",
+      "isRequired": true,
+      "stringField": {
+        "rules": {
+          "isRequired": true
+        }
+      }
+    },
+    {
+      "name": "log-level",
+      "description": "The log level: debug, info, warn, error",
+      "isOps": true,
+      "stringField": {
+        "defaultValue": "info"
+      }
+    },
+    {
+      "name": "otel-collector-endpoint",
+      "description": "The endpoint of the OpenTelemetry collector to send observability data to (used for both tracing and logging if specific endpoints are not provided)",
+      "isOps": true,
+      "stringField": {}
+    },
+    {
+      "name": "otel-collector-endpoint-tls-cert",
+      "description": "A PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
+      "isOps": true,
+      "stringField": {}
+    },
+    {
+      "name": "otel-collector-endpoint-tls-cert-path",
+      "description": "Path to a file containing a PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
+      "isOps": true,
+      "stringField": {}
+    },
+    {
+      "name": "otel-collector-endpoint-tls-insecure",
+      "description": "Allow insecure connections to the OpenTelemetry collector",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "otel-logging-disabled",
+      "description": "Disable OpenTelemetry logging",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "otel-tracing-disabled",
+      "description": "Disable OpenTelemetry tracing",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "skip-project-participants",
+      "displayName": "Skip project participants",
+      "description": "Skip syncing project participants.",
+      "boolField": {}
+    },
+    {
+      "name": "ticketing",
+      "description": "This must be set to enable ticketing support",
+      "boolField": {}
+    }
+  ],
+  "displayName": "Jira Cloud",
+  "helpUrl": "/docs/baton/jira-cloud",
+  "iconUrl": "/static/app-icons/jira.svg"
+}

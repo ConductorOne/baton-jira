@@ -20,20 +20,6 @@ const (
 	defaultPageSize = 100
 )
 
-// auditFilters defines the Jira audit log event types we're interested in.
-var auditFilters = []string{
-	"Deleted Jira issue",
-	"Field added to Screen",
-	"Field updated in Screen",
-	"Field removed from Screen",
-	"Sprint created",
-	"Issue type created",
-	"Issue type updated",
-	"Workflow created",
-	"Workflow updated",
-	"Project updated",
-}
-
 // auditPageToken handles pagination state for audit log requests.
 type auditPageToken struct {
 	FilterIndex int `json:"filter_index"` // Index of current filter being processed.
@@ -79,45 +65,38 @@ func (c *Jira) ListEvents(
 
 	var events []*v2.Event
 
-	if token.FilterIndex < len(auditFilters) {
-		filter := auditFilters[token.FilterIndex]
-		opts := &client.AuditOptions{
-			From:   fromTime.Format(time.RFC3339),
-			Offset: token.Offset,
-			Limit:  defaultPageSize,
-			Filter: filter,
+	auditResp, _, err := c.client.Jira().Audit.Get(ctx, &client.AuditOptions{
+		From:   fromTime.Format(time.RFC3339),
+		Offset: token.Offset,
+		Limit:  defaultPageSize,
+	})
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to get audit records: %w", err)
+	}
+
+	// Convert records to events.
+	for _, record := range auditResp.Records {
+		if record.AuthorAccountId == "" {
+			continue // Skip records without author.
 		}
 
-		auditResp, _, err := c.client.Jira().Audit.Get(ctx, opts)
+		event, err := c.parseIntoUsageEvent(&record)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to get audit records for filter %s: %w", filter, err)
+			logger.Error("failed to convert audit record to event",
+				zap.Error(err),
+				zap.Int64("record_id", record.ID))
+			continue
 		}
-
-		// Convert records to events.
-		for _, record := range auditResp.Records {
-			if record.AuthorAccountId == "" {
-				continue // Skip records without author.
-			}
-
-			event, err := c.parseIntoUsageEvent(&record)
-			if err != nil {
-				logger.Error("failed to convert audit record to event",
-					zap.Error(err),
-					zap.Int64("record_id", record.ID))
-				continue
-			}
-			events = append(events, event)
-		}
-		token.Offset += len(auditResp.Records)
-		if token.Offset >= int(auditResp.Total) {
-			token.FilterIndex++
-			token.Offset = 0
-		}
+		events = append(events, event)
+	}
+	token.Offset += len(auditResp.Records)
+	hasMore := true
+	if token.Offset >= int(auditResp.Total) {
+		hasMore = false
 	}
 
 	// Prepare next page token if there are more events to process.
 	var nextToken string
-	hasMore := token.FilterIndex < len(auditFilters)
 	if hasMore {
 		tokenStr, err := token.marshal()
 		if err != nil {

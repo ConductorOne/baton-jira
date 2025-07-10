@@ -92,6 +92,7 @@
     },
     {
       "name": "ticketing",
+      "displayName": "Enable external ticket provisioning",
       "description": "This must be set to enable ticketing support",
       "boolField": {}
     }

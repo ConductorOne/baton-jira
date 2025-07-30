@@ -85,6 +85,12 @@
       "boolField": {}
     },
     {
+      "name": "skip-customer-user",
+      "displayName": "Skip customer user",
+      "description": "Skip syncing customer users in Jira Service Management.",
+      "boolField": {}
+    },
+    {
       "name": "skip-project-participants",
       "displayName": "Skip project participants",
       "description": "Skip syncing project participants.",

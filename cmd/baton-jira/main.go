@@ -48,7 +48,7 @@ func getConnector(ctx context.Context, jc *cfg.Jira) (types.ConnectorServer, err
 		ApiToken: jc.JiraApiToken,
 	}
 
-	jiraConnector, err := builder.New(jc.SkipProjectParticipants)
+	jiraConnector, err := builder.New(jc.SkipProjectParticipants, jc.SkipCustomerUser)
 	if err != nil {
 		l.Error("error creating connector", zap.Error(err))
 		return nil, err

@@ -10,6 +10,7 @@ type Jira struct {
 	JiraProjectKeys []string `mapstructure:"jira-project-keys"`
 	SkipProjectParticipants bool `mapstructure:"skip-project-participants"`
 	Ticketing bool `mapstructure:"ticketing"`
+	SkipCustomerUser bool `mapstructure:"skip-customer-user"`
 }
 
 func (c* Jira) findFieldByTag(tagValue string) (any, bool) {

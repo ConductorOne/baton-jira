@@ -90,10 +90,7 @@ func (c *Jira) ListEvents(
 		events = append(events, event)
 	}
 	token.Offset += len(auditResp.Records)
-	hasMore := true
-	if token.Offset >= int(auditResp.Total) {
-		hasMore = false
-	}
+	hasMore := token.Offset < int(auditResp.Total)
 
 	// Prepare next page token if there are more events to process.
 	var nextToken string

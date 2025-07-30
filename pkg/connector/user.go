@@ -28,8 +28,9 @@ var (
 
 type (
 	userResourceType struct {
-		resourceType *v2.ResourceType
-		client       *client.Client
+		resourceType     *v2.ResourceType
+		client           *client.Client
+		skipCustomerUser bool
 	}
 )
 
@@ -82,6 +83,8 @@ func mapAccountType(accountType string) v2.UserTrait_AccountType {
 		return v2.UserTrait_ACCOUNT_TYPE_HUMAN
 	case "app":
 		return v2.UserTrait_ACCOUNT_TYPE_SERVICE
+	case "customer":
+		return v2.UserTrait_ACCOUNT_TYPE_HUMAN
 	default:
 		return v2.UserTrait_ACCOUNT_TYPE_UNSPECIFIED
 	}
@@ -91,10 +94,11 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return u.resourceType
 }
 
-func userBuilder(c *client.Client) *userResourceType {
+func userBuilder(c *client.Client, skipCustomerUser bool) *userResourceType {
 	return &userResourceType{
-		resourceType: resourceTypeUser,
-		client:       c,
+		resourceType:     resourceTypeUser,
+		client:           c,
+		skipCustomerUser: skipCustomerUser,
 	}
 }
 
@@ -119,6 +123,10 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 
 	var resources []*v2.Resource
 	for i := range users {
+		if u.skipCustomerUser && users[i].AccountType == "customer" {
+			continue
+		}
+
 		resource, err := userResource(ctx, &users[i])
 
 		if err != nil {

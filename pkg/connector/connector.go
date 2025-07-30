@@ -15,6 +15,7 @@ type (
 		client                  *client.Client
 		projectKeys             []string
 		skipProjectParticipants bool
+		skipCustomerUser        bool
 	}
 
 	JiraBuilder interface {
@@ -34,7 +35,7 @@ type (
 	}
 )
 
-func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool) (*Jira, error) {
+func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
 	transport := jira.BasicAuthTransport{
 		Username: b.Username,
 		APIToken: b.ApiToken,
@@ -49,6 +50,7 @@ func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool) (*Jira, error) 
 		client:                  c,
 		projectKeys:             b.Base.ProjectKeys,
 		skipProjectParticipants: skipProjectParticipants,
+		skipCustomerUser:        skipCustomerUser,
 	}, nil
 }
 
@@ -68,7 +70,7 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 
 func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		userBuilder(o.client),
+		userBuilder(o.client, o.skipCustomerUser),
 		groupBuilder(o.client),
 		projectRoleBuilder(o.client),
 		projectBuilder(o.client, o.skipProjectParticipants),

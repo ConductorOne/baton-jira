@@ -35,11 +35,26 @@ var (
 		field.WithDescription("Skip syncing project participants."),
 	)
 	externalTicketField = field.TicketingField.ExportAs(field.ExportTargetGUI)
+
+	skipCustomerUser = field.BoolField(
+		"skip-customer-user",
+		field.WithDisplayName("Skip customer user"),
+		field.WithDescription("Skip syncing customer users in Jira Service Management."),
+		field.WithDefaultValue(false),
+	)
 )
 
 //go:generate go run ./gen
 var Config = field.NewConfiguration(
-	[]field.SchemaField{jiraUrlField, emailField, apiTokenField, projectKeysField, skipProjectParticipantsField, externalTicketField},
+	[]field.SchemaField{
+		jiraUrlField,
+		emailField,
+		apiTokenField,
+		projectKeysField,
+		skipProjectParticipantsField,
+		externalTicketField,
+		skipCustomerUser,
+	},
 	field.WithConnectorDisplayName("Jira Cloud"),
 	field.WithHelpUrl("/docs/baton/jira-cloud"),
 	field.WithIconUrl("/static/app-icons/jira.svg"),

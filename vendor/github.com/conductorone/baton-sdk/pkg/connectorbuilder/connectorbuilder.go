@@ -1305,6 +1305,12 @@ func (b *builderImpl) RotateCredential(ctx context.Context, request *v2.RotateCr
 func (b *builderImpl) Cleanup(ctx context.Context, request *v2.ConnectorServiceCleanupRequest) (*v2.ConnectorServiceCleanupResponse, error) {
 	l := ctxzap.Extract(ctx)
 
+	fmt.Printf("🌮 Cleanup annotations: %v\n", request.GetAnnotations())
+
+	ctx, err := annotations.SetActiveSyncIdInContext(ctx, request.GetAnnotations())
+	if err != nil {
+		l.Warn("error getting active sync id", zap.Error(err))
+	}
 	// Clear session cache if available in context
 	sessionCache, err := cli.GetSessionCache(ctx)
 	if err != nil {

@@ -539,6 +539,7 @@ func (s *syncer) Sync(ctx context.Context) error {
 			return fmt.Errorf("unexpected sync step")
 		}
 	}
+	syncId := s.syncID
 
 	// Force a checkpoint to clear sync_token.
 	err = s.Checkpoint(ctx, true)
@@ -559,8 +560,10 @@ func (s *syncer) Sync(ctx context.Context) error {
 	}
 
 	a := annotations.New(&v2.SyncId{
-		ActiveSyncId: s.syncID,
+		ActiveSyncId: syncId,
 	})
+
+	fmt.Printf("🌮🌮🌮🌮 syncId: %s\n", syncId)
 
 	_, err = s.connector.Cleanup(ctx, &v2.ConnectorServiceCleanupRequest{Annotations: a})
 	if err != nil {

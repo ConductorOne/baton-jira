@@ -149,23 +149,26 @@ func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, to
 	}
 
 	var ret []*v2.Resource
+
+	// previously was calling GetProjects, maybe as a sideeffect?
+	err = p.client.SetProjects(ctx, projects)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to get projects")
+	}
+
 	for _, prj := range projects {
-		project, err := p.client.GetProject(ctx, prj.ID)
-		if err != nil {
-			return nil, "", nil, wrapError(err, fmt.Sprintf("failed to get project %s", prj.ID))
-		}
-		for _, roleLink := range project.Roles {
-			roleId, err := parseRoleIdFromRoleLink(roleLink)
+		for _, roleLink := range prj.Roles {
+			roleID, err := parseRoleIdFromRoleLink(roleLink)
 			if err != nil {
 				return nil, "", nil, wrapError(err, "failed to parse role id from role link")
 			}
 
-			role, err := p.client.GetRole(ctx, roleId)
+			role, err := p.client.GetRole(ctx, roleID)
 			if err != nil {
 				return nil, "", nil, wrapError(err, "failed to get role")
 			}
 
-			prr, err := projectRoleResource(project, role)
+			prr, err := projectRoleResource(&prj, role)
 			if err != nil {
 				return nil, "", nil, wrapError(err, "failed to create project role resource")
 			}

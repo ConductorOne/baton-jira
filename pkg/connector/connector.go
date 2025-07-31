@@ -35,13 +35,13 @@ type (
 	}
 )
 
-func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
+func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
 	transport := jira.BasicAuthTransport{
 		Username: b.Username,
 		APIToken: b.ApiToken,
 	}
 
-	c, err := client.New(b.Base.Url, transport.Client())
+	c, err := client.New(ctx, b.Base.Url, transport.Client())
 	if err != nil {
 		return nil, wrapError(err, "error creating jira client")
 	}

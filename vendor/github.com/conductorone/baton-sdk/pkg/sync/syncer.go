@@ -1596,7 +1596,6 @@ func (s *syncer) syncGrantsForResource(ctx context.Context, resourceID *v2.Resou
 	a.Append(&v2.SyncId{
 		ActiveSyncId: s.syncID,
 	})
-	fmt.Printf("🌮🌮🌮🌮 syncGrantsForResource: %v\n", a)
 
 	resp, err := s.connector.ListGrants(ctx, &v2.GrantsServiceListGrantsRequest{Resource: resource, PageToken: pageToken, Annotations: a})
 	if err != nil {

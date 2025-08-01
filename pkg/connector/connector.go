@@ -2,11 +2,13 @@ package connector
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
+	"github.com/conductorone/baton-sdk/pkg/session"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
@@ -78,6 +80,12 @@ func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceS
 }
 
 func (o *Jira) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
+	_, err := session.GetSession(ctx)
+	if err != nil {
+		fmt.Printf("🌮🌮🌮🌮 error getting session: %v\n", err)
+
+	}
+
 	return &v2.ConnectorMetadata{
 		DisplayName: "Jira",
 		Description: "Connector syncing Jira users and their groups and projects to Baton.",

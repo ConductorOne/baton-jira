@@ -13,6 +13,7 @@ import (
 	aws_lambda "github.com/aws/aws-lambda-go/lambda"
 	"github.com/conductorone/baton-sdk/pkg/crypto/providers/jwk"
 	"github.com/conductorone/baton-sdk/pkg/logging"
+	"github.com/conductorone/baton-sdk/pkg/ugrpc"
 	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -193,7 +194,9 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 			TicketingEnabled:    true,
 		}
 
-		s := c1_lambda_grpc.NewServer(authOpt)
+		chain := ugrpc.ChainUnaryInterceptors(authOpt, ugrpc.SessionCacheInterceptor(runCtx))
+
+		s := c1_lambda_grpc.NewServer(chain)
 		connector.Register(runCtx, s, c, opts)
 
 		sessionCache, err := session.GetSession(runCtx)

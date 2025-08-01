@@ -155,7 +155,8 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 
 		// Create session cache and add to context
 		// Use the same DPoP credentials for the session cache
-		runCtx, err = WithSessionCache(runCtx, createSessionCacheConstructor(runCtx, grpcClient))
+		sessionCacheConstructor := createSessionCacheConstructor(grpcClient)
+		runCtx, err = WithSessionCache(runCtx, sessionCacheConstructor)
 		if err != nil {
 			return fmt.Errorf("lambda-run: failed to create session cache: %w", err)
 		}
@@ -208,15 +209,10 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 }
 
 // createSessionCacheConstructor creates a session cache constructor function that uses the provided gRPC client
-func createSessionCacheConstructor(parentCtx context.Context, grpcClient grpc.ClientConnInterface) types.SessionCacheConstructor {
+func createSessionCacheConstructor(grpcClient grpc.ClientConnInterface) types.SessionCacheConstructor {
 	return func(ctx context.Context, opt ...types.SessionCacheConstructorOption) (types.SessionCache, error) {
 		// Create the gRPC session client using the same gRPC connection
 		client := v1.NewBatonSessionServiceClient(grpcClient)
-		if sessionCache, ok := parentCtx.Value(types.SessionCacheKey{}).(types.SessionCache); ok {
-			ctx = context.WithValue(ctx, types.SessionCacheKey{}, sessionCache)
-		} else {
-			panic("no session cache found in parent context")
-		}
 		// Create and return the session cache
 		return session.NewGRPCSessionCache(ctx, client, opt...)
 	}

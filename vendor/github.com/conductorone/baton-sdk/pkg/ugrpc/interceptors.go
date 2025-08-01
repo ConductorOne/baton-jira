@@ -14,6 +14,21 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func ChainUnaryInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		// Compose from last to first
+		chained := handler
+		for i := len(interceptors) - 1; i >= 0; i-- {
+			currentInterceptor := interceptors[i]
+			next := chained
+			chained = func(currentCtx context.Context, currentReq interface{}) (interface{}, error) {
+				return currentInterceptor(currentCtx, currentReq, info, next)
+			}
+		}
+		return chained(ctx, req)
+	}
+}
+
 // SessionCacheInterceptor creates a unary interceptor that propagates the session cache
 // from the server context to the handler context.
 func SessionCacheInterceptor(serverCtx context.Context) grpc.UnaryServerInterceptor {

@@ -258,7 +258,7 @@ func (s *Server) Handler(ctx context.Context, req *Request) (*Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lambda-run: failed to get session2: %w", err)
 	}
-	fmt.Printf("🌮🌮🌮🌮 session2: %v\n", sessionCache)
+	fmt.Printf("🌮🌮🌮🌮 session2: %v %s %s\n", sessionCache, serviceName, methodName)
 
 	resp, err := method.Handler(service.serviceImpl, ctx, df, s.unaryInterceptor)
 	if err != nil {

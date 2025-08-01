@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"sync"
+	"strconv"
 
-	"github.com/conductorone/baton-sdk/pkg/cli"
-	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/session"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
@@ -15,9 +14,7 @@ type AuditRecord = jira.AuditRecord
 type AuditOptions = jira.AuditOptions
 
 type Client struct {
-	jira         *jira.Client
-	projectCache types.SessionCache
-	roleCache    sync.Map
+	jira *jira.Client
 }
 
 func (c *Client) Jira() *jira.Client {
@@ -25,10 +22,14 @@ func (c *Client) Jira() *jira.Client {
 }
 
 func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Project, error) {
-	project, ok, err := c.projectCache.Get(ctx, projectID)
+	cache, err := session.GetSession(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	project, ok, err := cache.Get(ctx, projectID)
 	if err == nil && ok {
 		var prj jira.Project
-		// fmt.Printf("🌮 project bytes: %s %v\n", projectID,)
 		err = json.Unmarshal(project, &prj)
 		if err != nil {
 			return nil, err
@@ -46,7 +47,7 @@ func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Projec
 		return nil, err
 	}
 
-	err = c.projectCache.Set(ctx, projectID, bytes)
+	err = cache.Set(ctx, projectID, bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,12 @@ func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Projec
 
 func (c *Client) GetProjects(ctx context.Context, projectIDs ...string) ([]*jira.Project, error) {
 	// Try to get projects from cache first
-	projectMap, err := c.projectCache.GetMany(ctx, projectIDs)
+	cache, err := session.GetSession(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	projectMap, err := cache.GetMany(ctx, projectIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +104,7 @@ func (c *Client) GetProjects(ctx context.Context, projectIDs ...string) ([]*jira
 		}
 
 		// Set the fetched projects in cache
-		err = c.projectCache.SetMany(ctx, projectBytesMap)
+		err = cache.SetMany(ctx, projectBytesMap)
 		if err != nil {
 			return nil, err
 		}
@@ -108,6 +114,11 @@ func (c *Client) GetProjects(ctx context.Context, projectIDs ...string) ([]*jira
 }
 
 func (c *Client) SetProjects(ctx context.Context, projects []jira.Project) error {
+	cache, err := session.GetSession(ctx)
+	if err != nil {
+		panic(err)
+	}
+
 	projectBytesMap := make(map[string][]byte)
 
 	for _, project := range projects {
@@ -118,37 +129,51 @@ func (c *Client) SetProjects(ctx context.Context, projects []jira.Project) error
 		projectBytesMap[project.ID] = bytes
 	}
 
-	return c.projectCache.SetMany(ctx, projectBytesMap)
+	return cache.SetMany(ctx, projectBytesMap)
 }
 
 func (c *Client) GetRole(ctx context.Context, roleID int) (*jira.Role, error) {
-	role, ok := c.roleCache.Load(roleID)
-	if ok {
-		return role.(*jira.Role), nil
+	cache, err := session.GetSession(ctx)
+	if err != nil {
+		panic(err)
 	}
 
+	role, ok, err := cache.Get(ctx, "role:"+strconv.Itoa(roleID))
+	if err != nil {
+		return nil, err
+	}
+
+	if ok {
+		var r jira.Role
+		err = json.Unmarshal(role, &r)
+		if err != nil {
+			return nil, err
+		}
+		return &r, nil
+	}
 	r, _, err := c.jira.Role.Get(ctx, roleID)
 	if err != nil {
 		return nil, err
 	}
 
-	c.roleCache.Store(roleID, r)
+	bytes, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	err = cache.Set(ctx, "role:"+strconv.Itoa(roleID), bytes)
+	if err != nil {
+		return nil, err
+	}
 
 	return r, nil
 }
 
-func New(ctx context.Context, url string, httpClient *http.Client) (*Client, error) {
+func New(_ context.Context, url string, httpClient *http.Client) (*Client, error) {
 	jira, err := jira.NewClient(url, httpClient)
 	if err != nil {
 		return nil, err
 	}
-	cache, err := cli.GetSessionCache(ctx)
-	if err != nil {
-		return nil, err
-	}
 
-	return &Client{
-		jira:         jira,
-		projectCache: cache,
-	}, nil
+	return &Client{jira: jira}, nil
 }

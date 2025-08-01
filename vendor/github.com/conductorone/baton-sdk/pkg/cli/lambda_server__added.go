@@ -100,7 +100,7 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 
 		// Create DPoP client with authentication
 		grpcClient, webKey, _, err := c1_lambda_config.NewDPoPClient(
-			ctx,
+			runCtx,
 			v.GetString(field.LambdaServerClientIDField.GetName()),
 			v.GetString(field.LambdaServerClientSecretField.GetName()),
 		)
@@ -112,7 +112,7 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 		configClient := pb_connector_api.NewConnectorConfigServiceClient(grpcClient)
 
 		// Get configuration, convert it to viper flag values, then proceed.
-		config, err := configClient.GetConnectorConfig(ctx, &pb_connector_api.GetConnectorConfigRequest{})
+		config, err := configClient.GetConnectorConfig(runCtx, &pb_connector_api.GetConnectorConfigRequest{})
 		if err != nil {
 			return fmt.Errorf("lambda-run: failed to get connector config: %w", err)
 		}
@@ -193,9 +193,9 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 		}
 
 		s := c1_lambda_grpc.NewServer(authOpt)
-		connector.Register(ctx, s, c, opts)
+		connector.Register(runCtx, s, c, opts)
 
-		aws_lambda.Start(s.Handler)
+		aws_lambda.StartWithOptions(s.Handler, aws_lambda.WithContext(runCtx))
 		return nil
 	}
 

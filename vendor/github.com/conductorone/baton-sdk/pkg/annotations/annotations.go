@@ -157,6 +157,8 @@ func SetActiveSyncIdInContext(ctx context.Context, annos Annotations) (context.C
 	}
 	if syncID != "" {
 		ctx = context.WithValue(ctx, types.SyncIDKey{}, syncID)
+	} else {
+		return nil, fmt.Errorf("error: no active sync id found in annotations")
 	}
 	return ctx, nil
 }

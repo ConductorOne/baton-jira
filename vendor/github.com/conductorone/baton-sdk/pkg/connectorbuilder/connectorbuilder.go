@@ -689,7 +689,7 @@ func (b *builderImpl) ListResources(ctx context.Context, request *v2.ResourcesSe
 
 	ctx, err := annotations.SetActiveSyncIdInContext(ctx, request.Annotations)
 	if err != nil {
-		return nil, fmt.Errorf("error: setting active sync id in context: %w", err)
+		return nil, fmt.Errorf("error: setting active sync id in context: %w (%v)", err, request)
 	}
 
 	out, nextPageToken, annos, err := rb.List(ctx, request.ParentResourceId, &pagination.Token{

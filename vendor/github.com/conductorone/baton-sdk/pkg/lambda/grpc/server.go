@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	pbtransport "github.com/conductorone/baton-sdk/pb/c1/transport/v1"
+	"github.com/conductorone/baton-sdk/pkg/session"
 )
 
 var ErrIllegalSendHeader = status.Errorf(codes.Internal, "transport: SendHeader called multiple times")
@@ -209,6 +210,12 @@ func TimeoutForRequest(req *Request) (time.Duration, bool, error) {
 }
 
 func (s *Server) Handler(ctx context.Context, req *Request) (*Response, error) {
+	sessionCache, err := session.GetSession(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("lambda-run: failed to get session: %w", err)
+	}
+	fmt.Printf("🌮🌮🌮🌮 session: %v\n", sessionCache)
+
 	serviceName, methodName, err := parseMethod(req.Method())
 	if err != nil {
 		return ErrorResponse(err), nil
@@ -247,6 +254,11 @@ func (s *Server) Handler(ctx context.Context, req *Request) (*Response, error) {
 		}
 		return nil
 	}
+	sessionCache, err = session.GetSession(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("lambda-run: failed to get session2: %w", err)
+	}
+	fmt.Printf("🌮🌮🌮🌮 session2: %v\n", sessionCache)
 
 	resp, err := method.Handler(service.serviceImpl, ctx, df, s.unaryInterceptor)
 	if err != nil {

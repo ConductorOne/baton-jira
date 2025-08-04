@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
@@ -15,6 +16,8 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var resourceTypeProjectRole = &v2.ResourceType{
@@ -101,8 +104,11 @@ func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resou
 
 	var rv []*v2.Grant
 
-	projectRoleActors, _, err := p.client.Jira().Role.GetRoleActorsForProject(ctx, projectID, roleID)
+	projectRoleActors, resp, err := p.client.Jira().Role.GetRoleActorsForProject(ctx, projectID, roleID)
 	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, "", nil, status.Error(codes.NotFound, fmt.Sprintf("failed to get role actors for project: %v", err))
+		}
 		return nil, "", nil, wrapError(err, "failed to get role actors for project")
 	}
 

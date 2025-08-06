@@ -2,13 +2,11 @@ package connector
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
-	"github.com/conductorone/baton-sdk/pkg/session"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
@@ -37,13 +35,13 @@ type (
 	}
 )
 
-func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
+func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
 	transport := jira.BasicAuthTransport{
 		Username: b.Username,
 		APIToken: b.ApiToken,
 	}
 
-	c, err := client.New(ctx, b.Base.Url, transport.Client())
+	c, err := client.New(b.Base.Url, transport.Client())
 	if err != nil {
 		return nil, wrapError(err, "error creating jira client")
 	}
@@ -70,22 +68,16 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 	return nil, nil
 }
 
-func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
+func (j *Jira) ResourceSyncers(_ context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		userBuilder(o.client, o.skipCustomerUser),
-		groupBuilder(o.client),
-		projectRoleBuilder(o.client),
-		projectBuilder(o.client, o.skipProjectParticipants),
+		userBuilder(j.client, j.skipCustomerUser),
+		groupBuilder(j.client),
+		projectRoleBuilder(j.client),
+		projectBuilder(j.client, j.skipProjectParticipants),
 	}
 }
 
-func (o *Jira) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
-	_, err := session.GetSession(ctx)
-	if err != nil {
-		fmt.Printf("🌮🌮🌮🌮 error getting session: %v\n", err)
-
-	}
-
+func (j *Jira) Metadata(_ context.Context) (*v2.ConnectorMetadata, error) {
 	return &v2.ConnectorMetadata{
 		DisplayName: "Jira",
 		Description: "Connector syncing Jira users and their groups and projects to Baton.",

@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -22,19 +21,9 @@ func (c *Client) Jira() *jira.Client {
 }
 
 func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Project, error) {
-	cache, err := session.GetSession(ctx)
-	if err != nil {
-		panic(err)
-	}
-
-	project, ok, err := cache.Get(ctx, projectID)
+	project, ok, err := session.GetJSON[*jira.Project](ctx, projectID)
 	if err == nil && ok {
-		var prj jira.Project
-		err = json.Unmarshal(project, &prj)
-		if err != nil {
-			return nil, err
-		}
-		return &prj, nil
+		return project, nil
 	}
 
 	prj, _, err := c.jira.Project.Get(ctx, projectID)
@@ -42,12 +31,7 @@ func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Projec
 		return nil, err
 	}
 
-	bytes, err := json.Marshal(prj)
-	if err != nil {
-		return nil, err
-	}
-
-	err = cache.Set(ctx, projectID, bytes)
+	err = session.SetJSON(ctx, projectID, prj)
 	if err != nil {
 		return nil, err
 	}
@@ -57,12 +41,7 @@ func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Projec
 
 func (c *Client) GetProjects(ctx context.Context, projectIDs ...string) ([]*jira.Project, error) {
 	// Try to get projects from cache first
-	cache, err := session.GetSession(ctx)
-	if err != nil {
-		panic(err)
-	}
-
-	projectMap, err := cache.GetMany(ctx, projectIDs)
+	projectMap, err := session.GetManyJSON[*jira.Project](ctx, projectIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -72,21 +51,16 @@ func (c *Client) GetProjects(ctx context.Context, projectIDs ...string) ([]*jira
 	missingProjectIDs := make([]string, 0, len(projectIDs))
 
 	for _, projectID := range projectIDs {
-		if projectBytes, exists := projectMap[projectID]; !exists {
+		if project, exists := projectMap[projectID]; !exists {
 			missingProjectIDs = append(missingProjectIDs, projectID)
 		} else {
-			var prj jira.Project
-			err = json.Unmarshal(projectBytes, &prj)
-			if err != nil {
-				return nil, err
-			}
-			projects = append(projects, &prj)
+			projects = append(projects, project)
 		}
 	}
 
 	// If we have missing projects, fetch them from the API
 	if len(missingProjectIDs) > 0 {
-		projectBytesMap := make(map[string][]byte)
+		projectMap := make(map[string]*jira.Project)
 
 		for _, projectID := range missingProjectIDs {
 			prj, _, err := c.jira.Project.Get(ctx, projectID)
@@ -94,17 +68,12 @@ func (c *Client) GetProjects(ctx context.Context, projectIDs ...string) ([]*jira
 				return nil, err
 			}
 
-			bytes, err := json.Marshal(prj)
-			if err != nil {
-				return nil, err
-			}
-
 			projects = append(projects, prj)
-			projectBytesMap[projectID] = bytes
+			projectMap[projectID] = prj
 		}
 
 		// Set the fetched projects in cache
-		err = cache.SetMany(ctx, projectBytesMap)
+		err = session.SetManyJSON(ctx, projectMap)
 		if err != nil {
 			return nil, err
 		}
@@ -114,54 +83,29 @@ func (c *Client) GetProjects(ctx context.Context, projectIDs ...string) ([]*jira
 }
 
 func (c *Client) SetProjects(ctx context.Context, projects []jira.Project) error {
-	cache, err := session.GetSession(ctx)
-	if err != nil {
-		panic(err)
-	}
-
-	projectBytesMap := make(map[string][]byte)
-
+	projectMap := make(map[string]*jira.Project)
 	for _, project := range projects {
-		bytes, err := json.Marshal(project)
-		if err != nil {
-			return err
-		}
-		projectBytesMap[project.ID] = bytes
+		projectMap[project.ID] = &project
 	}
 
-	return cache.SetMany(ctx, projectBytesMap)
+	return session.SetManyJSON(ctx, projectMap)
 }
 
 func (c *Client) GetRole(ctx context.Context, roleID int) (*jira.Role, error) {
-	cache, err := session.GetSession(ctx)
-	if err != nil {
-		panic(err)
-	}
-
-	role, ok, err := cache.Get(ctx, "role:"+strconv.Itoa(roleID))
+	role, ok, err := session.GetJSON[jira.Role](ctx, "role:"+strconv.Itoa(roleID))
 	if err != nil {
 		return nil, err
 	}
 
 	if ok {
-		var r jira.Role
-		err = json.Unmarshal(role, &r)
-		if err != nil {
-			return nil, err
-		}
-		return &r, nil
+		return &role, nil
 	}
 	r, _, err := c.jira.Role.Get(ctx, roleID)
 	if err != nil {
 		return nil, err
 	}
 
-	bytes, err := json.Marshal(r)
-	if err != nil {
-		return nil, err
-	}
-
-	err = cache.Set(ctx, "role:"+strconv.Itoa(roleID), bytes)
+	err = session.SetJSON(ctx, "role:"+strconv.Itoa(roleID), r)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +113,7 @@ func (c *Client) GetRole(ctx context.Context, roleID int) (*jira.Role, error) {
 	return r, nil
 }
 
-func New(ctx context.Context, url string, httpClient *http.Client) (*Client, error) {
+func New(url string, httpClient *http.Client) (*Client, error) {
 	jira, err := jira.NewClient(url, httpClient)
 	if err != nil {
 		return nil, err

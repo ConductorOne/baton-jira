@@ -27,7 +27,6 @@ import (
 	ratelimitV1 "github.com/conductorone/baton-sdk/pb/c1/ratelimit/v1"
 	tlsV1 "github.com/conductorone/baton-sdk/pb/c1/utls/v1"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	ratelimit2 "github.com/conductorone/baton-sdk/pkg/ratelimit"
 	"github.com/conductorone/baton-sdk/pkg/types"
 	"github.com/conductorone/baton-sdk/pkg/ugrpc"
@@ -35,10 +34,6 @@ import (
 )
 
 const listenerFdEnv = "BATON_CONNECTOR_SERVICE_LISTENER_FD"
-
-func WithSyncID(ctx context.Context, syncID string) context.Context {
-	return context.WithValue(ctx, types.SyncIDKey{}, syncID)
-}
 
 // activeSyncUnaryInterceptor adds ActiveSync annotations to requests if syncID is present in context (set by syncer).
 // This is used by the session storage layer transparently.
@@ -129,54 +124,6 @@ func (s *activeSyncClientStream) SendMsg(m interface{}) error {
 		addActiveSyncToRequest(m, s.syncID)
 	}
 	return s.ClientStream.SendMsg(m)
-}
-
-// annotationExtractionUnaryInterceptor extracts annotations from requests and adds syncID to context.
-// This is used by the server side to make request annotations and syncID available to handlers.
-func annotationExtractionUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	ctx = connectorbuilder.WithAnnotationsFromRequest(ctx, req)
-	return handler(ctx, req)
-}
-
-// annotationExtractionStreamInterceptor extracts annotations from streaming requests and adds syncID to context.
-func annotationExtractionStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	// For streaming, we need to wrap the stream to intercept messages
-	wrappedStream := &annotationExtractionServerStream{
-		ServerStream: ss,
-		ctx:          ss.Context(),
-	}
-
-	return handler(srv, wrappedStream)
-}
-
-type annotationExtractionServerStream struct {
-	grpc.ServerStream
-	ctx context.Context
-}
-
-func (s *annotationExtractionServerStream) Context() context.Context {
-	return s.ctx
-}
-
-func (s *annotationExtractionServerStream) RecvMsg(m interface{}) error {
-	err := s.ServerStream.RecvMsg(m)
-	if err != nil {
-		return err
-	}
-
-	// Extract annotations from the message and update context
-	annos := connectorbuilder.ExtractAnnotationsFromRequest(m)
-	if len(annos) > 0 {
-		s.ctx = connectorbuilder.WithAnnotationsFromRequest(s.ctx, m)
-
-		// Extract syncID from ActiveSync annotation if present
-		syncID, err := annotations.GetActiveSyncIdFromAnnotations(annos)
-		if err == nil && syncID != "" {
-			s.ctx = WithSyncID(s.ctx, syncID)
-		}
-	}
-
-	return nil
 }
 
 type connectorClient struct {
@@ -308,17 +255,10 @@ func (cw *wrapper) Run(ctx context.Context, serverCfg *connectorwrapperV1.Server
 
 	grpc_zap.ReplaceGrpcLoggerV2(logger)
 
-	// Get default interceptors and add our custom annotation extraction interceptor
-	defaultUnaryInterceptors := ugrpc.UnaryServerInterceptor(ctx)
-	customUnaryInterceptors := append(defaultUnaryInterceptors, annotationExtractionUnaryInterceptor)
-
-	defaultStreamInterceptors := ugrpc.StreamServerInterceptors(ctx)
-	customStreamInterceptors := append(defaultStreamInterceptors, annotationExtractionStreamInterceptor)
-
 	server := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
-		grpc.ChainUnaryInterceptor(customUnaryInterceptors...),
-		grpc.ChainStreamInterceptor(customStreamInterceptors...),
+		grpc.ChainUnaryInterceptor(ugrpc.UnaryServerInterceptor(ctx)...),
+		grpc.ChainStreamInterceptor(ugrpc.StreamServerInterceptors(ctx)...),
 		grpc.StatsHandler(otelgrpc.NewServerHandler(
 			otelgrpc.WithPropagators(
 				propagation.NewCompositeTextMapPropagator(

@@ -169,7 +169,7 @@ func (c *Client) GetRole(ctx context.Context, roleID int) (*jira.Role, error) {
 	return r, nil
 }
 
-func New(_ context.Context, url string, httpClient *http.Client) (*Client, error) {
+func New(ctx context.Context, url string, httpClient *http.Client) (*Client, error) {
 	jira, err := jira.NewClient(url, httpClient)
 	if err != nil {
 		return nil, err

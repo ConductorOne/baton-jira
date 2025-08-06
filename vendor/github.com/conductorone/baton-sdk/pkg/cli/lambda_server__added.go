@@ -199,11 +199,6 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 		s := c1_lambda_grpc.NewServer(chain)
 		connector.Register(runCtx, s, c, opts)
 
-		sessionCache, err := session.GetSession(runCtx)
-		if err != nil {
-			return fmt.Errorf("lambda-run: failed to get session: %w", err)
-		}
-		fmt.Printf("🌮🌮🌮🌮 session: %v\n", sessionCache)
 		aws_lambda.StartWithOptions(s.Handler, aws_lambda.WithContext(runCtx))
 		return nil
 	}

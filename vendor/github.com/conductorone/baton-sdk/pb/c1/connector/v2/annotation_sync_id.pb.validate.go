@@ -35,42 +35,43 @@ var (
 	_ = sort.Sort
 )
 
-// Validate checks the field values on SyncId with the rules defined in the
+// Validate checks the field values on ActiveSync with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
-func (m *SyncId) Validate() error {
+func (m *ActiveSync) Validate() error {
 	return m.validate(false)
 }
 
-// ValidateAll checks the field values on SyncId with the rules defined in the
-// proto definition for this message. If any rules are violated, the result is
-// a list of violation errors wrapped in SyncIdMultiError, or nil if none found.
-func (m *SyncId) ValidateAll() error {
+// ValidateAll checks the field values on ActiveSync with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in ActiveSyncMultiError, or
+// nil if none found.
+func (m *ActiveSync) ValidateAll() error {
 	return m.validate(true)
 }
 
-func (m *SyncId) validate(all bool) error {
+func (m *ActiveSync) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
 	var errors []error
 
-	// no validation rules for ActiveSyncId
+	// no validation rules for Id
 
 	if len(errors) > 0 {
-		return SyncIdMultiError(errors)
+		return ActiveSyncMultiError(errors)
 	}
 
 	return nil
 }
 
-// SyncIdMultiError is an error wrapping multiple validation errors returned by
-// SyncId.ValidateAll() if the designated constraints aren't met.
-type SyncIdMultiError []error
+// ActiveSyncMultiError is an error wrapping multiple validation errors
+// returned by ActiveSync.ValidateAll() if the designated constraints aren't met.
+type ActiveSyncMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
-func (m SyncIdMultiError) Error() string {
+func (m ActiveSyncMultiError) Error() string {
 	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
@@ -79,11 +80,11 @@ func (m SyncIdMultiError) Error() string {
 }
 
 // AllErrors returns a list of validation violation errors.
-func (m SyncIdMultiError) AllErrors() []error { return m }
+func (m ActiveSyncMultiError) AllErrors() []error { return m }
 
-// SyncIdValidationError is the validation error returned by SyncId.Validate if
-// the designated constraints aren't met.
-type SyncIdValidationError struct {
+// ActiveSyncValidationError is the validation error returned by
+// ActiveSync.Validate if the designated constraints aren't met.
+type ActiveSyncValidationError struct {
 	field  string
 	reason string
 	cause  error
@@ -91,22 +92,22 @@ type SyncIdValidationError struct {
 }
 
 // Field function returns field value.
-func (e SyncIdValidationError) Field() string { return e.field }
+func (e ActiveSyncValidationError) Field() string { return e.field }
 
 // Reason function returns reason value.
-func (e SyncIdValidationError) Reason() string { return e.reason }
+func (e ActiveSyncValidationError) Reason() string { return e.reason }
 
 // Cause function returns cause value.
-func (e SyncIdValidationError) Cause() error { return e.cause }
+func (e ActiveSyncValidationError) Cause() error { return e.cause }
 
 // Key function returns key value.
-func (e SyncIdValidationError) Key() bool { return e.key }
+func (e ActiveSyncValidationError) Key() bool { return e.key }
 
 // ErrorName returns error name.
-func (e SyncIdValidationError) ErrorName() string { return "SyncIdValidationError" }
+func (e ActiveSyncValidationError) ErrorName() string { return "ActiveSyncValidationError" }
 
 // Error satisfies the builtin error interface
-func (e SyncIdValidationError) Error() string {
+func (e ActiveSyncValidationError) Error() string {
 	cause := ""
 	if e.cause != nil {
 		cause = fmt.Sprintf(" | caused by: %v", e.cause)
@@ -118,14 +119,14 @@ func (e SyncIdValidationError) Error() string {
 	}
 
 	return fmt.Sprintf(
-		"invalid %sSyncId.%s: %s%s",
+		"invalid %sActiveSync.%s: %s%s",
 		key,
 		e.field,
 		e.reason,
 		cause)
 }
 
-var _ error = SyncIdValidationError{}
+var _ error = ActiveSyncValidationError{}
 
 var _ interface {
 	Field() string
@@ -133,4 +134,4 @@ var _ interface {
 	Key() bool
 	Cause() error
 	ErrorName() string
-} = SyncIdValidationError{}
+} = ActiveSyncValidationError{}

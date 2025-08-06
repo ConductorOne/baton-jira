@@ -7,6 +7,9 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types"
 )
 
+// KeyPrefixDelimiter is the delimiter used to separate prefixes from keys in the session cache.
+const KeyPrefixDelimiter = "::"
+
 // GetSession retrieves the session cache instance from the context.
 // Returns an error if no session cache is found in the context.
 func GetSession(ctx context.Context) (types.SessionCache, error) {
@@ -53,8 +56,7 @@ func applyOptions(ctx context.Context, opt ...types.SessionCacheOption) (*types.
 		bag.SyncID = GetSyncIDFromContext(ctx)
 	}
 	if bag.SyncID == "" {
-		panic("no syncID set on context or in options")
-		// return nil, fmt.Errorf("no syncID set on context or in options")
+		return nil, fmt.Errorf("no syncID set on context or in options")
 	}
 
 	return bag, nil

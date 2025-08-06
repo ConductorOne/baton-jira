@@ -1,3 +1,5 @@
+//go:build baton_lambda_support
+
 package session
 
 import (
@@ -21,11 +23,6 @@ import (
 )
 
 // No longer needed since we're reusing existing credentials
-
-const (
-	// KeyPrefixDelimiter is the delimiter used to separate prefix from key in session cache keys
-	KeyPrefixDelimiter = "::"
-)
 
 // GRPCSessionCache implements SessionCache interface using gRPC calls to BatonSessionService.
 type GRPCSessionCache struct {
@@ -98,19 +95,15 @@ func NewGRPCSessionClient(ctx context.Context, accessToken string, dpopKey *jose
 		grpc.WithTransportCredentials(transportCreds),
 		grpc.WithUserAgent(fmt.Sprintf("baton-session/%s", sdk.Version)),
 		grpc.WithPerRPCCredentials(creds),
-		grpc.WithBlock(),
-		grpc.WithTimeout(30 * time.Second),
 	}
 
 	// Create the gRPC connection
-	conn, err := grpc.DialContext(ctx, addr, dialOpts...)
+	conn, err := grpc.DialContext(ctx, addr, dialOpts...) //nolint:staticcheck // grpc.DialContext is deprecated but we are using it still.
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to session service at %s: %w", addr, err)
 	}
 
-	// Create and return the client
-	client := v1.NewBatonSessionServiceClient(conn)
-	return client, nil
+	return v1.NewBatonSessionServiceClient(conn), nil
 }
 
 // staticTokenSource implements oauth2.TokenSource to return a static access token
@@ -154,7 +147,7 @@ func (g *GRPCSessionCache) Get(ctx context.Context, key string, opt ...types.Ses
 		key = bag.Prefix + KeyPrefixDelimiter + key
 	}
 
-	req := &v1.BatonServiceGetRequest{
+	req := &v1.GetRequest{
 		SyncId: bag.SyncID,
 		Key:    key,
 	}
@@ -189,7 +182,7 @@ func (g *GRPCSessionCache) GetMany(ctx context.Context, keys []string, opt ...ty
 		}
 	}
 
-	req := &v1.BatonServiceGetManyRequest{
+	req := &v1.GetManyRequest{
 		SyncId: bag.SyncID,
 		Keys:   prefixedKeys,
 	}
@@ -227,7 +220,7 @@ func (g *GRPCSessionCache) Set(ctx context.Context, key string, value []byte, op
 		key = bag.Prefix + KeyPrefixDelimiter + key
 	}
 
-	req := &v1.BatonServiceSetRequest{
+	req := &v1.SetRequest{
 		SyncId: bag.SyncID,
 		Key:    key,
 		Value:  value,
@@ -258,7 +251,7 @@ func (g *GRPCSessionCache) SetMany(ctx context.Context, values map[string][]byte
 		}
 	}
 
-	req := &v1.BatonServiceSetManyRequest{
+	req := &v1.SetManyRequest{
 		SyncId: bag.SyncID,
 		Values: prefixedValues,
 	}
@@ -282,7 +275,7 @@ func (g *GRPCSessionCache) Delete(ctx context.Context, key string, opt ...types.
 		key = bag.Prefix + KeyPrefixDelimiter + key
 	}
 
-	req := &v1.BatonServiceDeleteRequest{
+	req := &v1.DeleteRequest{
 		SyncId: bag.SyncID,
 		Key:    key,
 	}
@@ -302,7 +295,7 @@ func (g *GRPCSessionCache) Clear(ctx context.Context, opt ...types.SessionCacheO
 		return err
 	}
 
-	req := &v1.BatonServiceClearRequest{
+	req := &v1.ClearRequest{
 		SyncId: bag.SyncID,
 	}
 

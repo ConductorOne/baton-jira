@@ -32,13 +32,13 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BatonSessionServiceClient interface {
-	Get(ctx context.Context, in *BatonServiceGetRequest, opts ...grpc.CallOption) (*BatonServiceGetResponse, error)
-	GetMany(ctx context.Context, in *BatonServiceGetManyRequest, opts ...grpc.CallOption) (*BatonServiceGetManyResponse, error)
-	Set(ctx context.Context, in *BatonServiceSetRequest, opts ...grpc.CallOption) (*BatonServiceSetResponse, error)
-	SetMany(ctx context.Context, in *BatonServiceSetManyRequest, opts ...grpc.CallOption) (*BatonServiceSetManyResponse, error)
-	Delete(ctx context.Context, in *BatonServiceDeleteRequest, opts ...grpc.CallOption) (*BatonServiceDeleteResponse, error)
-	DeleteMany(ctx context.Context, in *BatonServiceDeleteManyRequest, opts ...grpc.CallOption) (*BatonServiceDeleteManyResponse, error)
-	Clear(ctx context.Context, in *BatonServiceClearRequest, opts ...grpc.CallOption) (*BatonServiceClearResponse, error)
+	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
+	GetMany(ctx context.Context, in *GetManyRequest, opts ...grpc.CallOption) (*GetManyResponse, error)
+	Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*SetResponse, error)
+	SetMany(ctx context.Context, in *SetManyRequest, opts ...grpc.CallOption) (*SetManyResponse, error)
+	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	DeleteMany(ctx context.Context, in *DeleteManyRequest, opts ...grpc.CallOption) (*DeleteManyResponse, error)
+	Clear(ctx context.Context, in *ClearRequest, opts ...grpc.CallOption) (*ClearResponse, error)
 }
 
 type batonSessionServiceClient struct {
@@ -49,9 +49,9 @@ func NewBatonSessionServiceClient(cc grpc.ClientConnInterface) BatonSessionServi
 	return &batonSessionServiceClient{cc}
 }
 
-func (c *batonSessionServiceClient) Get(ctx context.Context, in *BatonServiceGetRequest, opts ...grpc.CallOption) (*BatonServiceGetResponse, error) {
+func (c *batonSessionServiceClient) Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BatonServiceGetResponse)
+	out := new(GetResponse)
 	err := c.cc.Invoke(ctx, BatonSessionService_Get_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -59,9 +59,9 @@ func (c *batonSessionServiceClient) Get(ctx context.Context, in *BatonServiceGet
 	return out, nil
 }
 
-func (c *batonSessionServiceClient) GetMany(ctx context.Context, in *BatonServiceGetManyRequest, opts ...grpc.CallOption) (*BatonServiceGetManyResponse, error) {
+func (c *batonSessionServiceClient) GetMany(ctx context.Context, in *GetManyRequest, opts ...grpc.CallOption) (*GetManyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BatonServiceGetManyResponse)
+	out := new(GetManyResponse)
 	err := c.cc.Invoke(ctx, BatonSessionService_GetMany_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -69,9 +69,9 @@ func (c *batonSessionServiceClient) GetMany(ctx context.Context, in *BatonServic
 	return out, nil
 }
 
-func (c *batonSessionServiceClient) Set(ctx context.Context, in *BatonServiceSetRequest, opts ...grpc.CallOption) (*BatonServiceSetResponse, error) {
+func (c *batonSessionServiceClient) Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*SetResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BatonServiceSetResponse)
+	out := new(SetResponse)
 	err := c.cc.Invoke(ctx, BatonSessionService_Set_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -79,9 +79,9 @@ func (c *batonSessionServiceClient) Set(ctx context.Context, in *BatonServiceSet
 	return out, nil
 }
 
-func (c *batonSessionServiceClient) SetMany(ctx context.Context, in *BatonServiceSetManyRequest, opts ...grpc.CallOption) (*BatonServiceSetManyResponse, error) {
+func (c *batonSessionServiceClient) SetMany(ctx context.Context, in *SetManyRequest, opts ...grpc.CallOption) (*SetManyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BatonServiceSetManyResponse)
+	out := new(SetManyResponse)
 	err := c.cc.Invoke(ctx, BatonSessionService_SetMany_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -89,9 +89,9 @@ func (c *batonSessionServiceClient) SetMany(ctx context.Context, in *BatonServic
 	return out, nil
 }
 
-func (c *batonSessionServiceClient) Delete(ctx context.Context, in *BatonServiceDeleteRequest, opts ...grpc.CallOption) (*BatonServiceDeleteResponse, error) {
+func (c *batonSessionServiceClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BatonServiceDeleteResponse)
+	out := new(DeleteResponse)
 	err := c.cc.Invoke(ctx, BatonSessionService_Delete_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -99,9 +99,9 @@ func (c *batonSessionServiceClient) Delete(ctx context.Context, in *BatonService
 	return out, nil
 }
 
-func (c *batonSessionServiceClient) DeleteMany(ctx context.Context, in *BatonServiceDeleteManyRequest, opts ...grpc.CallOption) (*BatonServiceDeleteManyResponse, error) {
+func (c *batonSessionServiceClient) DeleteMany(ctx context.Context, in *DeleteManyRequest, opts ...grpc.CallOption) (*DeleteManyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BatonServiceDeleteManyResponse)
+	out := new(DeleteManyResponse)
 	err := c.cc.Invoke(ctx, BatonSessionService_DeleteMany_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -109,9 +109,9 @@ func (c *batonSessionServiceClient) DeleteMany(ctx context.Context, in *BatonSer
 	return out, nil
 }
 
-func (c *batonSessionServiceClient) Clear(ctx context.Context, in *BatonServiceClearRequest, opts ...grpc.CallOption) (*BatonServiceClearResponse, error) {
+func (c *batonSessionServiceClient) Clear(ctx context.Context, in *ClearRequest, opts ...grpc.CallOption) (*ClearResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(BatonServiceClearResponse)
+	out := new(ClearResponse)
 	err := c.cc.Invoke(ctx, BatonSessionService_Clear_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -123,13 +123,13 @@ func (c *batonSessionServiceClient) Clear(ctx context.Context, in *BatonServiceC
 // All implementations should embed UnimplementedBatonSessionServiceServer
 // for forward compatibility.
 type BatonSessionServiceServer interface {
-	Get(context.Context, *BatonServiceGetRequest) (*BatonServiceGetResponse, error)
-	GetMany(context.Context, *BatonServiceGetManyRequest) (*BatonServiceGetManyResponse, error)
-	Set(context.Context, *BatonServiceSetRequest) (*BatonServiceSetResponse, error)
-	SetMany(context.Context, *BatonServiceSetManyRequest) (*BatonServiceSetManyResponse, error)
-	Delete(context.Context, *BatonServiceDeleteRequest) (*BatonServiceDeleteResponse, error)
-	DeleteMany(context.Context, *BatonServiceDeleteManyRequest) (*BatonServiceDeleteManyResponse, error)
-	Clear(context.Context, *BatonServiceClearRequest) (*BatonServiceClearResponse, error)
+	Get(context.Context, *GetRequest) (*GetResponse, error)
+	GetMany(context.Context, *GetManyRequest) (*GetManyResponse, error)
+	Set(context.Context, *SetRequest) (*SetResponse, error)
+	SetMany(context.Context, *SetManyRequest) (*SetManyResponse, error)
+	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	DeleteMany(context.Context, *DeleteManyRequest) (*DeleteManyResponse, error)
+	Clear(context.Context, *ClearRequest) (*ClearResponse, error)
 }
 
 // UnimplementedBatonSessionServiceServer should be embedded to have
@@ -139,25 +139,25 @@ type BatonSessionServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedBatonSessionServiceServer struct{}
 
-func (UnimplementedBatonSessionServiceServer) Get(context.Context, *BatonServiceGetRequest) (*BatonServiceGetResponse, error) {
+func (UnimplementedBatonSessionServiceServer) Get(context.Context, *GetRequest) (*GetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedBatonSessionServiceServer) GetMany(context.Context, *BatonServiceGetManyRequest) (*BatonServiceGetManyResponse, error) {
+func (UnimplementedBatonSessionServiceServer) GetMany(context.Context, *GetManyRequest) (*GetManyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetMany not implemented")
 }
-func (UnimplementedBatonSessionServiceServer) Set(context.Context, *BatonServiceSetRequest) (*BatonServiceSetResponse, error) {
+func (UnimplementedBatonSessionServiceServer) Set(context.Context, *SetRequest) (*SetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Set not implemented")
 }
-func (UnimplementedBatonSessionServiceServer) SetMany(context.Context, *BatonServiceSetManyRequest) (*BatonServiceSetManyResponse, error) {
+func (UnimplementedBatonSessionServiceServer) SetMany(context.Context, *SetManyRequest) (*SetManyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetMany not implemented")
 }
-func (UnimplementedBatonSessionServiceServer) Delete(context.Context, *BatonServiceDeleteRequest) (*BatonServiceDeleteResponse, error) {
+func (UnimplementedBatonSessionServiceServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
 }
-func (UnimplementedBatonSessionServiceServer) DeleteMany(context.Context, *BatonServiceDeleteManyRequest) (*BatonServiceDeleteManyResponse, error) {
+func (UnimplementedBatonSessionServiceServer) DeleteMany(context.Context, *DeleteManyRequest) (*DeleteManyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteMany not implemented")
 }
-func (UnimplementedBatonSessionServiceServer) Clear(context.Context, *BatonServiceClearRequest) (*BatonServiceClearResponse, error) {
+func (UnimplementedBatonSessionServiceServer) Clear(context.Context, *ClearRequest) (*ClearResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Clear not implemented")
 }
 func (UnimplementedBatonSessionServiceServer) testEmbeddedByValue() {}
@@ -181,7 +181,7 @@ func RegisterBatonSessionServiceServer(s grpc.ServiceRegistrar, srv BatonSession
 }
 
 func _BatonSessionService_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatonServiceGetRequest)
+	in := new(GetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -193,13 +193,13 @@ func _BatonSessionService_Get_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: BatonSessionService_Get_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BatonSessionServiceServer).Get(ctx, req.(*BatonServiceGetRequest))
+		return srv.(BatonSessionServiceServer).Get(ctx, req.(*GetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _BatonSessionService_GetMany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatonServiceGetManyRequest)
+	in := new(GetManyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -211,13 +211,13 @@ func _BatonSessionService_GetMany_Handler(srv interface{}, ctx context.Context, 
 		FullMethod: BatonSessionService_GetMany_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BatonSessionServiceServer).GetMany(ctx, req.(*BatonServiceGetManyRequest))
+		return srv.(BatonSessionServiceServer).GetMany(ctx, req.(*GetManyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _BatonSessionService_Set_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatonServiceSetRequest)
+	in := new(SetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -229,13 +229,13 @@ func _BatonSessionService_Set_Handler(srv interface{}, ctx context.Context, dec 
 		FullMethod: BatonSessionService_Set_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BatonSessionServiceServer).Set(ctx, req.(*BatonServiceSetRequest))
+		return srv.(BatonSessionServiceServer).Set(ctx, req.(*SetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _BatonSessionService_SetMany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatonServiceSetManyRequest)
+	in := new(SetManyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -247,13 +247,13 @@ func _BatonSessionService_SetMany_Handler(srv interface{}, ctx context.Context, 
 		FullMethod: BatonSessionService_SetMany_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BatonSessionServiceServer).SetMany(ctx, req.(*BatonServiceSetManyRequest))
+		return srv.(BatonSessionServiceServer).SetMany(ctx, req.(*SetManyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _BatonSessionService_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatonServiceDeleteRequest)
+	in := new(DeleteRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -265,13 +265,13 @@ func _BatonSessionService_Delete_Handler(srv interface{}, ctx context.Context, d
 		FullMethod: BatonSessionService_Delete_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BatonSessionServiceServer).Delete(ctx, req.(*BatonServiceDeleteRequest))
+		return srv.(BatonSessionServiceServer).Delete(ctx, req.(*DeleteRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _BatonSessionService_DeleteMany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatonServiceDeleteManyRequest)
+	in := new(DeleteManyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -283,13 +283,13 @@ func _BatonSessionService_DeleteMany_Handler(srv interface{}, ctx context.Contex
 		FullMethod: BatonSessionService_DeleteMany_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BatonSessionServiceServer).DeleteMany(ctx, req.(*BatonServiceDeleteManyRequest))
+		return srv.(BatonSessionServiceServer).DeleteMany(ctx, req.(*DeleteManyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _BatonSessionService_Clear_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BatonServiceClearRequest)
+	in := new(ClearRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -301,7 +301,7 @@ func _BatonSessionService_Clear_Handler(srv interface{}, ctx context.Context, de
 		FullMethod: BatonSessionService_Clear_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BatonSessionServiceServer).Clear(ctx, req.(*BatonServiceClearRequest))
+		return srv.(BatonSessionServiceServer).Clear(ctx, req.(*ClearRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

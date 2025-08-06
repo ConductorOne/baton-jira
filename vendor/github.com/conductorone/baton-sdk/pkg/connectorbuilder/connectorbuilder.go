@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -30,6 +32,68 @@ import (
 )
 
 var tracer = otel.Tracer("baton-sdk/pkg.connectorbuilder")
+
+// ExtractAnnotationsFromRequest extracts annotations from a request object and returns them.
+// This is used by the builder side to extract annotations from incoming requests.
+func ExtractAnnotationsFromRequest(req interface{}) annotations.Annotations {
+	if req == nil {
+		return annotations.Annotations{}
+	}
+
+	// Use reflection to check if the request has an Annotations field
+	reqValue := reflect.ValueOf(req)
+	if reqValue.Kind() == reflect.Ptr {
+		reqValue = reqValue.Elem()
+	}
+
+	annotationsField := reqValue.FieldByName("Annotations")
+	if !annotationsField.IsValid() {
+		return annotations.Annotations{}
+	}
+
+	// Check if the field is of the correct type
+	if annotationsField.Type() != reflect.TypeOf(annotations.Annotations{}) &&
+		annotationsField.Type() != reflect.TypeOf([]*anypb.Any{}) {
+		return annotations.Annotations{}
+	}
+
+	// Get the annotations from the request
+	if annotationsField.IsNil() {
+		return annotations.Annotations{}
+	}
+
+	// Handle both annotations.Annotations and []*anypb.Any types
+	if annotationsField.Type() == reflect.TypeOf(annotations.Annotations{}) {
+		return annotationsField.Interface().(annotations.Annotations)
+	} else {
+		// Convert []*anypb.Any to annotations.Annotations
+		anySlice := annotationsField.Interface().([]*anypb.Any)
+		return annotations.Annotations(anySlice)
+	}
+}
+
+// WithAnnotationsFromRequest extracts annotations from a request and adds them to the context.
+// This is used by the builder side to make request annotations available in the context.
+func WithAnnotationsFromRequest(ctx context.Context, req interface{}) context.Context {
+	if ctx == nil {
+		return ctx
+	}
+	annos := ExtractAnnotationsFromRequest(req)
+	if len(annos) == 0 {
+		return ctx
+	}
+
+	syncID, err := annotations.GetActiveSyncIdFromAnnotations(annos)
+	if err != nil {
+		return ctx
+	}
+
+	if syncID == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, types.SyncIDKey{}, syncID)
+}
 
 // ResourceSyncer is the primary interface for connector developers to implement.
 //
@@ -686,12 +750,6 @@ func (b *builderImpl) ListResources(ctx context.Context, request *v2.ResourcesSe
 		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
 		return nil, fmt.Errorf("error: list resources with unknown resource type %s", request.ResourceTypeId)
 	}
-
-	ctx, err := annotations.SetActiveSyncIdInContext(ctx, request.Annotations)
-	if err != nil {
-		return nil, fmt.Errorf("error: setting active sync id in context: %w (%v)", err, request)
-	}
-
 	out, nextPageToken, annos, err := rb.List(ctx, request.ParentResourceId, &pagination.Token{
 		Size:  int(request.PageSize),
 		Token: request.PageToken,
@@ -727,11 +785,6 @@ func (b *builderImpl) GetResource(ctx context.Context, request *v2.ResourceGette
 		return nil, status.Errorf(codes.Unimplemented, "error: get resource with unknown resource type %s", resourceType)
 	}
 
-	ctx, err := annotations.SetActiveSyncIdInContext(ctx, request.Annotations)
-	if err != nil {
-		return nil, fmt.Errorf("error: setting active sync id in context: %w", err)
-	}
-
 	resource, annos, err := rb.Get(ctx, request.GetResourceId(), request.GetParentResourceId())
 	if err != nil {
 		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
@@ -760,11 +813,6 @@ func (b *builderImpl) ListEntitlements(ctx context.Context, request *v2.Entitlem
 	if !ok {
 		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
 		return nil, fmt.Errorf("error: list entitlements with unknown resource type %s", request.Resource.Id.ResourceType)
-	}
-
-	ctx, err := annotations.SetActiveSyncIdInContext(ctx, request.Annotations)
-	if err != nil {
-		return nil, fmt.Errorf("error: setting active sync id in context: %w", err)
 	}
 
 	out, nextPageToken, annos, err := rb.Entitlements(ctx, request.Resource, &pagination.Token{
@@ -802,17 +850,13 @@ func (b *builderImpl) ListGrants(ctx context.Context, request *v2.GrantsServiceL
 		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
 		return nil, fmt.Errorf("error: list entitlements with unknown resource type %s", rid.ResourceType)
 	}
-	ctx, err := annotations.SetActiveSyncIdInContext(ctx, request.Annotations)
-	if err != nil {
-		return nil, fmt.Errorf("error: setting active sync id in context: %w", err)
-	}
 
 	out, nextPageToken, annos, err := rb.Grants(ctx, request.Resource, &pagination.Token{
 		Size:  int(request.PageSize),
 		Token: request.PageToken,
 	})
 
-	// annos.Append(&v2.SyncId{ActiveSyncId: request.Annotations.GetActiveSyncId()})
+	// annos.Append(&v2.ActiveSync{ActiveSyncId: request.Annotations.GetActiveSyncId()})
 	resp := &v2.GrantsServiceListGrantsResponse{
 		List:          out,
 		NextPageToken: nextPageToken,
@@ -1315,10 +1359,6 @@ func (b *builderImpl) RotateCredential(ctx context.Context, request *v2.RotateCr
 func (b *builderImpl) Cleanup(ctx context.Context, request *v2.ConnectorServiceCleanupRequest) (*v2.ConnectorServiceCleanupResponse, error) {
 	l := ctxzap.Extract(ctx)
 
-	ctx, err := annotations.SetActiveSyncIdInContext(ctx, request.GetAnnotations())
-	if err != nil {
-		l.Warn("error getting active sync id", zap.Error(err))
-	}
 	// Clear session cache if available in context
 	sessionCache, err := session.GetSession(ctx)
 	if err != nil {

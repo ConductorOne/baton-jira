@@ -60,7 +60,7 @@ func SessionCacheStreamInterceptor(serverCtx context.Context) grpc.StreamServerI
 	}
 }
 
-// wrappedServerStream wraps a grpc.ServerStream to provide a custom context
+// wrappedServerStream wraps a grpc.ServerStream to provide a custom context.
 type wrappedServerStream struct {
 	grpc.ServerStream
 	ctx context.Context

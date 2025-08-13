@@ -143,7 +143,11 @@ func (j *Jira) getJiraStatusesForProject(ctx context.Context, projectId string) 
 			jira.WithStatusCategory("DONE"),
 			jira.WithProjectId(projectId))
 		if err != nil {
-			return nil, fmt.Errorf("error getting statuses for project %s: %w", projectId, err)
+			var statusCode *int
+			if resp != nil {
+				statusCode = &resp.StatusCode
+			}
+			return nil, wrapError(err, "error getting statuses for project", statusCode)
 		}
 
 		jiraStatuses = append(jiraStatuses, statuses...)
@@ -236,7 +240,11 @@ func (j *Jira) GetIssueTypeFields(ctx context.Context, projectKey, issueTypeId s
 		issueFields, resp, err := j.client.Jira().Issue.GetCreateMetaIssueType(ctx, projectKey, issueTypeId, opts)
 		if err != nil {
 			l.Error("error getting issue type fields", zap.Error(err))
-			return nil, fmt.Errorf("error getting issue type fields for project %s and issue type %s: %w", projectKey, issueTypeId, err)
+			var statusCode *int
+			if resp != nil {
+				statusCode = &resp.StatusCode
+			}
+			return nil, wrapError(err, "error getting issue type fields", statusCode)
 		}
 
 		allMetaFields = append(allMetaFields, issueFields...)
@@ -328,7 +336,11 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 
 	projects, resp, err := j.client.Jira().Project.Find(ctx, jira.WithStartAt(offset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"), jira.WithKeys(j.projectKeys...))
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get projects")
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, "", nil, wrapError(err, "failed to get projects", statusCode)
 	}
 
 	filteredProjects := projects
@@ -338,7 +350,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	for _, project := range filteredProjects {
 		statuses, err := j.getTicketStatuses(ctx, project.ID)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, wrapError(err, "failed to get ticket statuses", nil)
 		}
 		for _, issueType := range project.IssueTypes {
 			if issueType.Name == "Epic" || issueType.Name == "Bug" {

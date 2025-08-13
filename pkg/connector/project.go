@@ -78,7 +78,7 @@ func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	project, err := p.client.GetProject(ctx, resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get project")
+		return nil, "", nil, wrapError(err, "failed to get project", nil)
 	}
 
 	var rv []*v2.Grant
@@ -92,7 +92,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 		// handle grants without pagination
 		leadGrants, err := p.getLeadGrants(ctx, resource, project)
 		if err != nil {
-			return nil, "", nil, wrapError(err, "failed to get lead grants")
+			return nil, "", nil, wrapError(err, "failed to get lead grants", nil)
 		}
 		rv = append(rv, leadGrants...)
 	}
@@ -103,7 +103,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 	participateGrants, isLastPage, err := p.getGrantsForProjectUsers(ctx, resource, project, int(offset), resourcePageSize)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get participate grants")
+		return nil, "", nil, wrapError(err, "failed to get participate grants", nil)
 	}
 	rv = append(rv, participateGrants...)
 
@@ -174,9 +174,13 @@ func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pag
 		return nil, "", nil, err
 	}
 
-	projects, _, err := u.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
+	projects, resp, err := u.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get projects")
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, "", nil, wrapError(err, "failed to get projects", statusCode)
 	}
 
 	var resources []*v2.Resource

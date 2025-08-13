@@ -116,9 +116,13 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 		return nil, "", nil, err
 	}
 
-	users, _, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
+	users, resp, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to list users")
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, "", nil, wrapError(err, "failed to list users", statusCode)
 	}
 
 	var resources []*v2.Resource
@@ -168,17 +172,21 @@ func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.Ac
 		return nil, nil, nil, err
 	}
 
-	user, _, err := o.client.Jira().User.Create(ctx, &jira.User{
+	user, resp, err := o.client.Jira().User.Create(ctx, &jira.User{
 		EmailAddress: body.Email,
 		Products:     body.Products,
 	})
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("baton-contentful: failed to create user: %w", err)
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, nil, nil, wrapError(err, "failed to create user", statusCode)
 	}
 
 	resource, err := userResource(ctx, user)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("baton-contentful: failed to create user resource: %w", err)
+		return nil, nil, nil, wrapError(err, "failed to create user resource", nil)
 	}
 
 	return &v2.CreateAccountResponse_SuccessResult{

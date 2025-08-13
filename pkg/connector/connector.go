@@ -43,7 +43,7 @@ func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool, skipCustomerUse
 
 	c, err := client.New(b.Base.Url, transport.Client())
 	if err != nil {
-		return nil, wrapError(err, "error creating jira client")
+		return nil, wrapError(err, "error creating jira client", nil)
 	}
 
 	return &Jira{
@@ -55,14 +55,22 @@ func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool, skipCustomerUse
 }
 
 func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
-	_, _, err := j.client.Jira().User.Find(ctx, "")
+	_, resp, err := j.client.Jira().User.Find(ctx, "")
 	if err != nil {
-		return nil, wrapError(err, "failed to get users")
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, wrapError(err, "failed to get users", statusCode)
 	}
 
-	_, _, err = j.client.Jira().Project.GetAll(ctx, nil)
+	_, resp, err = j.client.Jira().Project.GetAll(ctx, nil)
 	if err != nil {
-		return nil, wrapError(err, "failed to get projects")
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, wrapError(err, "failed to get projects", statusCode)
 	}
 
 	return nil, nil

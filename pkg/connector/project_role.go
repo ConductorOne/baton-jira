@@ -3,7 +3,6 @@ package connector
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
@@ -16,8 +15,6 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 var resourceTypeProjectRole = &v2.ResourceType{
@@ -71,17 +68,17 @@ func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2
 
 	projectID, roleID, err := parseProjectRoleID(resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to parse project role ID")
+		return nil, "", nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
 	project, err := u.client.GetProject(ctx, projectID)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get project")
+		return nil, "", nil, wrapError(err, "failed to get project", nil)
 	}
 
 	role, err := u.client.GetRole(ctx, roleID)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get role")
+		return nil, "", nil, wrapError(err, "failed to get role", nil)
 	}
 
 	assigmentOptions := []ent.EntitlementOption{
@@ -99,17 +96,18 @@ func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resou
 
 	projectID, roleID, err := parseProjectRoleID(resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to parse project role ID")
+		return nil, "", nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
 	var rv []*v2.Grant
 
 	projectRoleActors, resp, err := p.client.Jira().Role.GetRoleActorsForProject(ctx, projectID, roleID)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return nil, "", nil, status.Error(codes.NotFound, fmt.Sprintf("failed to get role actors for project: %v", err))
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
 		}
-		return nil, "", nil, wrapError(err, "failed to get role actors for project")
+		return nil, "", nil, wrapError(err, "failed to get role actors for project", statusCode)
 	}
 
 	for _, actor := range projectRoleActors {
@@ -149,31 +147,35 @@ func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, to
 		return nil, "", nil, err
 	}
 
-	projects, _, err := p.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
+	projects, resp, err := p.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get projects")
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, "", nil, wrapError(err, "failed to get projects", statusCode)
 	}
 
 	var ret []*v2.Resource
 	for _, prj := range projects {
 		project, err := p.client.GetProject(ctx, prj.ID)
 		if err != nil {
-			return nil, "", nil, wrapError(err, fmt.Sprintf("failed to get project %s", prj.ID))
+			return nil, "", nil, wrapError(err, fmt.Sprintf("failed to get project %s", prj.ID), nil)
 		}
 		for _, roleLink := range project.Roles {
 			roleId, err := parseRoleIdFromRoleLink(roleLink)
 			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to parse role id from role link")
+				return nil, "", nil, wrapError(err, "failed to parse role id from role link", nil)
 			}
 
 			role, err := p.client.GetRole(ctx, roleId)
 			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to get role")
+				return nil, "", nil, wrapError(err, "failed to get role", nil)
 			}
 
 			prr, err := projectRoleResource(project, role)
 			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to create project role resource")
+				return nil, "", nil, wrapError(err, "failed to create project role resource", nil)
 			}
 			ret = append(ret, prr)
 		}
@@ -218,7 +220,7 @@ func (p *projectRoleResourceType) Grant(ctx context.Context, principal *v2.Resou
 
 	projectID, roleID, err := parseProjectRoleID(entitlement.Resource.Id.Resource)
 	if err != nil {
-		return nil, wrapError(err, "failed to parse project role ID")
+		return nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
 	_, err = p.client.Jira().Role.AddUserToRole(ctx, projectID, roleID, principal.Id.Resource)
@@ -251,12 +253,12 @@ func (p *projectRoleResourceType) Revoke(ctx context.Context, grant *v2.Grant) (
 
 	projectID, roleID, err := parseProjectRoleID(grant.Entitlement.Resource.Id.Resource)
 	if err != nil {
-		return nil, wrapError(err, "failed to parse project role ID")
+		return nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
 	_, err = p.client.Jira().Role.RemoveUserFromRole(ctx, projectID, roleID, grant.Principal.Id.Resource)
 	if err != nil {
-		return nil, wrapError(err, "failed to remove user from project role")
+		return nil, wrapError(err, "failed to remove user from project role", nil)
 	}
 
 	l.Info("removed user from project role",

@@ -16,8 +16,6 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 var resourceTypeGroup = &v2.ResourceType{
@@ -90,10 +88,11 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 		jira.WithMaxResults(resourcePageSize),
 	)
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return nil, "", nil, status.Error(codes.NotFound, fmt.Sprintf("failed to get group members: %v", err))
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
 		}
-		return nil, "", nil, wrapError(err, "failed to get group members")
+		return nil, "", nil, wrapError(err, "failed to get group members", statusCode)
 	}
 
 	var rv []*v2.Grant
@@ -134,9 +133,13 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 		return nil, "", nil, err
 	}
 
-	groups, _, err := u.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
+	groups, resp, err := u.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to list groups")
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, "", nil, wrapError(err, "failed to list groups", statusCode)
 	}
 
 	var resources []*v2.Resource

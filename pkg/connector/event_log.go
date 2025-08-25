@@ -22,8 +22,9 @@ const (
 
 // auditPageToken handles pagination state for audit log requests.
 type auditPageToken struct {
-	FilterIndex int `json:"filter_index"` // Index of current filter being processed.
-	Offset      int `json:"offset"`       // Offset for the current filter.
+	From        string `json:"from"`         // From time for the current filter.
+	FilterIndex int    `json:"filter_index"` // Index of current filter being processed.
+	Offset      int    `json:"offset"`       // Offset for the current filter.
 }
 
 // marshal converts the page token to a string for pagination.
@@ -49,24 +50,25 @@ func (c *Jira) ListEvents(
 	earliestEvent *timestamppb.Timestamp,
 	pageToken *pagination.StreamToken,
 ) ([]*v2.Event, *pagination.StreamState, annotations.Annotations, error) {
-	logger := ctxzap.Extract(ctx)
+	l := ctxzap.Extract(ctx)
 
 	// Initialize or restore pagination token.
-	token := &auditPageToken{FilterIndex: 0, Offset: 0}
+	token := &auditPageToken{From: "", FilterIndex: 0, Offset: 0}
 	if pageToken != nil && pageToken.Cursor != "" {
 		if err := token.unmarshal(pageToken.Cursor); err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to unmarshal page token: %w", err)
 		}
 	}
-	fromTime := time.Time{}
-	if earliestEvent != nil {
-		fromTime = earliestEvent.AsTime()
+	if token.From == "" {
+		token.From = earliestEvent.AsTime().Format(time.RFC3339)
+		token.FilterIndex = 0
+		token.Offset = 0
 	}
 
 	var events []*v2.Event
 
 	auditResp, _, err := c.client.Jira().Audit.Get(ctx, &client.AuditOptions{
-		From:   fromTime.Format(time.RFC3339),
+		From:   token.From,
 		Offset: token.Offset,
 		Limit:  defaultPageSize,
 	})
@@ -82,7 +84,7 @@ func (c *Jira) ListEvents(
 
 		event, err := c.parseIntoUsageEvent(&record)
 		if err != nil {
-			logger.Error("failed to convert audit record to event",
+			l.Error("failed to convert audit record to event",
 				zap.Error(err),
 				zap.Int64("record_id", record.ID))
 			continue
@@ -91,6 +93,9 @@ func (c *Jira) ListEvents(
 	}
 	token.Offset += len(auditResp.Records)
 	hasMore := token.Offset < int(auditResp.Total)
+
+	l.Debug("list events", zap.String("from", token.From), zap.Int("filter_index", token.FilterIndex), zap.Int("offset", token.Offset),
+		zap.Int("total", int(auditResp.Total)), zap.Bool("has_more", hasMore))
 
 	// Prepare next page token if there are more events to process.
 	var nextToken string

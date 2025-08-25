@@ -94,7 +94,8 @@ func (c *Jira) ListEvents(
 	token.Offset += len(auditResp.Records)
 	hasMore := token.Offset < int(auditResp.Total)
 
-	l.Debug("list events", zap.String("from", token.From), zap.Int("filter_index", token.FilterIndex), zap.Int("offset", token.Offset), zap.Int("total", int(auditResp.Total)), zap.Bool("has_more", hasMore))
+	l.Debug("list events", zap.String("from", token.From), zap.Int("filter_index", token.FilterIndex), zap.Int("offset", token.Offset),
+		zap.Int("total", int(auditResp.Total)), zap.Bool("has_more", hasMore))
 
 	// Prepare next page token if there are more events to process.
 	var nextToken string

@@ -81,6 +81,10 @@ func (c *Jira) ListEvents(
 		if record.AuthorAccountId == "" {
 			continue // Skip records without author.
 		}
+		if record.ObjectItem.ID == "" {
+			l.Debug("skipping record without a target resource", zap.Int64("record_id", record.ID), zap.String("category", record.Category), zap.String("description", record.Description))
+			continue // Skip records without a target resource.
+		}
 
 		event, err := c.parseIntoUsageEvent(&record)
 		if err != nil {

@@ -95,8 +95,10 @@ func (c *Jira) ListEvents(
 		}
 		events = append(events, event)
 	}
-	token.Offset += len(auditResp.Records)
-	hasMore := token.Offset < int(auditResp.Total)
+
+	count := len(auditResp.Records)
+	token.Offset += count
+	hasMore := count > 0
 
 	l.Debug("list events", zap.String("from", token.From), zap.Int("filter_index", token.FilterIndex), zap.Int("offset", token.Offset),
 		zap.Int("total", int(auditResp.Total)), zap.Bool("has_more", hasMore))

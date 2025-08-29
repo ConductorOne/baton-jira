@@ -59,8 +59,7 @@
     "CAPABILITY_PROVISION",
     "CAPABILITY_SYNC",
     "CAPABILITY_TICKETING",
-    "CAPABILITY_ACCOUNT_PROVISIONING",
-    "CAPABILITY_EVENT_FEED_V2"
+    "CAPABILITY_ACCOUNT_PROVISIONING"
   ],
   "credentialDetails":  {
     "capabilityAccountProvisioning":  {

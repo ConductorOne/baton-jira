@@ -11,7 +11,7 @@ type CreateUserBody struct {
 	Products []string `json:"products"`
 }
 
-// Atlassian User
+// Atlassian User.
 type User struct {
 	AccountId        string    `json:"accountId"`
 	AccountType      string    `json:"accountType"`

@@ -311,7 +311,6 @@ func (u *groupResourceType) listSiteGroups(ctx context.Context, _ *v2.ResourceId
 		if err != nil {
 			return nil, "", nil, err
 		}
-
 	}
 	nextPageToken, err = bag.Marshal()
 	if err != nil {

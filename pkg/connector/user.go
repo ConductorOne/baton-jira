@@ -276,7 +276,6 @@ func (b *userResourceType) listSiteUsers(ctx context.Context, _ *v2.ResourceId, 
 		if err != nil {
 			return nil, "", nil, err
 		}
-
 	}
 	nextPageToken, err = bag.Marshal()
 	if err != nil {
@@ -295,9 +294,10 @@ func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {
 		"email_verified": user.EmailVerified,
 	}
 
-	if user.Status == "active" {
+	switch user.Status {
+	case "active":
 		userStatus = v2.UserTrait_Status_STATUS_ENABLED
-	} else if user.Status == "deactivated" {
+	case "deactivated":
 		userStatus = v2.UserTrait_Status_STATUS_DISABLED
 	}
 

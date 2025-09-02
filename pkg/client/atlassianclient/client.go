@@ -68,7 +68,6 @@ func (c *AtlassianClient) ListUsers(ctx context.Context, siteId, pageToken strin
 		reqOpts...,
 	)
 	if err != nil {
-		fmt.Printf("err: %v\n", err)
 		return nil, "", err
 	}
 
@@ -309,7 +308,7 @@ func New(ctx context.Context, siteurl string, clientOptions ...Option) (*Atlassi
 		return nil, nil, err
 	}
 
-	cli, err := uhttp.NewBaseHttpClientWithContext(context.Background(), httpClient)
+	cli, err := uhttp.NewBaseHttpClientWithContext(ctx, httpClient)
 	if err != nil {
 		return nil, nil, err
 	}

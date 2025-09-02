@@ -48,7 +48,7 @@ func getConnector(ctx context.Context, jc *cfg.Jira) (types.ConnectorServer, err
 		ApiToken: jc.JiraApiToken,
 	}
 
-	if jc.AtlassianOrgid != "" || jc.AtlassianApiToken != "" {
+	if jc.AtlassianOrgid != "" && jc.AtlassianApiToken != "" {
 		builder.Base.AtlassianBuilder = &connector.AtlassianAuthBuilder{
 			OrganizationId: jc.AtlassianOrgid,
 			AccessToken:    jc.AtlassianApiToken,

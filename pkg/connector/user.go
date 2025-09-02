@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
+	"github.com/conductorone/baton-jira/pkg/client/atlassianclient"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
@@ -30,6 +31,7 @@ type (
 	userResourceType struct {
 		resourceType     *v2.ResourceType
 		client           *client.Client
+		atlassianClient  *atlassianclient.AtlassianClient
 		skipCustomerUser bool
 	}
 )
@@ -94,10 +96,11 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return u.resourceType
 }
 
-func userBuilder(c *client.Client, skipCustomerUser bool) *userResourceType {
+func userBuilder(c *client.Client, ac *atlassianclient.AtlassianClient, skipCustomerUser bool) *userResourceType {
 	return &userResourceType{
 		resourceType:     resourceTypeUser,
 		client:           c,
+		atlassianClient:  ac,
 		skipCustomerUser: skipCustomerUser,
 	}
 }
@@ -111,6 +114,9 @@ func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, _ 
 }
 
 func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	if u.atlassianClient != nil {
+		return u.listSiteUsers(ctx, nil, p)
+	}
 	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
 		return nil, "", nil, err
@@ -228,4 +234,68 @@ func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBod
 		Email:    accountInfo.Login,
 		Products: products,
 	}, nil
+}
+
+func (b *userResourceType) listSiteUsers(ctx context.Context, _ *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	var resources []*v2.Resource
+
+	bag, pageToken, err := getToken(pToken, resourceTypeUser)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	users, nextPageToken, err := b.atlassianClient.ListUsers(ctx, pageToken)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	for _, user := range users {
+		userResource, err := parseIntoUserResource(user)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		resources = append(resources, userResource)
+	}
+
+	err = bag.Next(nextPageToken)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	nextPageToken, err = bag.Marshal()
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	return resources, nextPageToken, nil, nil
+}
+
+func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {
+	var userStatus = v2.UserTrait_Status_STATUS_UNSPECIFIED
+
+	profile := map[string]interface{}{
+		"account_id":     user.AccountId,
+		"account_type":   user.AccountType,
+		"username":       user.Name,
+		"email_verified": user.EmailVerified,
+	}
+
+	if user.Status == "active" {
+		userStatus = v2.UserTrait_Status_STATUS_ENABLED
+	} else if user.Status == "deactivated" {
+		userStatus = v2.UserTrait_Status_STATUS_DISABLED
+	}
+
+	userTraits := []rs.UserTraitOption{
+		rs.WithUserProfile(profile),
+		rs.WithStatus(userStatus),
+		rs.WithUserLogin(user.Email),
+		rs.WithEmail(user.Email, true),
+	}
+
+	return rs.NewUserResource(
+		user.Email,
+		resourceTypeUser,
+		user.AccountId,
+		userTraits,
+	)
 }

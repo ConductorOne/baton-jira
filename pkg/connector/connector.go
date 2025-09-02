@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/conductorone/baton-jira/pkg/client"
+	"github.com/conductorone/baton-jira/pkg/client/atlassianclient"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
@@ -13,6 +14,7 @@ import (
 type (
 	Jira struct {
 		client                  *client.Client
+		atlassianClient         *atlassianclient.AtlassianClient
 		projectKeys             []string
 		skipProjectParticipants bool
 		skipCustomerUser        bool
@@ -25,6 +27,8 @@ type (
 	JiraOptions struct {
 		Url         string
 		ProjectKeys []string
+
+		AtlassianBuilder *AtlassianAuthBuilder
 	}
 
 	JiraBasicAuthBuilder struct {
@@ -33,9 +37,14 @@ type (
 		Username string
 		ApiToken string
 	}
+
+	AtlassianAuthBuilder struct {
+		OrganizationId string
+		AccessToken    string
+	}
 )
 
-func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
+func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
 	transport := jira.BasicAuthTransport{
 		Username: b.Username,
 		APIToken: b.ApiToken,
@@ -46,12 +55,28 @@ func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool, skipCustomerUse
 		return nil, wrapError(err, "error creating jira client", nil)
 	}
 
-	return &Jira{
+	jc := &Jira{
 		client:                  c,
 		projectKeys:             b.Base.ProjectKeys,
 		skipProjectParticipants: skipProjectParticipants,
 		skipCustomerUser:        skipCustomerUser,
-	}, nil
+	}
+
+	if b.Base.AtlassianBuilder == nil {
+		return jc, nil
+	}
+
+	ac, err := atlassianclient.New(ctx,
+		b.Base.Url,
+		atlassianclient.WithAccessToken(b.Base.AtlassianBuilder.AccessToken),
+		atlassianclient.WithOrganizationID(b.Base.AtlassianBuilder.OrganizationId),
+	)
+	if err != nil {
+		return nil, wrapError(err, "error creating atlassian client", nil)
+	}
+
+	jc.atlassianClient = ac
+	return jc, nil
 }
 
 func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
@@ -78,8 +103,8 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 
 func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		userBuilder(o.client, o.skipCustomerUser),
-		groupBuilder(o.client),
+		userBuilder(o.client, o.atlassianClient, o.skipCustomerUser),
+		groupBuilder(o.client, o.atlassianClient),
 		projectRoleBuilder(o.client),
 		projectBuilder(o.client, o.skipProjectParticipants),
 	}

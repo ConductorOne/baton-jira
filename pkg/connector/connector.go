@@ -18,6 +18,7 @@ type (
 		projectKeys             []string
 		skipProjectParticipants bool
 		skipCustomerUser        bool
+		siteIDs                 []string
 	}
 
 	JiraBuilder interface {
@@ -66,7 +67,7 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 		return jc, nil
 	}
 
-	ac, err := atlassianclient.New(ctx,
+	ac, siteIDs, err := atlassianclient.New(ctx,
 		b.Base.Url,
 		atlassianclient.WithAccessToken(b.Base.AtlassianBuilder.AccessToken),
 		atlassianclient.WithOrganizationID(b.Base.AtlassianBuilder.OrganizationId),
@@ -76,6 +77,7 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 	}
 
 	jc.atlassianClient = ac
+	jc.siteIDs = siteIDs
 	return jc, nil
 }
 
@@ -103,8 +105,8 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 
 func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		userBuilder(o.client, o.atlassianClient, o.skipCustomerUser),
-		groupBuilder(o.client, o.atlassianClient),
+		userBuilder(o.client, o.atlassianClient, o.skipCustomerUser, o.siteIDs),
+		groupBuilder(o.client, o.atlassianClient, o.siteIDs),
 		projectRoleBuilder(o.client),
 		projectBuilder(o.client, o.skipProjectParticipants),
 	}

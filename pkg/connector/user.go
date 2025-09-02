@@ -33,6 +33,7 @@ type (
 		client           *client.Client
 		atlassianClient  *atlassianclient.AtlassianClient
 		skipCustomerUser bool
+		siteIDs          []string
 	}
 )
 
@@ -96,12 +97,13 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return u.resourceType
 }
 
-func userBuilder(c *client.Client, ac *atlassianclient.AtlassianClient, skipCustomerUser bool) *userResourceType {
+func userBuilder(c *client.Client, ac *atlassianclient.AtlassianClient, skipCustomerUser bool, siteIDs []string) *userResourceType {
 	return &userResourceType{
 		resourceType:     resourceTypeUser,
 		client:           c,
 		atlassianClient:  ac,
 		skipCustomerUser: skipCustomerUser,
+		siteIDs:          siteIDs,
 	}
 }
 
@@ -237,35 +239,49 @@ func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBod
 }
 
 func (b *userResourceType) listSiteUsers(ctx context.Context, _ *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	var resources []*v2.Resource
+	var (
+		resources     []*v2.Resource
+		nextPageToken string
+		users         []atlassianclient.User
+	)
 
-	bag, pageToken, err := getToken(pToken, resourceTypeUser)
+	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	users, nextPageToken, err := b.atlassianClient.ListUsers(ctx, pageToken)
-	if err != nil {
-		return nil, "", nil, err
-	}
-
-	for _, user := range users {
-		userResource, err := parseIntoUserResource(user)
+	switch rId := bag.ResourceTypeID(); rId {
+	case resourceTypeUser.Id:
+		bag.Pop()
+		for _, siteID := range b.siteIDs {
+			bag.Push(pagination.PageState{
+				ResourceTypeID: siteID,
+			})
+		}
+	default:
+		users, nextPageToken, err = b.atlassianClient.ListUsers(ctx, rId, pageToken)
 		if err != nil {
 			return nil, "", nil, err
 		}
-		resources = append(resources, userResource)
-	}
 
-	err = bag.Next(nextPageToken)
-	if err != nil {
-		return nil, "", nil, err
+		for _, user := range users {
+			userResource, err := parseIntoUserResource(user)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			resources = append(resources, userResource)
+		}
+
+		err = bag.Next(nextPageToken)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
 	}
 	nextPageToken, err = bag.Marshal()
 	if err != nil {
 		return nil, "", nil, err
 	}
-
 	return resources, nextPageToken, nil, nil
 }
 

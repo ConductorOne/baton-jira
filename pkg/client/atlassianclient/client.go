@@ -31,7 +31,6 @@ type AtlassianClient struct {
 type Config struct {
 	accessToken    string
 	organizationID string
-	siteId         string
 }
 
 type Option func(*AtlassianClient)
@@ -48,13 +47,13 @@ func WithOrganizationID(orgID string) Option {
 	}
 }
 
-func (c *AtlassianClient) ListUsers(ctx context.Context, pageToken string) ([]User, string, error) {
+func (c *AtlassianClient) ListUsers(ctx context.Context, siteId, pageToken string) ([]User, string, error) {
 	var usersResponse UserResponse
 	u := &url.URL{
 		Scheme:   "https",
 		Host:     "api.atlassian.com",
 		Path:     fmt.Sprintf(usersEP, c.config.organizationID),
-		RawQuery: fmt.Sprintf("resourceIds=%s", c.config.siteId),
+		RawQuery: fmt.Sprintf("resourceIds=%s", siteId),
 	}
 
 	reqOpts := []ReqOpt{WithPageSize(maxItemsPerPage)}
@@ -106,13 +105,13 @@ func (c *AtlassianClient) ListWorkspaces(ctx context.Context, pageToken string) 
 	return workspacesResponse.Data, nextPageToken, nil
 }
 
-func (c *AtlassianClient) ListGroups(ctx context.Context, pageToken string) ([]Group, string, error) {
+func (c *AtlassianClient) ListGroups(ctx context.Context, siteID string, pageToken string) ([]Group, string, error) {
 	var groupsResponse GroupResponse
 	u := &url.URL{
 		Scheme:   "https",
 		Host:     "api.atlassian.com",
 		Path:     fmt.Sprintf(groupsEP, c.config.organizationID),
-		RawQuery: fmt.Sprintf("resourceIds=%s", c.config.siteId),
+		RawQuery: fmt.Sprintf("resourceIds=%s", siteID),
 	}
 
 	reqOpts := []ReqOpt{WithPageSize(maxItemsPerPage)}
@@ -304,15 +303,15 @@ func (c *AtlassianClient) doRequest(
 	return resp.Header, nil
 }
 
-func New(ctx context.Context, siteurl string, clientOptions ...Option) (*AtlassianClient, error) {
+func New(ctx context.Context, siteurl string, clientOptions ...Option) (*AtlassianClient, []string, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	cli, err := uhttp.NewBaseHttpClientWithContext(context.Background(), httpClient)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	client := AtlassianClient{
@@ -323,26 +322,25 @@ func New(ctx context.Context, siteurl string, clientOptions ...Option) (*Atlassi
 		opt(&client)
 	}
 
-	siteID, err := client.getSiteID(ctx, siteurl)
+	siteIDs, err := client.getSiteID(ctx, siteurl)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	client.config.siteId = siteID
-
-	return &client, nil
+	return &client, siteIDs, nil
 }
 
-func (c *AtlassianClient) getSiteID(ctx context.Context, siteUrl string) (string, error) {
+func (c *AtlassianClient) getSiteID(ctx context.Context, siteUrl string) ([]string, error) {
 	var (
-		workspaces []Workspace
-		pageToken  string
+		workspaces  []Workspace
+		pageToken   string
+		wantSiteIDs []string
 	)
 
 	for {
 		w, nextPage, err := c.ListWorkspaces(ctx, pageToken)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		workspaces = append(workspaces, w...)
@@ -354,8 +352,12 @@ func (c *AtlassianClient) getSiteID(ctx context.Context, siteUrl string) (string
 
 	for _, workspace := range workspaces {
 		if workspace.Attributes.HostUrl == siteUrl {
-			return workspace.Id, nil
+			wantSiteIDs = append(wantSiteIDs, workspace.Id)
 		}
 	}
-	return "", fmt.Errorf("site id not found")
+
+	if len(wantSiteIDs) == 0 {
+		return nil, fmt.Errorf("site id not found")
+	}
+	return wantSiteIDs, nil
 }

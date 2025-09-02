@@ -31,6 +31,7 @@ type groupResourceType struct {
 	resourceType    *v2.ResourceType
 	client          *client.Client
 	atlassianClient *atlassianclient.AtlassianClient
+	siteIDs         []string
 }
 
 func groupResource(ctx context.Context, group *jira.Group) (*v2.Resource, error) {
@@ -55,11 +56,12 @@ func (g *groupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
-func groupBuilder(c *client.Client, ac *atlassianclient.AtlassianClient) *groupResourceType {
+func groupBuilder(c *client.Client, ac *atlassianclient.AtlassianClient, siteIDs []string) *groupResourceType {
 	return &groupResourceType{
 		resourceType:    resourceTypeGroup,
 		client:          c,
 		atlassianClient: ac,
+		siteIDs:         siteIDs,
 	}
 }
 
@@ -273,28 +275,43 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 }
 
 func (u *groupResourceType) listSiteGroups(ctx context.Context, _ *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	var resources []*v2.Resource
-	bag, pageToken, err := getToken(pToken, resourceTypeGroup)
+	var (
+		resources     []*v2.Resource
+		nextPageToken string
+		groups        []atlassianclient.Group
+	)
+	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	groups, nextPageToken, err := u.atlassianClient.ListGroups(ctx, pageToken)
-	if err != nil {
-		return nil, "", nil, err
-	}
-
-	for _, group := range groups {
-		groupResource, err := parseIntoGroupResource(group)
+	switch rId := bag.ResourceTypeID(); rId {
+	case resourceTypeGroup.Id:
+		bag.Pop()
+		for _, siteID := range u.siteIDs {
+			bag.Push(pagination.PageState{
+				ResourceTypeID: siteID,
+			})
+		}
+	default:
+		groups, nextPageToken, err = u.atlassianClient.ListGroups(ctx, rId, pageToken)
 		if err != nil {
 			return nil, "", nil, err
 		}
-		resources = append(resources, groupResource)
-	}
 
-	err = bag.Next(nextPageToken)
-	if err != nil {
-		return nil, "", nil, err
+		for _, group := range groups {
+			groupResource, err := parseIntoGroupResource(group)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			resources = append(resources, groupResource)
+		}
+
+		err = bag.Next(nextPageToken)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
 	}
 	nextPageToken, err = bag.Marshal()
 	if err != nil {

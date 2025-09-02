@@ -141,7 +141,7 @@ func parseProjectRoleID(resourceID string) (string, int, error) {
 }
 
 // getToken is used for calling atlassian api.
-func getToken(pToken *pagination.Token, resourceType *v2.ResourceType) (*pagination.Bag, string, error) {
+func getToken(pToken *pagination.Token, resourceID *v2.ResourceId) (*pagination.Bag, string, error) {
 	var pageToken string
 	_, bag, err := unmarshalSkipToken(pToken)
 	if err != nil {
@@ -150,7 +150,7 @@ func getToken(pToken *pagination.Token, resourceType *v2.ResourceType) (*paginat
 
 	if bag.Current() == nil {
 		bag.Push(pagination.PageState{
-			ResourceTypeID: resourceType.Id,
+			ResourceTypeID: resourceID.ResourceType,
 		})
 	}
 

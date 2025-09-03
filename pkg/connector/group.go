@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
@@ -19,13 +20,18 @@ import (
 	"go.uber.org/zap"
 )
 
-var resourceTypeGroup = &v2.ResourceType{
-	Id:          "group",
-	DisplayName: "Group",
-	Traits: []v2.ResourceType_Trait{
-		v2.ResourceType_TRAIT_GROUP,
-	},
-}
+var (
+	resourceTypeGroup = &v2.ResourceType{
+		Id:          "group",
+		DisplayName: "Group",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
+	jiraGroups   = "jiraGroups"
+	siteGroups   = "siteGroups"
+	systemGroups = []string{"atlassian-addons", "atlassian-addons-admin", "system-administrators"}
+)
 
 type groupResourceType struct {
 	resourceType    *v2.ResourceType
@@ -133,40 +139,61 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 }
 
 func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	if u.atlassianClient != nil {
-		return u.listSiteGroups(ctx, nil, p)
-	}
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+	var resources []*v2.Resource
+
+	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: jiraGroups})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	groups, resp, err := u.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
-	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
-		}
-		return nil, "", nil, wrapError(err, "failed to list groups", statusCode)
-	}
-
-	var resources []*v2.Resource
-	for i := range groups {
-		group := jira.Group{
-			ID:   groups[i].ID,
-			Name: groups[i].Name,
-		}
-		resource, err := groupResource(ctx, &group)
-
+	switch rId := bag.ResourceTypeID(); rId {
+	case jiraGroups:
+		groups, resp, err := u.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 		if err != nil {
-			return nil, "", nil, err
+			var statusCode *int
+			if resp != nil {
+				statusCode = &resp.StatusCode
+			}
+			return nil, "", nil, wrapError(err, "failed to list groups", statusCode)
 		}
 
-		resources = append(resources, resource)
-	}
+		for i, g := range groups {
+			// `system-administrators` and `atlassian-addons-admin` are not returned from atlassian client.
+			if u.atlassianClient != nil && !slices.Contains(systemGroups, g.Name) {
+				continue
+			}
+			group := jira.Group{
+				ID:   groups[i].ID,
+				Name: groups[i].Name,
+			}
+			resource, err := groupResource(ctx, &group)
 
-	if isLastPage(len(groups), resourcePageSize) {
-		return resources, "", nil, nil
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			resources = append(resources, resource)
+		}
+
+		if isLastPage(len(groups), resourcePageSize) {
+			if u.atlassianClient != nil {
+				bag.Pop()
+				for _, siteId := range u.siteIDs {
+					bag.Push(pagination.PageState{
+						ResourceTypeID: siteGroups,
+						ResourceID:     siteId,
+					})
+				}
+				pageToken, err := bag.Marshal()
+				if err != nil {
+					return nil, "", nil, err
+				}
+				return resources, pageToken, nil, nil
+			}
+			return resources, "", nil, nil
+		}
+	case siteGroups:
+		return u.listSiteGroups(ctx, nil, p)
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
@@ -280,38 +307,29 @@ func (u *groupResourceType) listSiteGroups(ctx context.Context, _ *v2.ResourceId
 		nextPageToken string
 		groups        []atlassianclient.Group
 	)
-	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: siteGroups})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	switch rId := bag.ResourceTypeID(); rId {
-	case resourceTypeGroup.Id:
-		bag.Pop()
-		for _, siteID := range u.siteIDs {
-			bag.Push(pagination.PageState{
-				ResourceTypeID: siteID,
-			})
-		}
-	default:
-		groups, nextPageToken, err = u.atlassianClient.ListGroups(ctx, rId, pageToken)
-		if err != nil {
-			return nil, "", nil, err
-		}
-
-		for _, group := range groups {
-			groupResource, err := parseIntoGroupResource(group)
-			if err != nil {
-				return nil, "", nil, err
-			}
-			resources = append(resources, groupResource)
-		}
-
-		err = bag.Next(nextPageToken)
-		if err != nil {
-			return nil, "", nil, err
-		}
+	groups, nextPageToken, err = u.atlassianClient.ListGroups(ctx, bag.ResourceID(), pageToken)
+	if err != nil {
+		return nil, "", nil, err
 	}
+
+	for _, group := range groups {
+		groupResource, err := parseIntoGroupResource(group)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		resources = append(resources, groupResource)
+	}
+
+	err = bag.Next(nextPageToken)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
 	nextPageToken, err = bag.Marshal()
 	if err != nil {
 		return nil, "", nil, err

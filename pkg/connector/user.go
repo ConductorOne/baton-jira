@@ -25,6 +25,8 @@ var (
 		},
 		Annotations: getResourceTypeAnnotation(),
 	}
+	siteUsers = "siteUsers"
+	jiraUsers = "jiraUsers"
 )
 
 type (
@@ -116,47 +118,67 @@ func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, _ 
 }
 
 func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	if u.atlassianClient != nil {
-		return u.listSiteUsers(ctx, nil, p)
-	}
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	var resources []*v2.Resource
+
+	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: jiraUsers})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	users, resp, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
-	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
-		}
-		return nil, "", nil, wrapError(err, "failed to list users", statusCode)
-	}
-
-	var resources []*v2.Resource
-	for i := range users {
-		if u.skipCustomerUser && users[i].AccountType == "customer" {
-			continue
-		}
-
-		resource, err := userResource(ctx, &users[i])
-
+	switch rId := bag.ResourceTypeID(); rId {
+	case jiraUsers:
+		users, resp, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 		if err != nil {
-			return nil, "", nil, err
+			var statusCode *int
+			if resp != nil {
+				statusCode = &resp.StatusCode
+			}
+			return nil, "", nil, wrapError(err, "failed to list users", statusCode)
 		}
 
-		resources = append(resources, resource)
-	}
+		for i := range users {
+			if u.skipCustomerUser && users[i].AccountType == "customer" {
+				continue
+			}
 
-	if isLastPage(len(users), resourcePageSize) {
-		return resources, "", nil, nil
-	}
+			// we only want to get app users when using atlassian client.
+			if u.atlassianClient != nil && users[i].AccountType != "app" {
+				continue
+			}
 
+			resource, err := userResource(ctx, &users[i])
+
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			resources = append(resources, resource)
+		}
+
+		if isLastPage(len(users), resourcePageSize) {
+			if u.atlassianClient != nil {
+				bag.Pop()
+				for _, siteId := range u.siteIDs {
+					bag.Push(pagination.PageState{
+						ResourceTypeID: siteUsers,
+						ResourceID:     siteId,
+					})
+				}
+				pageToken, err := bag.Marshal()
+				if err != nil {
+					return nil, "", nil, err
+				}
+				return resources, pageToken, nil, nil
+			}
+			return resources, "", nil, nil
+		}
+	case siteUsers:
+		return u.listSiteUsers(ctx, nil, p)
+	}
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {
 		return nil, "", nil, err
 	}
-
 	return resources, nextPage, nil, nil
 }
 
@@ -245,38 +267,29 @@ func (b *userResourceType) listSiteUsers(ctx context.Context, _ *v2.ResourceId, 
 		users         []atlassianclient.User
 	)
 
-	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: siteUsers})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	switch rId := bag.ResourceTypeID(); rId {
-	case resourceTypeUser.Id:
-		bag.Pop()
-		for _, siteID := range b.siteIDs {
-			bag.Push(pagination.PageState{
-				ResourceTypeID: siteID,
-			})
-		}
-	default:
-		users, nextPageToken, err = b.atlassianClient.ListUsers(ctx, rId, pageToken)
-		if err != nil {
-			return nil, "", nil, err
-		}
-
-		for _, user := range users {
-			userResource, err := parseIntoUserResource(user)
-			if err != nil {
-				return nil, "", nil, err
-			}
-			resources = append(resources, userResource)
-		}
-
-		err = bag.Next(nextPageToken)
-		if err != nil {
-			return nil, "", nil, err
-		}
+	users, nextPageToken, err = b.atlassianClient.ListUsers(ctx, bag.ResourceID(), pageToken)
+	if err != nil {
+		return nil, "", nil, err
 	}
+
+	for _, user := range users {
+		userResource, err := parseIntoUserResource(user)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		resources = append(resources, userResource)
+	}
+
+	err = bag.Next(nextPageToken)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
 	nextPageToken, err = bag.Marshal()
 	if err != nil {
 		return nil, "", nil, err

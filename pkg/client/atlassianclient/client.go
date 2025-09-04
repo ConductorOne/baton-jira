@@ -13,14 +13,9 @@ import (
 const (
 	baseURL = "https://api.atlassian.com/admin"
 
-	usersEP                = "admin/v2/orgs/%s/directories/-/users"
-	workspacesEP           = "v2/orgs/%s/workspaces"
-	groupsEP               = "admin/v2/orgs/%s/directories/-/groups"
-	usersRoleAssignmentEP  = "v2/orgs/%s/directories/-/users/%s/role-assignments"
-	groupsRoleAssignmentEP = "v2/orgs/%s/directories/-/groups/%s/role-assignments"
-
-	userAssignRolesEP = "v1/orgs/%s/users/%s/roles/assign"
-	userRevokeRolesEP = "v1/orgs/%s/users/%s/roles/revoke"
+	usersEP      = "admin/v2/orgs/%s/directories/-/users"
+	workspacesEP = "v2/orgs/%s/workspaces"
+	groupsEP     = "admin/v2/orgs/%s/directories/-/groups"
 )
 
 type AtlassianClient struct {

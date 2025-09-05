@@ -120,12 +120,25 @@ func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, _ 
 func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	var resources []*v2.Resource
 
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: jiraUsers})
+	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
 	switch rId := bag.ResourceTypeID(); rId {
+	case resourceTypeUser.Id:
+		bag.Pop()
+		bag.Push(pagination.PageState{
+			ResourceTypeID: jiraUsers,
+		})
+		if u.atlassianClient != nil {
+			for _, siteId := range u.siteIDs {
+				bag.Push(pagination.PageState{
+					ResourceTypeID: siteUsers,
+					ResourceID:     siteId,
+				})
+			}
+		}
 	case jiraUsers:
 		users, resp, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 		if err != nil {
@@ -155,33 +168,25 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 			resources = append(resources, resource)
 		}
 
-		if isLastPage(len(users), resourcePageSize) {
-			if u.atlassianClient != nil {
-				bag.Pop()
-				for _, siteId := range u.siteIDs {
-					bag.Push(pagination.PageState{
-						ResourceTypeID: siteUsers,
-						ResourceID:     siteId,
-					})
-				}
-				pageToken, err := bag.Marshal()
-				if err != nil {
-					return nil, "", nil, err
-				}
-				return resources, pageToken, nil, nil
+		if !isLastPage(len(users), resourcePageSize) {
+			nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+			if err != nil {
+				return nil, "", nil, err
 			}
-			return resources, "", nil, nil
+			return resources, nextPage, nil, nil
 		}
+		bag.Pop()
 	case siteUsers:
 		return u.listSiteUsers(ctx, nil, p)
 	default:
 		return resources, "", nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
 	}
-	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+
+	pageToken, err := bag.Marshal()
 	if err != nil {
 		return nil, "", nil, err
 	}
-	return resources, nextPage, nil, nil
+	return resources, pageToken, nil, nil
 }
 
 func (o *userResourceType) CreateAccountCapabilityDetails(ctx context.Context) (*v2.CredentialDetailsAccountProvisioning, annotations.Annotations, error) {

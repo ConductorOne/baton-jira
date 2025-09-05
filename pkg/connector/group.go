@@ -141,12 +141,25 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	var resources []*v2.Resource
 
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: jiraGroups})
+	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
 	switch rId := bag.ResourceTypeID(); rId {
+	case resourceTypeGroup.Id:
+		bag.Pop()
+		bag.Push(pagination.PageState{
+			ResourceTypeID: jiraGroups,
+		})
+		if u.atlassianClient != nil {
+			for _, siteId := range u.siteIDs {
+				bag.Push(pagination.PageState{
+					ResourceTypeID: siteGroups,
+					ResourceID:     siteId,
+				})
+			}
+		}
 	case jiraGroups:
 		groups, resp, err := u.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 		if err != nil {
@@ -175,35 +188,25 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 			resources = append(resources, resource)
 		}
 
-		if isLastPage(len(groups), resourcePageSize) {
-			if u.atlassianClient != nil {
-				bag.Pop()
-				for _, siteId := range u.siteIDs {
-					bag.Push(pagination.PageState{
-						ResourceTypeID: siteGroups,
-						ResourceID:     siteId,
-					})
-				}
-				pageToken, err := bag.Marshal()
-				if err != nil {
-					return nil, "", nil, err
-				}
-				return resources, pageToken, nil, nil
+		if !isLastPage(len(groups), resourcePageSize) {
+			nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+			if err != nil {
+				return nil, "", nil, err
 			}
-			return resources, "", nil, nil
+			return resources, nextPage, nil, nil
 		}
+		bag.Pop()
 	case siteGroups:
 		return u.listSiteGroups(ctx, nil, p)
 	default:
 		return resources, "", nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
 	}
 
-	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+	pageToken, err := bag.Marshal()
 	if err != nil {
 		return nil, "", nil, err
 	}
-
-	return resources, nextPage, nil, nil
+	return resources, pageToken, nil, nil
 }
 
 func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {

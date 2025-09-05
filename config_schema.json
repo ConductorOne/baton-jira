@@ -1,6 +1,19 @@
 {
   "fields": [
     {
+      "name": "atlassian-api-token",
+      "displayName": "Atlassian organization api token",
+      "description": "api token to atlassian organization",
+      "isSecret": true,
+      "stringField": {}
+    },
+    {
+      "name": "atlassian-orgId",
+      "displayName": "Atlassian organization Id",
+      "description": "organization Id to atlassian instance",
+      "stringField": {}
+    },
+    {
       "name": "jira-api-token",
       "displayName": "API token",
       "description": "API token for Jira service.",

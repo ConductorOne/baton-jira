@@ -194,6 +194,8 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 		}
 	case siteGroups:
 		return u.listSiteGroups(ctx, nil, p)
+	default:
+		return resources, "", nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))

@@ -174,6 +174,8 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 		}
 	case siteUsers:
 		return u.listSiteUsers(ctx, nil, p)
+	default:
+		return resources, "", nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
 	}
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {

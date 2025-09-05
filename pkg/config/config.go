@@ -52,6 +52,7 @@ var (
 		"atlassian-api-token",
 		field.WithDisplayName("Atlassian organization api token"),
 		field.WithDescription("api token to atlassian organization"),
+		field.WithIsSecret(true),
 	)
 )
 

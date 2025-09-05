@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
+	"github.com/conductorone/baton-jira/pkg/client/atlassianclient"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
@@ -18,17 +20,24 @@ import (
 	"go.uber.org/zap"
 )
 
-var resourceTypeGroup = &v2.ResourceType{
-	Id:          "group",
-	DisplayName: "Group",
-	Traits: []v2.ResourceType_Trait{
-		v2.ResourceType_TRAIT_GROUP,
-	},
-}
+var (
+	resourceTypeGroup = &v2.ResourceType{
+		Id:          "group",
+		DisplayName: "Group",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
+	jiraGroups   = "jiraGroups"
+	siteGroups   = "siteGroups"
+	systemGroups = []string{"atlassian-addons", "atlassian-addons-admin", "system-administrators"}
+)
 
 type groupResourceType struct {
-	resourceType *v2.ResourceType
-	client       *client.Client
+	resourceType    *v2.ResourceType
+	client          *client.Client
+	atlassianClient *atlassianclient.AtlassianClient
+	siteIDs         []string
 }
 
 func groupResource(ctx context.Context, group *jira.Group) (*v2.Resource, error) {
@@ -53,10 +62,12 @@ func (g *groupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
-func groupBuilder(c *client.Client) *groupResourceType {
+func groupBuilder(c *client.Client, ac *atlassianclient.AtlassianClient, siteIDs []string) *groupResourceType {
 	return &groupResourceType{
-		resourceType: resourceTypeGroup,
-		client:       c,
+		resourceType:    resourceTypeGroup,
+		client:          c,
+		atlassianClient: ac,
+		siteIDs:         siteIDs,
 	}
 }
 
@@ -128,45 +139,74 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 }
 
 func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	var resources []*v2.Resource
+
 	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	groups, resp, err := u.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
-	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
+	switch rId := bag.ResourceTypeID(); rId {
+	case resourceTypeGroup.Id:
+		bag.Pop()
+		bag.Push(pagination.PageState{
+			ResourceTypeID: jiraGroups,
+		})
+		if u.atlassianClient != nil {
+			for _, siteId := range u.siteIDs {
+				bag.Push(pagination.PageState{
+					ResourceTypeID: siteGroups,
+					ResourceID:     siteId,
+				})
+			}
 		}
-		return nil, "", nil, wrapError(err, "failed to list groups", statusCode)
-	}
-
-	var resources []*v2.Resource
-	for i := range groups {
-		group := jira.Group{
-			ID:   groups[i].ID,
-			Name: groups[i].Name,
-		}
-		resource, err := groupResource(ctx, &group)
-
+	case jiraGroups:
+		groups, resp, err := u.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 		if err != nil {
-			return nil, "", nil, err
+			var statusCode *int
+			if resp != nil {
+				statusCode = &resp.StatusCode
+			}
+			return nil, "", nil, wrapError(err, "failed to list groups", statusCode)
 		}
 
-		resources = append(resources, resource)
+		for i, g := range groups {
+			// `system-administrators` and `atlassian-addons-admin` are not returned from atlassian client.
+			if u.atlassianClient != nil && !slices.Contains(systemGroups, g.Name) {
+				continue
+			}
+			group := jira.Group{
+				ID:   groups[i].ID,
+				Name: groups[i].Name,
+			}
+			resource, err := groupResource(ctx, &group)
+
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			resources = append(resources, resource)
+		}
+
+		if !isLastPage(len(groups), resourcePageSize) {
+			nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+			if err != nil {
+				return nil, "", nil, err
+			}
+			return resources, nextPage, nil, nil
+		}
+		bag.Pop()
+	case siteGroups:
+		return u.listSiteGroups(ctx, nil, p)
+	default:
+		return resources, "", nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
 	}
 
-	if isLastPage(len(groups), resourcePageSize) {
-		return resources, "", nil, nil
-	}
-
-	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+	pageToken, err := bag.Marshal()
 	if err != nil {
 		return nil, "", nil, err
 	}
-
-	return resources, nextPage, nil, nil
+	return resources, pageToken, nil, nil
 }
 
 func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
@@ -264,4 +304,59 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 	}
 
 	return nil, nil
+}
+
+func (u *groupResourceType) listSiteGroups(ctx context.Context, _ *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	var (
+		resources     []*v2.Resource
+		nextPageToken string
+		groups        []atlassianclient.Group
+	)
+	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: siteGroups})
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	groups, nextPageToken, err = u.atlassianClient.ListGroups(ctx, bag.ResourceID(), pageToken)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	for _, group := range groups {
+		groupResource, err := parseIntoGroupResource(group)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		resources = append(resources, groupResource)
+	}
+
+	err = bag.Next(nextPageToken)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	nextPageToken, err = bag.Marshal()
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	return resources, nextPageToken, nil, nil
+}
+
+func parseIntoGroupResource(group atlassianclient.Group) (*v2.Resource, error) {
+	profile := map[string]interface{}{
+		"id":   group.ID,
+		"name": group.Name,
+	}
+
+	groupTraitOptions := []rs.GroupTraitOption{
+		rs.WithGroupProfile(profile),
+	}
+
+	resource, err := rs.NewGroupResource(group.Name, resourceTypeGroup, group.ID, groupTraitOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	return resource, nil
 }

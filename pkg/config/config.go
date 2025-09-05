@@ -42,6 +42,18 @@ var (
 		field.WithDescription("Skip syncing customer users in Jira Service Management."),
 		field.WithDefaultValue(false),
 	)
+
+	atlassianOrgId = field.StringField(
+		"atlassian-orgId",
+		field.WithDisplayName("Atlassian organization Id"),
+		field.WithDescription("organization Id to atlassian instance"),
+	)
+	atlassianAPIToken = field.StringField(
+		"atlassian-api-token",
+		field.WithDisplayName("Atlassian organization api token"),
+		field.WithDescription("api token to atlassian organization"),
+		field.WithIsSecret(true),
+	)
 )
 
 //go:generate go run ./gen
@@ -54,6 +66,8 @@ var Config = field.NewConfiguration(
 		skipProjectParticipantsField,
 		externalTicketField,
 		skipCustomerUser,
+		atlassianOrgId,
+		atlassianAPIToken,
 	},
 	field.WithConnectorDisplayName("Jira Cloud"),
 	field.WithHelpUrl("/docs/baton/jira-cloud"),

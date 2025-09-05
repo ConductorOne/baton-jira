@@ -11,6 +11,8 @@ type Jira struct {
 	SkipProjectParticipants bool `mapstructure:"skip-project-participants"`
 	Ticketing bool `mapstructure:"ticketing"`
 	SkipCustomerUser bool `mapstructure:"skip-customer-user"`
+	AtlassianOrgid string `mapstructure:"atlassian-orgId"`
+	AtlassianApiToken string `mapstructure:"atlassian-api-token"`
 }
 
 func (c* Jira) findFieldByTag(tagValue string) (any, bool) {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
+	"github.com/conductorone/baton-jira/pkg/client/atlassianclient"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
@@ -24,13 +25,17 @@ var (
 		},
 		Annotations: getResourceTypeAnnotation(),
 	}
+	siteUsers = "siteUsers"
+	jiraUsers = "jiraUsers"
 )
 
 type (
 	userResourceType struct {
 		resourceType     *v2.ResourceType
 		client           *client.Client
+		atlassianClient  *atlassianclient.AtlassianClient
 		skipCustomerUser bool
+		siteIDs          []string
 	}
 )
 
@@ -94,11 +99,13 @@ func (u *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return u.resourceType
 }
 
-func userBuilder(c *client.Client, skipCustomerUser bool) *userResourceType {
+func userBuilder(c *client.Client, ac *atlassianclient.AtlassianClient, skipCustomerUser bool, siteIDs []string) *userResourceType {
 	return &userResourceType{
 		resourceType:     resourceTypeUser,
 		client:           c,
+		atlassianClient:  ac,
 		skipCustomerUser: skipCustomerUser,
+		siteIDs:          siteIDs,
 	}
 }
 
@@ -111,45 +118,75 @@ func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, _ 
 }
 
 func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	var resources []*v2.Resource
+
 	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	users, resp, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
-	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
+	switch rId := bag.ResourceTypeID(); rId {
+	case resourceTypeUser.Id:
+		bag.Pop()
+		bag.Push(pagination.PageState{
+			ResourceTypeID: jiraUsers,
+		})
+		if u.atlassianClient != nil {
+			for _, siteId := range u.siteIDs {
+				bag.Push(pagination.PageState{
+					ResourceTypeID: siteUsers,
+					ResourceID:     siteId,
+				})
+			}
 		}
-		return nil, "", nil, wrapError(err, "failed to list users", statusCode)
-	}
-
-	var resources []*v2.Resource
-	for i := range users {
-		if u.skipCustomerUser && users[i].AccountType == "customer" {
-			continue
-		}
-
-		resource, err := userResource(ctx, &users[i])
-
+	case jiraUsers:
+		users, resp, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
 		if err != nil {
-			return nil, "", nil, err
+			var statusCode *int
+			if resp != nil {
+				statusCode = &resp.StatusCode
+			}
+			return nil, "", nil, wrapError(err, "failed to list users", statusCode)
 		}
 
-		resources = append(resources, resource)
+		for i := range users {
+			if u.skipCustomerUser && users[i].AccountType == "customer" {
+				continue
+			}
+
+			// we only want to get app users when using atlassian client.
+			if u.atlassianClient != nil && users[i].AccountType != "app" {
+				continue
+			}
+
+			resource, err := userResource(ctx, &users[i])
+
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			resources = append(resources, resource)
+		}
+
+		if !isLastPage(len(users), resourcePageSize) {
+			nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+			if err != nil {
+				return nil, "", nil, err
+			}
+			return resources, nextPage, nil, nil
+		}
+		bag.Pop()
+	case siteUsers:
+		return u.listSiteUsers(ctx, nil, p)
+	default:
+		return resources, "", nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
 	}
 
-	if isLastPage(len(users), resourcePageSize) {
-		return resources, "", nil, nil
-	}
-
-	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+	pageToken, err := bag.Marshal()
 	if err != nil {
 		return nil, "", nil, err
 	}
-
-	return resources, nextPage, nil, nil
+	return resources, pageToken, nil, nil
 }
 
 func (o *userResourceType) CreateAccountCapabilityDetails(ctx context.Context) (*v2.CredentialDetailsAccountProvisioning, annotations.Annotations, error) {
@@ -228,4 +265,73 @@ func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBod
 		Email:    accountInfo.Login,
 		Products: products,
 	}, nil
+}
+
+func (b *userResourceType) listSiteUsers(ctx context.Context, _ *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	var (
+		resources     []*v2.Resource
+		nextPageToken string
+		users         []atlassianclient.User
+	)
+
+	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: siteUsers})
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	users, nextPageToken, err = b.atlassianClient.ListUsers(ctx, bag.ResourceID(), pageToken)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	for _, user := range users {
+		userResource, err := parseIntoUserResource(user)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		resources = append(resources, userResource)
+	}
+
+	err = bag.Next(nextPageToken)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	nextPageToken, err = bag.Marshal()
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return resources, nextPageToken, nil, nil
+}
+
+func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {
+	var userStatus = v2.UserTrait_Status_STATUS_UNSPECIFIED
+
+	profile := map[string]interface{}{
+		"account_id":     user.AccountId,
+		"account_type":   user.AccountType,
+		"username":       user.Name,
+		"email_verified": user.EmailVerified,
+	}
+
+	switch user.Status {
+	case "active":
+		userStatus = v2.UserTrait_Status_STATUS_ENABLED
+	case "deactivated":
+		userStatus = v2.UserTrait_Status_STATUS_DISABLED
+	}
+
+	userTraits := []rs.UserTraitOption{
+		rs.WithUserProfile(profile),
+		rs.WithStatus(userStatus),
+		rs.WithUserLogin(user.Email),
+		rs.WithEmail(user.Email, true),
+	}
+
+	return rs.NewUserResource(
+		user.Email,
+		resourceTypeUser,
+		user.AccountId,
+		userTraits,
+	)
 }

@@ -329,7 +329,7 @@ func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {
 	}
 
 	return rs.NewUserResource(
-		user.Email,
+		user.Name,
 		resourceTypeUser,
 		user.AccountId,
 		userTraits,

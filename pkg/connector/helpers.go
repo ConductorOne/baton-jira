@@ -54,7 +54,7 @@ func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, int64
 	}
 
 	offset, err := getOffsetFromPageToken(b.PageToken())
-	if err != nil {
+	if err != nil && b.ResourceTypeID() != siteUsers && b.ResourceTypeID() != siteGroups {
 		return nil, 0, err
 	}
 

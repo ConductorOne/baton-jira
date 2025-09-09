@@ -5,7 +5,7 @@ go 1.24
 toolchain go1.24.2
 
 require (
-	github.com/conductorone/baton-sdk v0.3.33
+	github.com/conductorone/baton-sdk v0.3.52-0.20250909151759-ae7bee9186e2
 	github.com/conductorone/go-jira/v2 v2.0.0-20250526181456-c65adcfd5255
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -127,5 +127,3 @@ require (
 	modernc.org/memory v1.10.0 // indirect
 	modernc.org/sqlite v1.37.0 // indirect
 )
-
-replace github.com/conductorone/baton-sdk => ../baton-sdk

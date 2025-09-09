@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	v1 "github.com/conductorone/baton-sdk/pb/c1/connectorapi/baton/v1"
+	"github.com/conductorone/baton-sdk/pkg/session"
 	sdkSync "github.com/conductorone/baton-sdk/pkg/sync"
 	"github.com/conductorone/baton-sdk/pkg/tasks"
 	"github.com/conductorone/baton-sdk/pkg/types"
@@ -21,6 +22,8 @@ type localSyncer struct {
 	externalResourceC1Z                 string
 	externalResourceEntitlementIdFilter string
 	targetedSyncResourceIDs             []string
+	skipEntitlementsAndGrants           bool
+	syncResourceTypeIDs                 []string
 }
 
 type Option func(*localSyncer)
@@ -49,6 +52,18 @@ func WithTargetedSyncResourceIDs(resourceIDs []string) Option {
 	}
 }
 
+func WithSyncResourceTypeIDs(resourceTypeIDs []string) Option {
+	return func(m *localSyncer) {
+		m.syncResourceTypeIDs = resourceTypeIDs
+	}
+}
+
+func WithSkipEntitlementsAndGrants(skip bool) Option {
+	return func(m *localSyncer) {
+		m.skipEntitlementsAndGrants = skip
+	}
+}
+
 func (m *localSyncer) GetTempDir() string {
 	return ""
 }
@@ -71,12 +86,19 @@ func (m *localSyncer) Process(ctx context.Context, task *v1.Task, cc types.Conne
 	ctx, span := tracer.Start(ctx, "localSyncer.Process", trace.WithNewRoot())
 	defer span.End()
 
+	var setSessionStore session.SetSessionStore
+	if ssetSessionStore, ok := cc.(session.SetSessionStore); ok {
+		setSessionStore = ssetSessionStore
+	}
 	syncer, err := sdkSync.NewSyncer(ctx, cc,
 		sdkSync.WithC1ZPath(m.dbPath),
 		sdkSync.WithTmpDir(m.tmpDir),
 		sdkSync.WithExternalResourceC1ZPath(m.externalResourceC1Z),
 		sdkSync.WithExternalResourceEntitlementIdFilter(m.externalResourceEntitlementIdFilter),
 		sdkSync.WithTargetedSyncResourceIDs(m.targetedSyncResourceIDs),
+		sdkSync.WithSkipEntitlementsAndGrants(m.skipEntitlementsAndGrants),
+		sdkSync.WithSessionStore(setSessionStore),
+		sdkSync.WithSyncResourceTypes(m.syncResourceTypeIDs),
 	)
 	if err != nil {
 		return err

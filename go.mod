@@ -1,11 +1,9 @@
 module github.com/conductorone/baton-jira
 
-go 1.24
-
-toolchain go1.24.2
+go 1.25.2
 
 require (
-	github.com/conductorone/baton-sdk v0.3.33
+	github.com/conductorone/baton-sdk v0.5.0
 	github.com/conductorone/go-jira/v2 v2.0.0-20250526181456-c65adcfd5255
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -16,6 +14,7 @@ require (
 require (
 	filippo.io/age v1.2.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/aws/aws-lambda-go v1.48.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.71.2 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -24,6 +23,7 @@ require (
 	github.com/conductorone/dpop/integrations/dpop_oauth2 v0.2.4 // indirect
 	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
 	github.com/dolthub/maphash v0.1.0 // indirect
+	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/gammazero/deque v1.0.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
@@ -36,6 +36,7 @@ require (
 	github.com/pquerna/cachecontrol v0.2.0 // indirect
 	github.com/pquerna/xjwt/xkeyset v0.0.0-20241217022915-10fc997b2a9f // indirect
 	github.com/sagikazarmark/locafero v0.9.0 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.8 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.10.0 // indirect
@@ -97,8 +98,6 @@ require (
 	github.com/pquerna/xjwt v0.3.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/segmentio/ksuid v1.0.4 // indirect
-	github.com/shirou/gopsutil/v3 v3.24.5 // indirect
-	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/cast v1.8.0 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
@@ -115,7 +114,7 @@ require (
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250505200425-f936aa4a68b2 // indirect
 	google.golang.org/grpc v1.72.0

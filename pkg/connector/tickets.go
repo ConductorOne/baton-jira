@@ -273,7 +273,7 @@ func convertMetadataFieldToCustomField(metaDataField *jira.MetaDataFields) *v2.T
 				displayName = choice.Value
 			}
 			allowedValues = append(allowedValues, &v2.TicketCustomFieldObjectValue{
-				Id:          choice.Id,
+				Id:          string(choice.Id),
 				DisplayName: displayName,
 			})
 		}
@@ -407,7 +407,7 @@ func (j *Jira) GetTicketSchema(ctx context.Context, schemaID string) (*v2.Ticket
 		return nil, nil, err
 	}
 
-	project, err := j.client.GetProject(ctx, projectKeyIssueTypeID.ProjectKey)
+	project, err := j.client.GetProject(ctx, nil, projectKeyIssueTypeID.ProjectKey)
 	if err != nil {
 		return nil, nil, err
 	}

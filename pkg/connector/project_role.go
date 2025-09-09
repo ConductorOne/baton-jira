@@ -3,18 +3,21 @@ package connector
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
+	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var resourceTypeProjectRole = &v2.ResourceType{
@@ -24,6 +27,8 @@ var resourceTypeProjectRole = &v2.ResourceType{
 		v2.ResourceType_TRAIT_ROLE,
 	},
 }
+
+var _ connectorbuilder.ResourceSyncerV2 = (*projectRoleResourceType)(nil)
 
 type projectRoleResourceType struct {
 	resourceType *v2.ResourceType
@@ -40,11 +45,11 @@ func projectRoleResource(project *jira.Project, role *jira.Role) (*v2.Resource, 
 
 	displayName := fmt.Sprintf("%s - %s", project.Name, role.Name)
 	resourceID := projectRoleID(project, role)
-	roleTraitOptions := []rs.RoleTraitOption{
+	roleTraitSyncOpAttrs := []rs.RoleTraitOption{
 		rs.WithRoleProfile(profile),
 	}
 
-	resource, err := rs.NewRoleResource(displayName, resourceTypeProjectRole, resourceID, roleTraitOptions)
+	resource, err := rs.NewRoleResource(displayName, resourceTypeProjectRole, resourceID, roleTraitSyncOpAttrs)
 	if err != nil {
 		return nil, err
 	}
@@ -63,51 +68,50 @@ func projectRoleBuilder(c *client.Client) *projectRoleResourceType {
 	}
 }
 
-func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 
 	projectID, roleID, err := parseProjectRoleID(resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to parse project role ID", nil)
+		return nil, nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
-	project, err := u.client.GetProject(ctx, projectID)
+	project, err := u.client.GetProject(ctx, opts.Session, projectID)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get project", nil)
+		return nil, nil, wrapError(err, "failed to get project", nil)
 	}
 
-	role, err := u.client.GetRole(ctx, roleID)
+	role, err := u.client.GetRole(ctx, opts.Session, roleID)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get role", nil)
+		return nil, nil, wrapError(err, "failed to get role", nil)
 	}
 
-	assigmentOptions := []ent.EntitlementOption{
+	assigmentSyncOpAttrs := []ent.EntitlementOption{
 		ent.WithGrantableTo(resourceTypeUser, resourceTypeGroup),
 		ent.WithDescription(fmt.Sprintf("Assigned to %s role on the %s project", role.Name, project.Name)),
 		ent.WithDisplayName(fmt.Sprintf("%s Assignment", resource.DisplayName)),
 	}
-	rv = append(rv, ent.NewAssignmentEntitlement(resource, assignedEntitlement, assigmentOptions...))
+	rv = append(rv, ent.NewAssignmentEntitlement(resource, assignedEntitlement, assigmentSyncOpAttrs...))
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
 	l := ctxzap.Extract(ctx)
 
 	projectID, roleID, err := parseProjectRoleID(resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to parse project role ID", nil)
+		return nil, nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
 	var rv []*v2.Grant
 
 	projectRoleActors, resp, err := p.client.Jira().Role.GetRoleActorsForProject(ctx, projectID, roleID)
 	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, nil, status.Error(codes.NotFound, fmt.Sprintf("failed to get role actors for project: %v", err))
 		}
-		return nil, "", nil, wrapError(err, "failed to get role actors for project", statusCode)
+		return nil, nil, wrapError(err, "failed to get role actors for project", nil)
 	}
 
 	for _, actor := range projectRoleActors {
@@ -138,59 +142,62 @@ func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resou
 		rv = append(rv, g)
 	}
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, offset, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeProjectRole.Id})
+func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, opts rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
+	bag, offset, err := parsePageToken(opts.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeProjectRole.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
-
-	projects, resp, err := p.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
+	projects, _, err := p.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
 	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
-		}
-		return nil, "", nil, wrapError(err, "failed to get projects", statusCode)
+		return nil, nil, wrapError(err, "failed to get projects", nil)
 	}
 
 	var ret []*v2.Resource
+	err = p.client.SetProjects(ctx, opts.Session, projects)
+	if err != nil {
+		return nil, nil, wrapError(err, "failed to get projects", nil)
+	}
+
 	for _, prj := range projects {
-		project, err := p.client.GetProject(ctx, prj.ID)
-		if err != nil {
-			return nil, "", nil, wrapError(err, fmt.Sprintf("failed to get project %s", prj.ID), nil)
+		roleIDs := make([]int, 0, len(prj.Roles))
+		for _, roleLink := range prj.Roles {
+			roleID, err := parseRoleIdFromRoleLink(roleLink)
+			if err != nil {
+				return nil, nil, wrapError(err, "failed to parse role id from role link", nil)
+			}
+			roleIDs = append(roleIDs, roleID)
 		}
-		for _, roleLink := range project.Roles {
-			roleId, err := parseRoleIdFromRoleLink(roleLink)
-			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to parse role id from role link", nil)
-			}
+		if len(roleIDs) == 0 {
+			continue
+		}
 
-			role, err := p.client.GetRole(ctx, roleId)
-			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to get role", nil)
-			}
+		roles, err := p.client.GetRoles(ctx, opts.Session, roleIDs)
+		if err != nil {
+			return nil, nil, wrapError(err, "failed to get roles", nil)
+		}
 
-			prr, err := projectRoleResource(project, role)
+		for _, role := range roles {
+			prr, err := projectRoleResource(&prj, role)
 			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to create project role resource", nil)
+				return nil, nil, wrapError(err, "failed to create project role resource", nil)
 			}
 			ret = append(ret, prr)
 		}
 	}
 
 	if isLastPage(len(projects), resourcePageSize) {
-		return ret, "", nil, nil
+		return ret, nil, nil
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return ret, nextPage, nil, nil
+	return ret, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 }
 
 func (p *projectRoleResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {

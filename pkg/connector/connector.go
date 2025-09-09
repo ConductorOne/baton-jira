@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/conductorone/baton-jira/pkg/client"
+	cfg "github.com/conductorone/baton-jira/pkg/config"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
@@ -17,41 +19,31 @@ type (
 		skipProjectParticipants bool
 		skipCustomerUser        bool
 	}
-
-	JiraBuilder interface {
-		New() (*Jira, error)
-	}
-
-	JiraOptions struct {
-		Url         string
-		ProjectKeys []string
-	}
-
-	JiraBasicAuthBuilder struct {
-		Base *JiraOptions
-
-		Username string
-		ApiToken string
-	}
 )
 
-func (b *JiraBasicAuthBuilder) New(skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
+var _ connectorbuilder.ConnectorBuilderV2 = (*Jira)(nil)
+
+func New(ctx context.Context, jc *cfg.Jira, connectorOpts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
 	transport := jira.BasicAuthTransport{
-		Username: b.Username,
-		APIToken: b.ApiToken,
+		Username: jc.JiraEmail,
+		APIToken: jc.JiraApiToken,
 	}
 
-	c, err := client.New(b.Base.Url, transport.Client())
+	c, err := client.New(jc.JiraUrl, transport.Client())
 	if err != nil {
-		return nil, wrapError(err, "error creating jira client", nil)
+		return nil, nil, wrapError(err, "error creating jira client", nil)
+	}
+	opts := []connectorbuilder.Opt{}
+	if jc.Ticketing {
+		opts = append(opts, connectorbuilder.WithTicketingEnabled())
 	}
 
 	return &Jira{
 		client:                  c,
-		projectKeys:             b.Base.ProjectKeys,
-		skipProjectParticipants: skipProjectParticipants,
-		skipCustomerUser:        skipCustomerUser,
-	}, nil
+		projectKeys:             jc.JiraProjectKeys,
+		skipProjectParticipants: jc.SkipProjectParticipants,
+		skipCustomerUser:        jc.SkipCustomerUser,
+	}, opts, nil
 }
 
 func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
@@ -76,8 +68,8 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 	return nil, nil
 }
 
-func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	return []connectorbuilder.ResourceSyncer{
+func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
+	return []connectorbuilder.ResourceSyncerV2{
 		userBuilder(o.client, o.skipCustomerUser),
 		groupBuilder(o.client),
 		projectRoleBuilder(o.client),

@@ -9,7 +9,6 @@ import (
 	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -31,7 +30,7 @@ type groupResourceType struct {
 	client       *client.Client
 }
 
-func groupResource(ctx context.Context, group *jira.Group) (*v2.Resource, error) {
+func groupResource(_ context.Context, group *jira.Group) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"id":   group.ID,
 		"name": group.Name,
@@ -60,7 +59,7 @@ func groupBuilder(c *client.Client) *groupResourceType {
 	}
 }
 
-func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 
 	assigmentOptions := []ent.EntitlementOption{
@@ -72,13 +71,13 @@ func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resou
 	en := ent.NewAssignmentEntitlement(resource, memberEntitlement, assigmentOptions...)
 	rv = append(rv, en)
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	bag, offset, err := parsePageToken(opts.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	groupMembers, resp, err := u.client.Jira().Group.GetGroupMembers(
@@ -92,7 +91,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 		if resp != nil {
 			statusCode = &resp.StatusCode
 		}
-		return nil, "", nil, wrapError(err, "failed to get group members", statusCode)
+		return nil, nil, wrapError(err, "failed to get group members", statusCode)
 	}
 
 	var rv []*v2.Grant
@@ -108,7 +107,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 			AccountType:  groupMember.AccountType,
 		})
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		grant := grant.NewGrant(resource, memberEntitlement, user.Id)
@@ -116,21 +115,21 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 	}
 
 	if isLastPage(len(groupMembers), resourcePageSize) {
-		return rv, "", nil, nil
+		return rv, nil, nil
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return rv, nextPage, nil, nil
+	return rv, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 }
 
-func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, opts rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
+	bag, offset, err := parsePageToken(opts.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	groups, resp, err := u.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
@@ -139,7 +138,7 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 		if resp != nil {
 			statusCode = &resp.StatusCode
 		}
-		return nil, "", nil, wrapError(err, "failed to list groups", statusCode)
+		return nil, nil, wrapError(err, "failed to list groups", statusCode)
 	}
 
 	var resources []*v2.Resource
@@ -151,22 +150,22 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 		resource, err := groupResource(ctx, &group)
 
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		resources = append(resources, resource)
 	}
 
 	if isLastPage(len(groups), resourcePageSize) {
-		return resources, "", nil, nil
+		return resources, nil, nil
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return resources, nextPage, nil, nil
+	return resources, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 }
 
 func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {

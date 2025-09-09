@@ -83,9 +83,18 @@ var (
 		WithDescription("The timestamp indicating when debug-level logging should expire"),
 		WithPersistent(true),
 		WithExportTarget(ExportTargetOps))
-	skipFullSync            = BoolField("skip-full-sync", WithDescription("This must be set to skip a full sync"), WithPersistent(true), WithExportTarget(ExportTargetNone))
-	targetedSyncResourceIDs = StringSliceField("sync-resources", WithDescription("The resource IDs to sync"), WithPersistent(true), WithExportTarget(ExportTargetNone))
-	diffSyncsField          = BoolField(
+	skipFullSync              = BoolField("skip-full-sync", WithDescription("This must be set to skip a full sync"), WithPersistent(true), WithExportTarget(ExportTargetNone))
+	targetedSyncResourceIDs   = StringSliceField("sync-resources", WithDescription("The resource IDs to sync"), WithPersistent(true), WithExportTarget(ExportTargetNone))
+	skipEntitlementsAndGrants = BoolField("skip-entitlements-and-grants",
+		WithDescription("This must be set to skip syncing of entitlements and grants"),
+		WithPersistent(true),
+		WithExportTarget(ExportTargetNone),
+	)
+	syncResourceTypeIDs = StringSliceField("sync-resource-types",
+		WithDescription("The resource type IDs to sync"),
+		WithPersistent(true),
+		WithExportTarget(ExportTargetNone))
+	diffSyncsField = BoolField(
 		"diff-syncs",
 		WithDescription("Create a new partial SyncID from a base and applied sync."),
 		WithHidden(true),
@@ -136,10 +145,10 @@ var (
 		WithPersistent(true),
 		WithExportTarget(ExportTargetNone),
 	)
-	invokeActionArgsField = StringMapField("invoke-action-args",
+	invokeActionArgsField = StringField("invoke-action-args",
 		WithHidden(true),
 		WithDescription("JSON-formatted object of map keys and values like '{ 'key': 'value' }'"),
-		WithDefaultValue(map[string]any{}),
+		WithDefaultValue("{}"),
 		WithPersistent(true),
 		WithExportTarget(ExportTargetNone),
 	)
@@ -252,6 +261,8 @@ var DefaultFields = []SchemaField{
 	logLevelDebugExpiresAtField,
 	skipFullSync,
 	targetedSyncResourceIDs,
+	syncResourceTypeIDs,
+	skipEntitlementsAndGrants,
 	externalResourceC1ZField,
 	externalResourceEntitlementIdFilter,
 	diffSyncsField,

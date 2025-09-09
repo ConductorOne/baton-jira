@@ -9,7 +9,6 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
@@ -41,7 +40,7 @@ func getResourceTypeAnnotation() annotations.Annotations {
 	return annotations
 }
 
-func userResource(ctx context.Context, user *jira.User) (*v2.Resource, error) {
+func userResource(_ context.Context, user *jira.User) (*v2.Resource, error) {
 	names := strings.Split(user.DisplayName, " ")
 	profile := map[string]interface{}{
 		"login":      user.EmailAddress,
@@ -102,18 +101,18 @@ func userBuilder(c *client.Client, skipCustomerUser bool) *userResourceType {
 	}
 }
 
-func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
+	return nil, nil, nil
 }
 
-func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, opts rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	return nil, nil, nil
 }
 
-func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, opts rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
+	bag, offset, err := parsePageToken(opts.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	users, resp, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
@@ -122,7 +121,7 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 		if resp != nil {
 			statusCode = &resp.StatusCode
 		}
-		return nil, "", nil, wrapError(err, "failed to list users", statusCode)
+		return nil, nil, wrapError(err, "failed to list users", statusCode)
 	}
 
 	var resources []*v2.Resource
@@ -134,22 +133,22 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 		resource, err := userResource(ctx, &users[i])
 
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		resources = append(resources, resource)
 	}
 
 	if isLastPage(len(users), resourcePageSize) {
-		return resources, "", nil, nil
+		return resources, nil, nil
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return resources, nextPage, nil, nil
+	return resources, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 }
 
 func (o *userResourceType) CreateAccountCapabilityDetails(ctx context.Context) (*v2.CredentialDetailsAccountProvisioning, annotations.Annotations, error) {
@@ -161,7 +160,7 @@ func (o *userResourceType) CreateAccountCapabilityDetails(ctx context.Context) (
 	}, nil, nil
 }
 
-func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.AccountInfo, credentialOptions *v2.CredentialOptions) (
+func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.AccountInfo, credentialOptions *v2.LocalCredentialOptions) (
 	connectorbuilder.CreateAccountResponse,
 	[]*v2.PlaintextData,
 	annotations.Annotations,

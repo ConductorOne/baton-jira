@@ -76,9 +76,13 @@ func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 }
 
 func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	project, err := p.client.GetProject(ctx, resource.Id.Resource)
+	project, resp, err := p.client.GetProject(ctx, resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get project", nil)
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, "", nil, wrapError(err, "failed to get project", statusCode)
 	}
 
 	var rv []*v2.Grant

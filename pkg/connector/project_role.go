@@ -71,14 +71,22 @@ func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2
 		return nil, "", nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
-	project, err := u.client.GetProject(ctx, projectID)
+	project, resp, err := u.client.GetProject(ctx, projectID)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get project", nil)
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, "", nil, wrapError(err, "failed to get project", statusCode)
 	}
 
-	role, err := u.client.GetRole(ctx, roleID)
+	role, resp, err := u.client.GetRole(ctx, roleID)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get role", nil)
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, "", nil, wrapError(err, "failed to get role", statusCode)
 	}
 
 	assigmentOptions := []ent.EntitlementOption{
@@ -158,9 +166,13 @@ func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, to
 
 	var ret []*v2.Resource
 	for _, prj := range projects {
-		project, err := p.client.GetProject(ctx, prj.ID)
+		project, resp, err := p.client.GetProject(ctx, prj.ID)
 		if err != nil {
-			return nil, "", nil, wrapError(err, fmt.Sprintf("failed to get project %s", prj.ID), nil)
+			var statusCode *int
+			if resp != nil {
+				statusCode = &resp.StatusCode
+			}
+			return nil, "", nil, wrapError(err, fmt.Sprintf("failed to get project %s", prj.ID), statusCode)
 		}
 		for _, roleLink := range project.Roles {
 			roleId, err := parseRoleIdFromRoleLink(roleLink)
@@ -168,9 +180,13 @@ func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, to
 				return nil, "", nil, wrapError(err, "failed to parse role id from role link", nil)
 			}
 
-			role, err := p.client.GetRole(ctx, roleId)
+			role, resp, err := p.client.GetRole(ctx, roleId)
 			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to get role", nil)
+				var statusCode *int
+				if resp != nil {
+					statusCode = &resp.StatusCode
+				}
+				return nil, "", nil, wrapError(err, "failed to get role", statusCode)
 			}
 
 			prr, err := projectRoleResource(project, role)

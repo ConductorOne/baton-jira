@@ -407,9 +407,13 @@ func (j *Jira) GetTicketSchema(ctx context.Context, schemaID string) (*v2.Ticket
 		return nil, nil, err
 	}
 
-	project, err := j.client.GetProject(ctx, projectKeyIssueTypeID.ProjectKey)
+	project, resp, err := j.client.GetProject(ctx, projectKeyIssueTypeID.ProjectKey)
 	if err != nil {
-		return nil, nil, err
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, nil, wrapError(err, "failed to get project", statusCode)
 	}
 
 	issueType := findIssueTypeFromProject(project, projectKeyIssueTypeID.IssueTypeID)

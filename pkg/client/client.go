@@ -21,36 +21,36 @@ func (c *Client) Jira() *jira.Client {
 	return c.jira
 }
 
-func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Project, error) {
+func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Project, *jira.Response, error) {
 	project, ok := c.projectCache.Load(projectID)
 	if ok {
-		return project.(*jira.Project), nil
+		return project.(*jira.Project), nil, nil
 	}
 
-	prj, _, err := c.jira.Project.Get(ctx, projectID)
+	prj, resp, err := c.jira.Project.Get(ctx, projectID)
 	if err != nil {
-		return nil, err
+		return nil, resp, err
 	}
 
 	c.projectCache.Store(projectID, prj)
 
-	return prj, nil
+	return prj, resp, nil
 }
 
-func (c *Client) GetRole(ctx context.Context, roleID int) (*jira.Role, error) {
+func (c *Client) GetRole(ctx context.Context, roleID int) (*jira.Role, *jira.Response, error) {
 	role, ok := c.roleCache.Load(roleID)
 	if ok {
-		return role.(*jira.Role), nil
+		return role.(*jira.Role), nil, nil
 	}
 
-	r, _, err := c.jira.Role.Get(ctx, roleID)
+	r, resp, err := c.jira.Role.Get(ctx, roleID)
 	if err != nil {
-		return nil, err
+		return nil, resp, err
 	}
 
 	c.roleCache.Store(roleID, r)
 
-	return r, nil
+	return r, resp, nil
 }
 
 func New(url string, httpClient *http.Client) (*Client, error) {

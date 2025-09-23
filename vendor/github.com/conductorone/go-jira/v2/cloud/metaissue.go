@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -52,8 +53,35 @@ type MetaDataFields struct {
 	AllowedValues   []Choice `json:"allowedValues,omitempty"`
 }
 
+// The Jira API can be inconsistent with the response type for id
+// It can return either a string or number
+type ChoiceId string
+
+func (s *ChoiceId) UnmarshalJSON(b []byte) error {
+	// Try as string
+	var str string
+	if err := json.Unmarshal(b, &str); err == nil {
+		*s = ChoiceId(str)
+		return nil
+	}
+
+	// Try as int
+	var num int
+	if err := json.Unmarshal(b, &num); err == nil {
+		*s = ChoiceId(fmt.Sprintf("%d", num))
+		return nil
+	}
+
+	// Neither string nor int
+	return fmt.Errorf("ChoiceId: cannot unmarshal %s", string(b))
+}
+
+func (s ChoiceId) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(s))
+}
+
 type Choice struct {
-	Id string `json:"id"`
+	Id ChoiceId `json:"id"`
 	// Could be name or value in most cases
 	Name  string `json:"name,omitempty"`
 	Value string `json:"value,omitempty"`

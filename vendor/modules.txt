@@ -225,7 +225,7 @@ github.com/conductorone/dpop/integrations/dpop_grpc
 # github.com/conductorone/dpop/integrations/dpop_oauth2 v0.2.4
 ## explicit; go 1.23.4
 github.com/conductorone/dpop/integrations/dpop_oauth2
-# github.com/conductorone/go-jira/v2 v2.0.0-20250526181456-c65adcfd5255
+# github.com/conductorone/go-jira/v2 v2.0.0-20250912213052-5fc74fd2093d
 ## explicit; go 1.22
 github.com/conductorone/go-jira/v2/cloud
 # github.com/deckarep/golang-set/v2 v2.8.0

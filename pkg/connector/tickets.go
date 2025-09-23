@@ -273,7 +273,7 @@ func convertMetadataFieldToCustomField(metaDataField *jira.MetaDataFields) *v2.T
 				displayName = choice.Value
 			}
 			allowedValues = append(allowedValues, &v2.TicketCustomFieldObjectValue{
-				Id:          choice.Id,
+				Id:          string(choice.Id),
 				DisplayName: displayName,
 			})
 		}

@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/conductorone/baton-sdk v0.4.2
-	github.com/conductorone/go-jira/v2 v2.0.0-20250526181456-c65adcfd5255
+	github.com/conductorone/go-jira/v2 v2.0.0-20250912213052-5fc74fd2093d
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22

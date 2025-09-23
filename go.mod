@@ -1,11 +1,9 @@
 module github.com/conductorone/baton-jira
 
-go 1.24
-
-toolchain go1.24.2
+go 1.25
 
 require (
-	github.com/conductorone/baton-sdk v0.3.33
+	github.com/conductorone/baton-sdk v0.4.2
 	github.com/conductorone/go-jira/v2 v2.0.0-20250526181456-c65adcfd5255
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0

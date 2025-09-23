@@ -39,6 +39,8 @@ type (
 	}
 )
 
+var _ connectorbuilder.AccountManager = &userResourceType{}
+
 func getResourceTypeAnnotation() annotations.Annotations {
 	annotations := annotations.Annotations{}
 	annotations.Update(&v2.SkipEntitlementsAndGrants{})
@@ -198,7 +200,7 @@ func (o *userResourceType) CreateAccountCapabilityDetails(ctx context.Context) (
 	}, nil, nil
 }
 
-func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.AccountInfo, credentialOptions *v2.CredentialOptions) (
+func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.AccountInfo, credentialOptions *v2.LocalCredentialOptions) (
 	connectorbuilder.CreateAccountResponse,
 	[]*v2.PlaintextData,
 	annotations.Annotations,

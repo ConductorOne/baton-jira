@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/conductorone/baton-jira/pkg/client"
@@ -15,6 +16,8 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var resourceTypeProjectRole = &v2.ResourceType{
@@ -103,11 +106,10 @@ func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resou
 
 	projectRoleActors, resp, err := p.client.Jira().Role.GetRoleActorsForProject(ctx, projectID, roleID)
 	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
+		if resp != nil && resp.StatusCode == http.StatusNotFound {
+			return nil, "", nil, status.Error(codes.NotFound, fmt.Sprintf("failed to get role actors for project: %v", err))
 		}
-		return nil, "", nil, wrapError(err, "failed to get role actors for project", statusCode)
+		return nil, "", nil, wrapError(err, "failed to get role actors for project", nil)
 	}
 
 	for _, actor := range projectRoleActors {
@@ -146,34 +148,38 @@ func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, to
 	if err != nil {
 		return nil, "", nil, err
 	}
-
-	projects, resp, err := p.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
+	projects, _, err := p.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
 	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
-		}
-		return nil, "", nil, wrapError(err, "failed to get projects", statusCode)
+		return nil, "", nil, wrapError(err, "failed to get projects", nil)
 	}
 
 	var ret []*v2.Resource
+
+	err = p.client.SetProjects(ctx, projects)
+	if err != nil {
+		return nil, "", nil, wrapError(err, "failed to get projects", nil)
+	}
+
 	for _, prj := range projects {
-		project, err := p.client.GetProject(ctx, prj.ID)
-		if err != nil {
-			return nil, "", nil, wrapError(err, fmt.Sprintf("failed to get project %s", prj.ID), nil)
-		}
-		for _, roleLink := range project.Roles {
-			roleId, err := parseRoleIdFromRoleLink(roleLink)
+		roleIDs := make([]int, 0, len(prj.Roles))
+		for _, roleLink := range prj.Roles {
+			roleID, err := parseRoleIdFromRoleLink(roleLink)
 			if err != nil {
 				return nil, "", nil, wrapError(err, "failed to parse role id from role link", nil)
 			}
+			roleIDs = append(roleIDs, roleID)
+		}
+		if len(roleIDs) == 0 {
+			continue
+		}
 
-			role, err := p.client.GetRole(ctx, roleId)
-			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to get role", nil)
-			}
+		roles, err := p.client.GetRoles(ctx, roleIDs)
+		if err != nil {
+			return nil, "", nil, wrapError(err, "failed to get roles", nil)
+		}
 
-			prr, err := projectRoleResource(project, role)
+		for _, role := range roles {
+			prr, err := projectRoleResource(&prj, role)
 			if err != nil {
 				return nil, "", nil, wrapError(err, "failed to create project role resource", nil)
 			}

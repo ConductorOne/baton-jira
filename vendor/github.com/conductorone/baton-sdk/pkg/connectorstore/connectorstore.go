@@ -50,9 +50,9 @@ type Reader interface {
 // ConnectorStoreWriter defines an implementation for a connector v2 datasource writer. This is used to store sync data from an upstream provider.
 type Writer interface {
 	Reader
-	StartOrResumeSync(ctx context.Context, syncType SyncType) (string, bool, error)
-	StartNewSync(ctx context.Context, syncType SyncType) (string, error)
-	StartNewSyncV2(ctx context.Context, syncType SyncType, parentSyncID string) (string, error)
+	ResumeSync(ctx context.Context, syncType SyncType, syncID string) (string, error)
+	StartOrResumeSync(ctx context.Context, syncType SyncType, syncID string) (string, bool, error)
+	StartNewSync(ctx context.Context, syncType SyncType, parentSyncID string) (string, error)
 	SetCurrentSync(ctx context.Context, syncID string) error
 	CurrentSyncStep(ctx context.Context) (string, error)
 	CheckpointSync(ctx context.Context, syncToken string) error
@@ -65,4 +65,7 @@ type Writer interface {
 	PutResources(ctx context.Context, resources ...*v2.Resource) error
 	PutEntitlements(ctx context.Context, entitlements ...*v2.Entitlement) error
 	DeleteGrant(ctx context.Context, grantId string) error
+
+	// SessionStore is an optional interface that can be implemented by a connector store to provide session storage.
+	// types.SessionStore
 }

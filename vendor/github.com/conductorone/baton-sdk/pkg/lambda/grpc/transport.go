@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"encoding/json"
+	"errors"
 
 	spb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
@@ -20,9 +21,9 @@ type Request struct {
 }
 
 /*
-UnmarshalJSON unmarshals the JSON into a Request of course,
+UnmarshalJSON unmarshals the JSON into a Request, discarding any unknown fields.
 
-filtering out any annotations that are not known to the global registry
+It also filters out any annotations that are not known to the global registry
 which happens frequently for new features and would otherwise require
 rolling every lambda function.
 
@@ -31,7 +32,10 @@ so the performance impact is negligible.
 */
 func (f *Request) UnmarshalJSON(b []byte) error {
 	f.msg = &pbtransport.Request{}
-	err := protojson.Unmarshal(b, f.msg)
+	unmarshalOptions := protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}
+	err := unmarshalOptions.Unmarshal(b, f.msg)
 	if err == nil {
 		return nil
 	}
@@ -88,16 +92,12 @@ func (f *Request) UnmarshalJSON(b []byte) error {
 
 	filteredJSON, err := json.Marshal(top)
 	if err != nil {
-		// TODO(kans): maybe log this?
-		// If we can't marshal the filtered JSON, return the original error instead of transmuting it.
-		return originalErr
+		return errors.Join(originalErr, err)
 	}
 
-	err = protojson.Unmarshal(filteredJSON, f.msg)
+	err = unmarshalOptions.Unmarshal(filteredJSON, f.msg)
 	if err != nil {
-		// TODO(kans): maybe log this?
-		// If we can't unmarshal the filtered JSON, return the original error instead of transmuting it.
-		return originalErr
+		return errors.Join(originalErr, err)
 	}
 
 	return nil

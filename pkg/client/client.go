@@ -6,6 +6,8 @@ import (
 	"sync"
 
 	jira "github.com/conductorone/go-jira/v2/cloud"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 type AuditRecord = jira.AuditRecord
@@ -22,8 +24,11 @@ func (c *Client) Jira() *jira.Client {
 }
 
 func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Project, error) {
+	l := ctxzap.Extract(ctx)
+
 	project, ok := c.projectCache.Load(projectID)
 	if ok {
+		l.Info("Got project from cache", zap.String("projectID", projectID))
 		return project.(*jira.Project), nil
 	}
 
@@ -33,13 +38,17 @@ func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Projec
 	}
 
 	c.projectCache.Store(projectID, prj)
+	l.Info("Stored project in cache", zap.String("projectID", projectID))
 
 	return prj, nil
 }
 
 func (c *Client) GetRole(ctx context.Context, roleID int) (*jira.Role, error) {
+	l := ctxzap.Extract(ctx)
+
 	role, ok := c.roleCache.Load(roleID)
 	if ok {
+		l.Info("Got role from cache", zap.Int("roleID", roleID))
 		return role.(*jira.Role), nil
 	}
 
@@ -49,6 +58,7 @@ func (c *Client) GetRole(ctx context.Context, roleID int) (*jira.Role, error) {
 	}
 
 	c.roleCache.Store(roleID, r)
+	l.Info("Stored role in cache", zap.Int("roleID", roleID))
 
 	return r, nil
 }

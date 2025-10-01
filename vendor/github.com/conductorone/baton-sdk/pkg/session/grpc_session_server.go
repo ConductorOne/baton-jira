@@ -8,6 +8,7 @@ import (
 
 	v1 "github.com/conductorone/baton-sdk/pb/c1/connectorapi/baton/v1"
 	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"google.golang.org/grpc"
 )
 
@@ -30,9 +31,17 @@ func (s *GRPCSessionServer) SetSessionStore(ctx context.Context, store types.Ses
 	s.store = store
 }
 
+func (s *GRPCSessionServer) Validate() error {
+	if s.store == nil {
+		return fmt.Errorf("session store is not set")
+	}
+
+	return nil
+}
+
 func (s *GRPCSessionServer) Get(ctx context.Context, req *v1.GetRequest) (*v1.GetResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+	if err := s.Validate(); err != nil {
+		return nil, err
 	}
 
 	value, found, err := s.store.Get(ctx, req.Key, types.WithSyncID(req.SyncId))
@@ -52,8 +61,8 @@ func (s *GRPCSessionServer) Get(ctx context.Context, req *v1.GetRequest) (*v1.Ge
 }
 
 func (s *GRPCSessionServer) GetMany(ctx context.Context, req *v1.GetManyRequest) (*v1.GetManyResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+	if err := s.Validate(); err != nil {
+		return nil, err
 	}
 
 	values, err := s.store.GetMany(ctx, req.Keys, types.WithSyncID(req.SyncId))
@@ -76,8 +85,8 @@ func (s *GRPCSessionServer) GetMany(ctx context.Context, req *v1.GetManyRequest)
 }
 
 func (s *GRPCSessionServer) Set(ctx context.Context, req *v1.SetRequest) (*v1.SetResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+	if err := s.Validate(); err != nil {
+		return nil, err
 	}
 
 	err := s.store.Set(ctx, req.Key, req.Value, types.WithSyncID(req.SyncId))
@@ -89,8 +98,8 @@ func (s *GRPCSessionServer) Set(ctx context.Context, req *v1.SetRequest) (*v1.Se
 }
 
 func (s *GRPCSessionServer) SetMany(ctx context.Context, req *v1.SetManyRequest) (*v1.SetManyResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+	if err := s.Validate(); err != nil {
+		return nil, err
 	}
 
 	err := s.store.SetMany(ctx, req.Values, types.WithSyncID(req.SyncId))
@@ -102,8 +111,8 @@ func (s *GRPCSessionServer) SetMany(ctx context.Context, req *v1.SetManyRequest)
 }
 
 func (s *GRPCSessionServer) Delete(ctx context.Context, req *v1.DeleteRequest) (*v1.DeleteResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+	if err := s.Validate(); err != nil {
+		return nil, err
 	}
 
 	err := s.store.Delete(ctx, req.Key, types.WithSyncID(req.SyncId))
@@ -115,8 +124,8 @@ func (s *GRPCSessionServer) Delete(ctx context.Context, req *v1.DeleteRequest) (
 }
 
 func (s *GRPCSessionServer) DeleteMany(ctx context.Context, req *v1.DeleteManyRequest) (*v1.DeleteManyResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+	if err := s.Validate(); err != nil {
+		return nil, err
 	}
 
 	for _, key := range req.Keys {
@@ -130,8 +139,10 @@ func (s *GRPCSessionServer) DeleteMany(ctx context.Context, req *v1.DeleteManyRe
 }
 
 func (s *GRPCSessionServer) Clear(ctx context.Context, req *v1.ClearRequest) (*v1.ClearResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+	if s.store == nil {
+		// we sometimes clean up the session store after the connector is done
+		ctxzap.Extract(ctx).Warn("session store is not set")
+		return &v1.ClearResponse{}, nil
 	}
 
 	err := s.store.Clear(ctx, types.WithSyncID(req.SyncId))
@@ -143,8 +154,8 @@ func (s *GRPCSessionServer) Clear(ctx context.Context, req *v1.ClearRequest) (*v
 }
 
 func (s *GRPCSessionServer) GetAll(ctx context.Context, req *v1.GetAllRequest) (*v1.GetAllResponse, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+	if err := s.Validate(); err != nil {
+		return nil, err
 	}
 
 	values, err := s.store.GetAll(ctx, types.WithSyncID(req.SyncId))

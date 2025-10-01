@@ -159,7 +159,7 @@ github.com/benbjohnson/clock
 # github.com/cenkalti/backoff/v4 v4.3.0
 ## explicit; go 1.18
 github.com/cenkalti/backoff/v4
-# github.com/conductorone/baton-sdk v0.3.53-0.20250910175934-ae0eaf64594b => ../baton-sdk
+# github.com/conductorone/baton-sdk v0.4.8-0.20251001175320-30c7b336c509
 ## explicit; go 1.25
 github.com/conductorone/baton-sdk/internal/connector
 github.com/conductorone/baton-sdk/pb/c1/c1z/v1
@@ -773,4 +773,3 @@ modernc.org/memory
 # modernc.org/sqlite v1.37.0
 ## explicit; go 1.23.0
 modernc.org/sqlite/lib
-# github.com/conductorone/baton-sdk => ../baton-sdk

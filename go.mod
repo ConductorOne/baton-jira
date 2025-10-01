@@ -3,7 +3,7 @@ module github.com/conductorone/baton-jira
 go 1.25
 
 require (
-	github.com/conductorone/baton-sdk v0.3.53-0.20250910175934-ae0eaf64594b
+	github.com/conductorone/baton-sdk v0.4.8-0.20251001175320-30c7b336c509
 	github.com/conductorone/go-jira/v2 v2.0.0-20250526181456-c65adcfd5255
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -127,4 +127,4 @@ require (
 	modernc.org/sqlite v1.37.0 // indirect
 )
 
-replace github.com/conductorone/baton-sdk => ../baton-sdk
+// replace github.com/conductorone/baton-sdk => ../baton-sdk

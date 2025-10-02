@@ -39,10 +39,6 @@ func SessionCacheUnaryInterceptor(serverCtx context.Context) grpc.UnaryServerInt
 		// Propagate session cache from server context to handler context
 		ctx = ContextWithSyncID(ctx, req)
 
-		if sessionCache, ok := serverCtx.Value(types.SessionCacheKey{}).(types.SessionStore); ok {
-			ctx = context.WithValue(ctx, types.SessionCacheKey{}, sessionCache)
-		}
-
 		return handler(ctx, req)
 	}
 }
@@ -51,12 +47,6 @@ func SessionCacheStreamInterceptor(serverCtx context.Context) grpc.StreamServerI
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		// Start with the original stream context
 		ctx := ss.Context()
-
-		// Propagate session cache from server context to stream context
-		if sessionCache, ok := serverCtx.Value(types.SessionCacheKey{}).(types.SessionStore); ok {
-			ctx = context.WithValue(ctx, types.SessionCacheKey{}, sessionCache)
-		}
-
 		// Create a wrapped stream that handles both session cache and annotation extraction
 		wrappedStream := &sessionCacheServerStream{
 			ServerStream: ss,

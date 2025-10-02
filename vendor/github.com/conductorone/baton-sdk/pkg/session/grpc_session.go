@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"iter"
 	"net"
 	"os"
 	"strings"
@@ -23,6 +24,22 @@ import (
 
 type GRPCSessionCache struct {
 	client v1.BatonSessionServiceClient
+}
+
+const maxKeysPerRequest = 200
+
+func Chunk[T any](items []T, chunkSize int) iter.Seq[[]T] {
+	return func(yield func([]T) bool) {
+		for i := 0; i < len(items); i += chunkSize {
+			end := i + chunkSize
+			if end > len(items) {
+				end = len(items)
+			}
+			if !yield(items[i:end]) {
+				return
+			}
+		}
+	}
 }
 
 // NewGRPCSessionClient creates a new gRPC session service client using existing DPoP credentials.
@@ -172,27 +189,29 @@ func (g *GRPCSessionCache) GetMany(ctx context.Context, keys []string, opt ...ty
 		}
 	}
 
-	// Handle pagination for large key sets
-	result := make(map[string][]byte)
-	pageToken := ""
+	results := make(map[string][]byte)
+	// TODO(kans): we may need to chunk if the values are too large for a single gRPC request.
+	// The GetMany interface may be backed by gPRC, memory, etc, so we need to handle pagination at the client level.
+	for keys := range Chunk(prefixedKeys, maxKeysPerRequest) {
+		resp, err := g.client.GetMany(ctx, &v1.GetManyRequest{
+			SyncId: bag.SyncID,
+			Keys:   keys,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get many values from gRPC session cache: %w", err)
+		}
 
-	req := &v1.GetManyRequest{
-		SyncId:    bag.SyncID,
-		Keys:      prefixedKeys,
-		PageToken: pageToken,
-	}
-
-	resp, err := g.client.GetMany(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get many values from gRPC session cache: %w", err)
-	}
-	if bag.Prefix != "" {
+		// Process response items and remove prefix if needed
 		for _, item := range resp.Items {
-			item.Key = strings.TrimPrefix(item.Key, bag.Prefix+KeyPrefixDelimiter)
+			key := item.Key
+			if bag.Prefix != "" {
+				key = strings.TrimPrefix(item.Key, bag.Prefix+KeyPrefixDelimiter)
+			}
+			results[key] = item.Value
 		}
 	}
 
-	return result, nil
+	return results, nil
 }
 
 // Set stores a value in the cache with the given key.
@@ -236,15 +255,26 @@ func (g *GRPCSessionCache) SetMany(ctx context.Context, values map[string][]byte
 			prefixedValues[key] = value
 		}
 	}
-
-	req := &v1.SetManyRequest{
-		SyncId: bag.SyncID,
-		Values: prefixedValues,
+	// TODO(kans): we may need to chunk if the values are too large for a single gRPC request.
+	allKeys := make([]string, 0, len(prefixedValues))
+	for key := range prefixedValues {
+		allKeys = append(allKeys, key)
 	}
 
-	_, err = g.client.SetMany(ctx, req)
-	if err != nil {
-		return fmt.Errorf("failed to set many values in gRPC session cache: %w", err)
+	for keys := range Chunk(allKeys, maxKeysPerRequest) {
+		// Create chunk of values
+		chunkValues := make(map[string][]byte)
+		for _, key := range keys {
+			chunkValues[key] = prefixedValues[key]
+		}
+
+		_, err = g.client.SetMany(ctx, &v1.SetManyRequest{
+			SyncId: bag.SyncID,
+			Values: chunkValues,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to set many values in gRPC session cache: %w", err)
+		}
 	}
 
 	return nil
@@ -322,10 +352,10 @@ func (g *GRPCSessionCache) GetAll(ctx context.Context, opt ...types.SessionOptio
 		}
 
 		// Check if there are more pages
-		if resp.NextPageToken == "" {
+		if resp.PageToken == "" {
 			break
 		}
-		pageToken = resp.NextPageToken
+		pageToken = resp.PageToken
 	}
 
 	return result, nil

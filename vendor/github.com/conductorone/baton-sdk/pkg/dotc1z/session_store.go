@@ -50,28 +50,27 @@ func (r *sessionStoreTable) Migrations(ctx context.Context, db *goqu.Database) e
 	return nil
 }
 
-// func NewC1File(c *C1File) *C1SessionStore {
-// 	return &C1SessionStore{c: c, db: c.db}
-// }
-
-// type C1SessionStore struct {
-// 	c  *C1File
-// 	db *goqu.Database
-// }
-
-// Get implements types.SessionCache.
-func (c *C1File) Get(ctx context.Context, key string, opt ...types.SessionOption) ([]byte, bool, error) {
+func applyBag(ctx context.Context, opt ...types.SessionOption) (*types.SessionBag, error) {
 	bag := &types.SessionBag{}
 	for _, o := range opt {
 		err := o(ctx, bag)
 		if err != nil {
-			return nil, false, fmt.Errorf("error applying session option: %w", err)
+			return nil, fmt.Errorf("error applying session option: %w", err)
 		}
 	}
-
 	if bag.SyncID == "" {
-		return nil, false, fmt.Errorf("sync id is required")
+		return nil, fmt.Errorf("sync id is required")
 	}
+	return bag, nil
+}
+
+// Get implements types.SessionCache.
+func (c *C1File) Get(ctx context.Context, key string, opt ...types.SessionOption) ([]byte, bool, error) {
+	bag, err := applyBag(ctx, opt...)
+	if err != nil {
+		return nil, false, fmt.Errorf("error applying session option: %w", err)
+	}
+
 	q := c.db.From(sessionStore.Name()).Prepared(true)
 	q = q.Select("value")
 	q = q.Where(goqu.C("sync_id").Eq(bag.SyncID))
@@ -104,16 +103,9 @@ func (c *C1File) Get(ctx context.Context, key string, opt ...types.SessionOption
 
 // Set implements types.SessionStore.
 func (c *C1File) Set(ctx context.Context, key string, value []byte, opt ...types.SessionOption) error {
-	bag := &types.SessionBag{}
-	for _, o := range opt {
-		err := o(ctx, bag)
-		if err != nil {
-			return fmt.Errorf("error applying session option: %w", err)
-		}
-	}
-
-	if bag.SyncID == "" {
-		return fmt.Errorf("sync id is required")
+	bag, err := applyBag(ctx, opt...)
+	if err != nil {
+		return fmt.Errorf("error applying session option: %w", err)
 	}
 
 	// Use goqu's OnConflict for upsert behavior
@@ -140,16 +132,9 @@ func (c *C1File) Set(ctx context.Context, key string, value []byte, opt ...types
 
 // SetMany implements types.SessionStore.
 func (c *C1File) SetMany(ctx context.Context, values map[string][]byte, opt ...types.SessionOption) error {
-	bag := &types.SessionBag{}
-	for _, o := range opt {
-		err := o(ctx, bag)
-		if err != nil {
-			return fmt.Errorf("error applying session option: %w", err)
-		}
-	}
-
-	if bag.SyncID == "" {
-		return fmt.Errorf("sync id is required")
+	bag, err := applyBag(ctx, opt...)
+	if err != nil {
+		return fmt.Errorf("error applying session option: %w", err)
 	}
 
 	if len(values) == 0 {
@@ -185,16 +170,9 @@ func (c *C1File) SetMany(ctx context.Context, values map[string][]byte, opt ...t
 
 // Delete implements types.SessionStore.
 func (c *C1File) Delete(ctx context.Context, key string, opt ...types.SessionOption) error {
-	bag := &types.SessionBag{}
-	for _, o := range opt {
-		err := o(ctx, bag)
-		if err != nil {
-			return fmt.Errorf("error applying session option: %w", err)
-		}
-	}
-
-	if bag.SyncID == "" {
-		return fmt.Errorf("sync id is required")
+	bag, err := applyBag(ctx, opt...)
+	if err != nil {
+		return fmt.Errorf("error applying session option: %w", err)
 	}
 
 	q := c.db.Delete(sessionStore.Name()).Prepared(true)
@@ -216,47 +194,32 @@ func (c *C1File) Delete(ctx context.Context, key string, opt ...types.SessionOpt
 
 // Clear implements types.SessionStore.
 func (c *C1File) Clear(ctx context.Context, opt ...types.SessionOption) error {
-	// bag := &types.SessionBag{}
-	// for _, o := range opt {
-	// 	err := o(ctx, bag)
-	// 	if err != nil {
-	// 		return fmt.Errorf("error applying session option: %w", err)
-	// 	}
-	// }
+	bag, err := applyBag(ctx, opt...)
+	if err != nil {
+		return fmt.Errorf("error applying session option: %w", err)
+	}
 
-	// if bag.SyncID == "" {
-	// 	return fmt.Errorf("sync id is required")
-	// }
+	q := c.db.Delete(sessionStore.Name()).Prepared(true)
+	q = q.Where(goqu.C("sync_id").Eq(bag.SyncID))
 
-	// q := c.db.Delete(sessionStore.Name()).Prepared(true)
-	// q = q.Where(goqu.C("sync_id").Eq(bag.SyncID))
+	sql, params, err := q.ToSQL()
+	if err != nil {
+		return fmt.Errorf("error clearing sessions: %w", err)
+	}
 
-	// sql, params, err := q.ToSQL()
-	// if err != nil {
-	// 	return fmt.Errorf("error clearing sessions: %w", err)
-	// }
-
-	// _, err = c.db.ExecContext(ctx, sql, params...)
-	// if err != nil {
-	// 	return fmt.Errorf("error clearing sessions: %w", err)
-	// }
+	_, err = c.db.ExecContext(ctx, sql, params...)
+	if err != nil {
+		return fmt.Errorf("error clearing sessions: %w", err)
+	}
 
 	return nil
 }
 
 // GetMany implements types.SessionStore.
 func (c *C1File) GetMany(ctx context.Context, keys []string, opt ...types.SessionOption) (map[string][]byte, error) {
-	bag := &types.SessionBag{}
-
-	for _, o := range opt {
-		err := o(ctx, bag)
-		if err != nil {
-			return nil, fmt.Errorf("error applying session option: %w", err)
-		}
-	}
-
-	if bag.SyncID == "" {
-		return nil, fmt.Errorf("sync id is required")
+	bag, err := applyBag(ctx, opt...)
+	if err != nil {
+		return nil, fmt.Errorf("error applying session option: %w", err)
 	}
 
 	if len(keys) == 0 {
@@ -295,16 +258,9 @@ func (c *C1File) GetMany(ctx context.Context, keys []string, opt ...types.Sessio
 
 // GetAll implements types.SessionStore.
 func (c *C1File) GetAll(ctx context.Context, opt ...types.SessionOption) (map[string][]byte, error) {
-	bag := &types.SessionBag{}
-	for _, o := range opt {
-		err := o(ctx, bag)
-		if err != nil {
-			return nil, fmt.Errorf("error applying session option: %w", err)
-		}
-	}
-
-	if bag.SyncID == "" {
-		return nil, fmt.Errorf("sync id is required")
+	bag, err := applyBag(ctx, opt...)
+	if err != nil {
+		return nil, fmt.Errorf("error applying session option: %w", err)
 	}
 
 	q := c.db.From(sessionStore.Name()).Prepared(true)

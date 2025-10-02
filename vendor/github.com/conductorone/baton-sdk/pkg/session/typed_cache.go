@@ -160,18 +160,6 @@ func (b *BoolCodec) Decode(data []byte) (bool, error) {
 	return string(data) == "true", nil
 }
 
-type Float64Codec struct{}
-
-func (f *Float64Codec) Encode(value float64) ([]byte, error) {
-	return []byte(fmt.Sprintf("%f", value)), nil
-}
-
-func (f *Float64Codec) Decode(data []byte) (float64, error) {
-	var value float64
-	_, err := fmt.Sscanf(string(data), "%f", &value)
-	return value, err
-}
-
 func NewJSONSessionCache[T any](cache types.SessionStore) *TypedSessionCache[T] {
 	return NewTypedSessionCache(cache, &JSONCodec[T]{})
 }
@@ -186,8 +174,4 @@ func NewIntSessionCache(cache types.SessionStore) *TypedSessionCache[int] {
 
 func NewBoolSessionCache(cache types.SessionStore) *TypedSessionCache[bool] {
 	return NewTypedSessionCache(cache, &BoolCodec{})
-}
-
-func NewFloat64SessionCache(cache types.SessionStore) *TypedSessionCache[float64] {
-	return NewTypedSessionCache(cache, &Float64Codec{})
 }

@@ -234,6 +234,7 @@ func (cw *wrapper) runServer(ctx context.Context, serverCred *tlsV1.Credential) 
 
 	cacheListener, err := net.FileListener(cacheListenerFile)
 	if err != nil {
+		_ = cacheListenerFile.Close()
 		return 0, err
 	}
 
@@ -241,13 +242,15 @@ func (cw *wrapper) runServer(ctx context.Context, serverCred *tlsV1.Credential) 
 	if cacheListenerFile != nil {
 		tlsConfig, err := utls2.ListenerConfig(ctx, serverCred)
 		if err != nil {
+			_ = cacheListenerFile.Close()
 			return 0, err
 		}
 		server := session.NewGRPCSessionServer()
 		cw.SessionServer = server
 		go func() {
-			err = session.StartGRPCSessionServerWithOptions(ctx, cacheListener, server, grpc.Creds(credentials.NewTLS(tlsConfig)))
-			if err != nil {
+			defer cacheListenerFile.Close()
+			serverErr := session.StartGRPCSessionServerWithOptions(ctx, cacheListener, server, grpc.Creds(credentials.NewTLS(tlsConfig)))
+			if serverErr != nil {
 				l.Error("failed to create memory session cache", zap.Error(err))
 				return
 			}
@@ -392,7 +395,7 @@ func (cw *wrapper) C(ctx context.Context) (types.ConnectorClient, error) {
 	if setsessionStore, ok := cw.client.(SetSessionStoreSetter); ok {
 		setsessionStore.SetSessionStoreSetter(cw.SessionServer)
 	} else {
-		l.Warn("client is not a SetSessionStorerSetter")
+		l.Warn("client is not a SetSessionStoreSetter")
 	}
 
 	return cw.client, nil

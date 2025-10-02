@@ -9,8 +9,6 @@ import (
 	taskTypes "github.com/conductorone/baton-sdk/pkg/types/tasks"
 )
 
-type Option func(ctx context.Context, m *Manager) error
-
 // func WithConnectorStore(f func(store connectorstore.Writer, reader connectorstore.Reader) error) Option {
 // 	return func(ctx context.Context, m *Manager) error {
 // 		return f(store, reader)

@@ -44,6 +44,12 @@ func (s *SessionService) GetMany(ctx context.Context, req *v1.GetManyRequest) (*
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
+	if len(req.Keys) == 0 {
+		return &v1.GetManyResponse{
+			Items: []*v1.GetManyItem{},
+		}, nil
+	}
+
 	values, err := s.sessionCache.GetMany(ctx, req.Keys, types.WithSyncID(req.SyncId))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get many values from cache: %w", err)

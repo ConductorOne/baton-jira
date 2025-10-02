@@ -10,11 +10,61 @@ import (
 	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/cli"
+	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/connectorrunner"
 	"github.com/conductorone/baton-sdk/pkg/field"
+	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
+
+func RunConnector[T field.Configurable](
+	connectorName string,
+	version string,
+	schema field.Configuration,
+	cf cli.NewConnector[T],
+	options ...connectorrunner.Option,
+) {
+	ctx := context.Background()
+
+	l := ctxzap.Extract(ctx)
+	var f = func(ctx context.Context, cfg T, runTimeOpts ...*cli.RunTimeOpts) (types.ConnectorServer, error) {
+		connector, opts, err := cf(ctx, cfg, &cli.ConnectorOpts{})
+		if err != nil {
+			return nil, err
+		}
+		var sessionStore types.SessionStore
+		if len(runTimeOpts) != 0 {
+			sessionStore = runTimeOpts[0].SessionStore
+		}
+
+		cb := connectorbuilder.NewConnectorBuilder2Wrapper(connector, sessionStore)
+
+		c, err := connectorbuilder.NewConnector(ctx, cb, opts...)
+		if err != nil {
+			l.Error("error creating connector", zap.Error(err))
+			return nil, err
+		}
+		return c, nil
+	}
+
+	_, cmd, err := DefineConfiguration(ctx, connectorName, f, schema, options...)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+		return
+	}
+
+	cmd.Version = version
+
+	err = cmd.Execute()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+}
 
 func DefineConfiguration[T field.Configurable](
 	ctx context.Context,

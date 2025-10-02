@@ -4,8 +4,6 @@ import (
 	"context"
 )
 
-type SessionCacheKey struct{}
-
 type SessionStore interface {
 	Get(ctx context.Context, key string, opt ...SessionOption) ([]byte, bool, error)
 	GetMany(ctx context.Context, keys []string, opt ...SessionOption) (map[string][]byte, error)

@@ -10,15 +10,6 @@ import (
 // KeyPrefixDelimiter is the delimiter used to separate prefixes from keys in the session cache.
 const KeyPrefixDelimiter = "::"
 
-// GetSession retrieves the session cache instance from the context.
-// Returns an error if no session cache is found in the context.
-func GetSession(ctx context.Context) (types.SessionStore, error) {
-	if sessionCache, ok := ctx.Value(types.SessionCacheKey{}).(types.SessionStore); ok {
-		return sessionCache, nil
-	}
-	return nil, fmt.Errorf("no session cache found in context")
-}
-
 func WithSyncID(syncID string) types.SessionOption {
 	return func(ctx context.Context, bag *types.SessionBag) error {
 		bag.SyncID = syncID

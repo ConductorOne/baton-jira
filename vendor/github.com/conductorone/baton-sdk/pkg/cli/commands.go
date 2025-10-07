@@ -41,10 +41,6 @@ const (
 
 type ContrainstSetter func(*cobra.Command, field.Configuration) error
 
-func defaultSessionConstructor(ctx context.Context, opt ...types.SessionConstructorOption) (types.SessionStore, error) {
-	return session.NewMemorySessionCache(ctx, opt...)
-}
-
 func defaultGRPCSessionConstructor(ctx context.Context, serverCfg *v1.ServerConfig) func(ctx context.Context, opt ...types.SessionConstructorOption) (types.SessionStore, error) {
 	return func(_ context.Context, opt ...types.SessionConstructorOption) (types.SessionStore, error) {
 		l := ctxzap.Extract(ctx)
@@ -95,7 +91,7 @@ func MakeMainCommand[T field.Configurable](
 	name string,
 	v *viper.Viper,
 	confschema field.Configuration,
-	getconnector GetConnectorFunc[T],
+	getconnector GetConnectorFunc2[T],
 	opts ...connectorrunner.Option,
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
@@ -352,7 +348,7 @@ func MakeMainCommand[T field.Configurable](
 			return fmt.Errorf("failed to make configuration: %w", err)
 		}
 
-		c, err := getconnector(runCtx, t)
+		c, err := getconnector(runCtx, t, &RunTimeOpts{})
 		if err != nil {
 			return err
 		}
@@ -413,7 +409,7 @@ func MakeGRPCServerCommand[T field.Configurable](
 	name string,
 	v *viper.Viper,
 	confschema field.Configuration,
-	getconnector GetConnectorFunc[T],
+	getconnector GetConnectorFunc2[T],
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// NOTE(shackra): bind all the flags (persistent and
@@ -508,9 +504,10 @@ func MakeGRPCServerCommand[T field.Configurable](
 			}
 			runCtx = context.WithValue(runCtx, crypto.ContextClientSecretKey, secretJwk)
 		}
-
-		lazySession := &LazySessionStore{constructor: defaultGRPCSessionConstructor(runCtx, serverCfg)}
-		c, err := getconnector(runCtx, t, &RunTimeOpts{SessionStore: lazySession})
+		sessionConstructor := defaultGRPCSessionConstructor(runCtx, serverCfg)
+		c, err := getconnector(runCtx, t, &RunTimeOpts{
+			SessionStore: &lazySessionStore{constructor: sessionConstructor},
+		})
 		if err != nil {
 			return err
 		}
@@ -568,7 +565,7 @@ func MakeCapabilitiesCommand[T field.Configurable](
 	name string,
 	v *viper.Viper,
 	confschema field.Configuration,
-	getconnector GetConnectorFunc[T],
+	getconnector GetConnectorFunc2[T],
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// NOTE(shackra): bind all the flags (persistent and
@@ -599,7 +596,7 @@ func MakeCapabilitiesCommand[T field.Configurable](
 			return fmt.Errorf("failed to make configuration: %w", err)
 		}
 
-		c, err := getconnector(runCtx, t)
+		c, err := getconnector(runCtx, t, &RunTimeOpts{})
 		if err != nil {
 			return err
 		}
@@ -643,7 +640,7 @@ func MakeConfigSchemaCommand[T field.Configurable](
 	name string,
 	v *viper.Viper,
 	confschema field.Configuration,
-	getconnector GetConnectorFunc[T],
+	getconnector GetConnectorFunc2[T],
 ) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		// Sort fields by FieldName

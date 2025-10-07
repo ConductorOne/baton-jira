@@ -8,7 +8,6 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	"github.com/conductorone/baton-sdk/pkg/types"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -52,7 +51,7 @@ func projectBuilder(c *client.Client, skipProjectParticipants bool) *projectReso
 	}
 }
 
-func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token, _ types.ResourceSyncerOptions) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token, _ rs.Options) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
 	var assigmentOptions []ent.EntitlementOption
@@ -76,8 +75,8 @@ func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 	return rv, "", nil, nil
 }
 
-func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token, rso types.ResourceSyncerOptions) ([]*v2.Grant, string, annotations.Annotations, error) {
-	project, err := p.client.GetProject(ctx, rso.Session, resource.Id.Resource)
+func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token, opts rs.Options) ([]*v2.Grant, string, annotations.Annotations, error) {
+	project, err := p.client.GetProject(ctx, opts.Session, resource.Id.Resource)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get project", nil)
 	}
@@ -169,7 +168,7 @@ func (p *projectResourceType) getGrantsForProjectUsers(ctx context.Context, reso
 	return rv, lastPage, nil
 }
 
-func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token, _ types.ResourceSyncerOptions) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token, _ rs.Options) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
 		return nil, "", nil, err

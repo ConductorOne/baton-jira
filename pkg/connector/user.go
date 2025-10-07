@@ -10,7 +10,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	"github.com/conductorone/baton-sdk/pkg/types"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
@@ -103,15 +102,15 @@ func userBuilder(c *client.Client, skipCustomerUser bool) *userResourceType {
 	}
 }
 
-func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token, _ types.ResourceSyncerOptions) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token, _ rs.Options) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	return nil, "", nil, nil
 }
 
-func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, _ *pagination.Token, _ types.ResourceSyncerOptions) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, _ *pagination.Token, _ rs.Options) ([]*v2.Grant, string, annotations.Annotations, error) {
 	return nil, "", nil, nil
 }
 
-func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token, rso types.ResourceSyncerOptions) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token, rso rs.Options) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
 		return nil, "", nil, err

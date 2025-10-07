@@ -10,7 +10,6 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	"github.com/conductorone/baton-sdk/pkg/types"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -61,7 +60,7 @@ func groupBuilder(c *client.Client) *groupResourceType {
 	}
 }
 
-func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token, _ types.ResourceSyncerOptions) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token, _ rs.Options) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
 	assigmentOptions := []ent.EntitlementOption{
@@ -76,7 +75,7 @@ func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resou
 	return rv, "", nil, nil
 }
 
-func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p *pagination.Token, _ types.ResourceSyncerOptions) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p *pagination.Token, _ rs.Options) ([]*v2.Grant, string, annotations.Annotations, error) {
 	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
 		return nil, "", nil, err
@@ -128,7 +127,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 	return rv, nextPage, nil, nil
 }
 
-func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token, _ types.ResourceSyncerOptions) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token, _ rs.Options) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
 		return nil, "", nil, err

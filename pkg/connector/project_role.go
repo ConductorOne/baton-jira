@@ -9,8 +9,8 @@ import (
 	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	"github.com/conductorone/baton-sdk/pkg/types"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -28,6 +28,8 @@ var resourceTypeProjectRole = &v2.ResourceType{
 		v2.ResourceType_TRAIT_ROLE,
 	},
 }
+
+var _ connectorbuilder.ResourceSyncer2 = (*projectRoleResourceType)(nil)
 
 type projectRoleResourceType struct {
 	resourceType *v2.ResourceType
@@ -67,7 +69,7 @@ func projectRoleBuilder(c *client.Client) *projectRoleResourceType {
 	}
 }
 
-func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token, rso types.ResourceSyncerOptions) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token, opts rs.Options) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	var rv []*v2.Entitlement
 
 	projectID, roleID, err := parseProjectRoleID(resource.Id.Resource)
@@ -75,12 +77,12 @@ func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2
 		return nil, "", nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
-	project, err := u.client.GetProject(ctx, rso.Session, projectID)
+	project, err := u.client.GetProject(ctx, opts.Session, projectID)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get project", nil)
 	}
 
-	role, err := u.client.GetRole(ctx, rso.Session, roleID)
+	role, err := u.client.GetRole(ctx, opts.Session, roleID)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get role", nil)
 	}
@@ -95,7 +97,7 @@ func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2
 	return rv, "", nil, nil
 }
 
-func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token, _ types.ResourceSyncerOptions) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token, _ rs.Options) ([]*v2.Grant, string, annotations.Annotations, error) {
 	l := ctxzap.Extract(ctx)
 
 	projectID, roleID, err := parseProjectRoleID(resource.Id.Resource)
@@ -144,7 +146,7 @@ func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resou
 	return rv, "", nil, nil
 }
 
-func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token, rso types.ResourceSyncerOptions) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token, rso rs.Options) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, offset, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeProjectRole.Id})
 	if err != nil {
 		return nil, "", nil, err
@@ -155,7 +157,7 @@ func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, to
 	}
 
 	var ret []*v2.Resource
-
+	fmt.Println("🌮 projects", rso.Session)
 	err = p.client.SetProjects(ctx, rso.Session, projects)
 	if err != nil {
 		return nil, "", nil, wrapError(err, "failed to get projects", nil)

@@ -31,7 +31,7 @@ func (c *Client) GetProject(ctx context.Context, ss types.SessionStore, projectI
 	if err != nil {
 		l.Error("🌮 Error getting project from cache", zap.Error(err))
 	}
-	// project, ok := c.projectCache.Load(projectID)
+
 	if ok {
 		l.Info("🌮 Got project from cache", zap.String("projectID", projectID))
 		return project, nil

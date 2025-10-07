@@ -24,14 +24,6 @@ func WithPrefix(prefix string) types.SessionOption {
 	}
 }
 
-// GetSyncIDFromContext retrieves the sync ID from the context, returning empty string if not found.
-func GetSyncIDFromContext(ctx context.Context) string {
-	if syncID, ok := ctx.Value(types.SyncIDKey{}).(string); ok {
-		return syncID
-	}
-	return ""
-}
-
 // applyOptions applies session cache options and returns a configured bag.
 func applyOptions(ctx context.Context, opt ...types.SessionOption) (*types.SessionBag, error) {
 	bag := &types.SessionBag{}
@@ -44,10 +36,7 @@ func applyOptions(ctx context.Context, opt ...types.SessionOption) (*types.Sessi
 	}
 
 	if bag.SyncID == "" {
-		bag.SyncID = GetSyncIDFromContext(ctx)
-	}
-	if bag.SyncID == "" {
-		return nil, fmt.Errorf("no syncID set on context or in options")
+		return nil, fmt.Errorf("no syncID set in options")
 	}
 
 	return bag, nil

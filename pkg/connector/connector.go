@@ -21,6 +21,8 @@ type (
 	}
 )
 
+var _ connectorbuilder.ConnectorBuilder2 = (*Jira)(nil)
+
 func New(ctx context.Context, jc *cfg.Jira, connectorOpts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilder2, []connectorbuilder.Opt, error) {
 	transport := jira.BasicAuthTransport{
 		Username: jc.JiraEmail,

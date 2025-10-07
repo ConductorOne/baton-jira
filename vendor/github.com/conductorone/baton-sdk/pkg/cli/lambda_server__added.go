@@ -37,7 +37,7 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 	ctx context.Context,
 	name string,
 	v *viper.Viper,
-	getconnector GetConnectorFunc[T],
+	getconnector GetConnectorFunc2[T],
 	connectorSchema field.Configuration,
 	mainCmd *cobra.Command,
 ) error {
@@ -170,9 +170,9 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 			runCtx = context.WithValue(runCtx, crypto.ContextClientSecretKey, secretJwk)
 		}
 
-		lazySession := &LazySessionStore{constructor: createSessionCacheConstructor(grpcClient)}
-
-		c, err := getconnector(runCtx, t, &RunTimeOpts{SessionStore: lazySession})
+		c, err := getconnector(runCtx, t, &RunTimeOpts{
+			SessionStore: &lazySessionStore{constructor: createSessionCacheConstructor(grpcClient)},
+		})
 		if err != nil {
 			return fmt.Errorf("lambda-run: failed to get connector: %w", err)
 		}
@@ -204,7 +204,7 @@ func OptionallyAddLambdaCommand[T field.Configurable](
 			TicketingEnabled:    true,
 		}
 
-		chain := ugrpc.ChainUnaryInterceptors(authOpt, ugrpc.SessionCacheUnaryInterceptor(runCtx))
+		chain := ugrpc.ChainUnaryInterceptors(authOpt)
 
 		s := c1_lambda_grpc.NewServer(chain)
 		connector.Register(runCtx, s, c, opts)

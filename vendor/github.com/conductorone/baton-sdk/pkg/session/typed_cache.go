@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 )
 
 type Codec[T any] interface {
@@ -14,18 +14,18 @@ type Codec[T any] interface {
 }
 
 type TypedSessionCache[T any] struct {
-	cache types.SessionStore
+	cache sessions.SessionStore
 	codec Codec[T]
 }
 
-func NewTypedSessionCache[T any](cache types.SessionStore, codec Codec[T]) *TypedSessionCache[T] {
+func NewTypedSessionCache[T any](cache sessions.SessionStore, codec Codec[T]) *TypedSessionCache[T] {
 	return &TypedSessionCache[T]{
 		cache: cache,
 		codec: codec,
 	}
 }
 
-func (t *TypedSessionCache[T]) Get(ctx context.Context, key string, opt ...types.SessionOption) (T, bool, error) {
+func (t *TypedSessionCache[T]) Get(ctx context.Context, key string, opt ...sessions.SessionStoreOption) (T, bool, error) {
 	var zero T
 	data, found, err := t.cache.Get(ctx, key, opt...)
 	if err != nil {
@@ -43,7 +43,7 @@ func (t *TypedSessionCache[T]) Get(ctx context.Context, key string, opt ...types
 	return value, true, nil
 }
 
-func (t *TypedSessionCache[T]) Set(ctx context.Context, key string, value T, opt ...types.SessionOption) error {
+func (t *TypedSessionCache[T]) Set(ctx context.Context, key string, value T, opt ...sessions.SessionStoreOption) error {
 	data, err := t.codec.Encode(value)
 	if err != nil {
 		return fmt.Errorf("failed to encode value: %w", err)
@@ -52,7 +52,7 @@ func (t *TypedSessionCache[T]) Set(ctx context.Context, key string, value T, opt
 	return t.cache.Set(ctx, key, data, opt...)
 }
 
-func (t *TypedSessionCache[T]) GetMany(ctx context.Context, keys []string, opt ...types.SessionOption) (map[string]T, error) {
+func (t *TypedSessionCache[T]) GetMany(ctx context.Context, keys []string, opt ...sessions.SessionStoreOption) (map[string]T, error) {
 	dataMap, err := t.cache.GetMany(ctx, keys, opt...)
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (t *TypedSessionCache[T]) GetMany(ctx context.Context, keys []string, opt .
 	return result, nil
 }
 
-func (t *TypedSessionCache[T]) SetMany(ctx context.Context, values map[string]T, opt ...types.SessionOption) error {
+func (t *TypedSessionCache[T]) SetMany(ctx context.Context, values map[string]T, opt ...sessions.SessionStoreOption) error {
 	dataMap := make(map[string][]byte)
 	for key, value := range values {
 		data, err := t.codec.Encode(value)
@@ -83,15 +83,15 @@ func (t *TypedSessionCache[T]) SetMany(ctx context.Context, values map[string]T,
 	return t.cache.SetMany(ctx, dataMap, opt...)
 }
 
-func (t *TypedSessionCache[T]) Delete(ctx context.Context, key string, opt ...types.SessionOption) error {
+func (t *TypedSessionCache[T]) Delete(ctx context.Context, key string, opt ...sessions.SessionStoreOption) error {
 	return t.cache.Delete(ctx, key, opt...)
 }
 
-func (t *TypedSessionCache[T]) Clear(ctx context.Context, opt ...types.SessionOption) error {
+func (t *TypedSessionCache[T]) Clear(ctx context.Context, opt ...sessions.SessionStoreOption) error {
 	return t.cache.Clear(ctx, opt...)
 }
 
-func (t *TypedSessionCache[T]) GetAll(ctx context.Context, opt ...types.SessionOption) (map[string]T, error) {
+func (t *TypedSessionCache[T]) GetAll(ctx context.Context, opt ...sessions.SessionStoreOption) (map[string]T, error) {
 	dataMap, err := t.cache.GetAll(ctx, opt...)
 	if err != nil {
 		return nil, err
@@ -160,18 +160,18 @@ func (b *BoolCodec) Decode(data []byte) (bool, error) {
 	return string(data) == "true", nil
 }
 
-func NewJSONSessionCache[T any](cache types.SessionStore) *TypedSessionCache[T] {
+func NewJSONSessionCache[T any](cache sessions.SessionStore) *TypedSessionCache[T] {
 	return NewTypedSessionCache(cache, &JSONCodec[T]{})
 }
 
-func NewStringSessionCache(cache types.SessionStore) *TypedSessionCache[string] {
+func NewStringSessionCache(cache sessions.SessionStore) *TypedSessionCache[string] {
 	return NewTypedSessionCache(cache, &StringCodec{})
 }
 
-func NewIntSessionCache(cache types.SessionStore) *TypedSessionCache[int] {
+func NewIntSessionCache(cache sessions.SessionStore) *TypedSessionCache[int] {
 	return NewTypedSessionCache(cache, &IntCodec{})
 }
 
-func NewBoolSessionCache(cache types.SessionStore) *TypedSessionCache[bool] {
+func NewBoolSessionCache(cache sessions.SessionStore) *TypedSessionCache[bool] {
 	return NewTypedSessionCache(cache, &BoolCodec{})
 }

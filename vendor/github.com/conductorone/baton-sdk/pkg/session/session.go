@@ -4,29 +4,29 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 )
 
 // KeyPrefixDelimiter is the delimiter used to separate prefixes from keys in the session cache.
 const KeyPrefixDelimiter = "::"
 
-func WithSyncID(syncID string) types.SessionOption {
-	return func(ctx context.Context, bag *types.SessionBag) error {
+func WithSyncID(syncID string) sessions.SessionStoreOption {
+	return func(ctx context.Context, bag *sessions.SessionStoreBag) error {
 		bag.SyncID = syncID
 		return nil
 	}
 }
 
-func WithPrefix(prefix string) types.SessionOption {
-	return func(ctx context.Context, bag *types.SessionBag) error {
+func WithPrefix(prefix string) sessions.SessionStoreOption {
+	return func(ctx context.Context, bag *sessions.SessionStoreBag) error {
 		bag.Prefix = prefix
 		return nil
 	}
 }
 
 // applyOptions applies session cache options and returns a configured bag.
-func applyOptions(ctx context.Context, opt ...types.SessionOption) (*types.SessionBag, error) {
-	bag := &types.SessionBag{}
+func applyOptions(ctx context.Context, opt ...sessions.SessionStoreOption) (*sessions.SessionStoreBag, error) {
+	bag := &sessions.SessionStoreBag{}
 
 	for _, option := range opt {
 		err := option(ctx, bag)

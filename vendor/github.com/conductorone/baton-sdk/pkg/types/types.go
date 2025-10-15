@@ -51,8 +51,3 @@ type ClientWrapper interface {
 	Run(ctx context.Context, cfg *connectorwrapperV1.ServerConfig) error
 	Close() error
 }
-
-type ResourceSyncerOptions struct {
-	Session SessionStore
-	SyncID  string
-}

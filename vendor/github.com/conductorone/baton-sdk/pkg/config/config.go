@@ -64,7 +64,7 @@ func RunConnector[T field.Configurable](
 
 // GetConnectorFunc is a function type that creates a connector instance.
 // It takes a context and configuration. The session cache constructor is retrieved from the context.
-// deprecated - prefer RunConnector
+// deprecated - prefer RunConnector.
 func DefineConfiguration[T field.Configurable](
 	ctx context.Context,
 	connectorName string,
@@ -82,7 +82,7 @@ func DefineConfiguration[T field.Configurable](
 	return DefineConfiguration2(ctx, connectorName, f, schema, options...)
 }
 
-// deprecated - prefer RunConnector
+// deprecated - prefer RunConnector.
 func DefineConfiguration2[T field.Configurable](
 	ctx context.Context,
 	connectorName string,

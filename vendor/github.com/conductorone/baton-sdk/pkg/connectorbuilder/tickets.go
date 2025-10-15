@@ -6,13 +6,32 @@ import (
 	"time"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/retry"
 	"github.com/conductorone/baton-sdk/pkg/types/tasks"
 )
 
-func (b *builderImpl) BulkCreateTickets(ctx context.Context, request *v2.TicketsServiceBulkCreateTicketsRequest) (*v2.TicketsServiceBulkCreateTicketsResponse, error) {
-	ctx, span := tracer.Start(ctx, "builderImpl.BulkCreateTickets")
+// TicketManager extends ConnectorBuilder to add capabilities for ticket management.
+//
+// Implementing this interface indicates the connector can integrate with an external
+// ticketing system, allowing Baton to create and track tickets in that system.
+type TicketManager interface {
+	ConnectorBuilder
+	TicketManagerLimited
+}
+
+type TicketManagerLimited interface {
+	GetTicket(ctx context.Context, ticketId string) (*v2.Ticket, annotations.Annotations, error)
+	CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.TicketSchema) (*v2.Ticket, annotations.Annotations, error)
+	GetTicketSchema(ctx context.Context, schemaID string) (*v2.TicketSchema, annotations.Annotations, error)
+	ListTicketSchemas(ctx context.Context, pToken *pagination.Token) ([]*v2.TicketSchema, string, annotations.Annotations, error)
+	BulkCreateTickets(context.Context, *v2.TicketsServiceBulkCreateTicketsRequest) (*v2.TicketsServiceBulkCreateTicketsResponse, error)
+	BulkGetTickets(context.Context, *v2.TicketsServiceBulkGetTicketsRequest) (*v2.TicketsServiceBulkGetTicketsResponse, error)
+}
+
+func (b *builder) BulkCreateTickets(ctx context.Context, request *v2.TicketsServiceBulkCreateTicketsRequest) (*v2.TicketsServiceBulkCreateTicketsResponse, error) {
+	ctx, span := tracer.Start(ctx, "builder.BulkCreateTickets")
 	defer span.End()
 
 	start := b.nowFunc()
@@ -40,8 +59,8 @@ func (b *builderImpl) BulkCreateTickets(ctx context.Context, request *v2.Tickets
 	}, nil
 }
 
-func (b *builderImpl) BulkGetTickets(ctx context.Context, request *v2.TicketsServiceBulkGetTicketsRequest) (*v2.TicketsServiceBulkGetTicketsResponse, error) {
-	ctx, span := tracer.Start(ctx, "builderImpl.BulkGetTickets")
+func (b *builder) BulkGetTickets(ctx context.Context, request *v2.TicketsServiceBulkGetTicketsRequest) (*v2.TicketsServiceBulkGetTicketsResponse, error) {
+	ctx, span := tracer.Start(ctx, "builder.BulkGetTickets")
 	defer span.End()
 
 	start := b.nowFunc()
@@ -69,8 +88,8 @@ func (b *builderImpl) BulkGetTickets(ctx context.Context, request *v2.TicketsSer
 	}, nil
 }
 
-func (b *builderImpl) ListTicketSchemas(ctx context.Context, request *v2.TicketsServiceListTicketSchemasRequest) (*v2.TicketsServiceListTicketSchemasResponse, error) {
-	ctx, span := tracer.Start(ctx, "builderImpl.ListTicketSchemas")
+func (b *builder) ListTicketSchemas(ctx context.Context, request *v2.TicketsServiceListTicketSchemasRequest) (*v2.TicketsServiceListTicketSchemasResponse, error) {
+	ctx, span := tracer.Start(ctx, "builder.ListTicketSchemas")
 	defer span.End()
 
 	start := b.nowFunc()
@@ -112,8 +131,8 @@ func (b *builderImpl) ListTicketSchemas(ctx context.Context, request *v2.Tickets
 	}
 }
 
-func (b *builderImpl) CreateTicket(ctx context.Context, request *v2.TicketsServiceCreateTicketRequest) (*v2.TicketsServiceCreateTicketResponse, error) {
-	ctx, span := tracer.Start(ctx, "builderImpl.CreateTicket")
+func (b *builder) CreateTicket(ctx context.Context, request *v2.TicketsServiceCreateTicketRequest) (*v2.TicketsServiceCreateTicketResponse, error) {
+	ctx, span := tracer.Start(ctx, "builder.CreateTicket")
 	defer span.End()
 
 	start := b.nowFunc()
@@ -157,8 +176,8 @@ func (b *builderImpl) CreateTicket(ctx context.Context, request *v2.TicketsServi
 	}, nil
 }
 
-func (b *builderImpl) GetTicket(ctx context.Context, request *v2.TicketsServiceGetTicketRequest) (*v2.TicketsServiceGetTicketResponse, error) {
-	ctx, span := tracer.Start(ctx, "builderImpl.GetTicket")
+func (b *builder) GetTicket(ctx context.Context, request *v2.TicketsServiceGetTicketRequest) (*v2.TicketsServiceGetTicketResponse, error) {
+	ctx, span := tracer.Start(ctx, "builder.GetTicket")
 	defer span.End()
 
 	start := b.nowFunc()
@@ -188,8 +207,8 @@ func (b *builderImpl) GetTicket(ctx context.Context, request *v2.TicketsServiceG
 	}, nil
 }
 
-func (b *builderImpl) GetTicketSchema(ctx context.Context, request *v2.TicketsServiceGetTicketSchemaRequest) (*v2.TicketsServiceGetTicketSchemaResponse, error) {
-	ctx, span := tracer.Start(ctx, "builderImpl.GetTicketSchema")
+func (b *builder) GetTicketSchema(ctx context.Context, request *v2.TicketsServiceGetTicketSchemaRequest) (*v2.TicketsServiceGetTicketSchemaResponse, error) {
+	ctx, span := tracer.Start(ctx, "builder.GetTicketSchema")
 	defer span.End()
 
 	start := b.nowFunc()
@@ -210,4 +229,14 @@ func (b *builderImpl) GetTicketSchema(ctx context.Context, request *v2.TicketsSe
 		Schema:      ticketSchema,
 		Annotations: annos,
 	}, nil
+}
+
+func (b *builder) addTicketManager(_ context.Context, in interface{}) error {
+	if ticketManager, ok := in.(TicketManagerLimited); ok {
+		if b.ticketManager != nil {
+			return fmt.Errorf("error: cannot set multiple ticket managers")
+		}
+		b.ticketManager = ticketManager
+	}
+	return nil
 }

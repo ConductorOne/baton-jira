@@ -29,7 +29,7 @@ var resourceTypeProjectRole = &v2.ResourceType{
 	},
 }
 
-var _ connectorbuilder.ResourceSyncer2 = (*projectRoleResourceType)(nil)
+var _ connectorbuilder.ResourceSyncerV2 = (*projectRoleResourceType)(nil)
 
 type projectRoleResourceType struct {
 	resourceType *v2.ResourceType

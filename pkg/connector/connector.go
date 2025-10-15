@@ -21,9 +21,9 @@ type (
 	}
 )
 
-var _ connectorbuilder.ConnectorBuilder2 = (*Jira)(nil)
+var _ connectorbuilder.ConnectorBuilderV2 = (*Jira)(nil)
 
-func New(ctx context.Context, jc *cfg.Jira, connectorOpts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilder2, []connectorbuilder.Opt, error) {
+func New(ctx context.Context, jc *cfg.Jira, connectorOpts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
 	transport := jira.BasicAuthTransport{
 		Username: jc.JiraEmail,
 		APIToken: jc.JiraApiToken,
@@ -68,8 +68,8 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 	return nil, nil
 }
 
-func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer2 {
-	return []connectorbuilder.ResourceSyncer2{
+func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
+	return []connectorbuilder.ResourceSyncerV2{
 		userBuilder(o.client, o.skipCustomerUser),
 		groupBuilder(o.client),
 		projectRoleBuilder(o.client),

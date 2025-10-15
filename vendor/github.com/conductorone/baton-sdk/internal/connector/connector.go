@@ -28,6 +28,7 @@ import (
 	ratelimit2 "github.com/conductorone/baton-sdk/pkg/ratelimit"
 	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/conductorone/baton-sdk/pkg/ugrpc"
 	utls2 "github.com/conductorone/baton-sdk/pkg/utls"
 )
@@ -66,7 +67,7 @@ func (c *connectorClient) SetSessionStoreSetter(sessionStoreSetter session.SetSe
 	c.sessionStoreSetter = sessionStoreSetter
 }
 
-func (c *connectorClient) SetSessionStore(ctx context.Context, store types.SessionStore) {
+func (c *connectorClient) SetSessionStore(ctx context.Context, store sessions.SessionStore) {
 	if c.sessionStoreSetter == nil {
 		l := ctxzap.Extract(ctx)
 		l.Warn("connectorClient's session store is nil")
@@ -224,44 +225,45 @@ func (cw *wrapper) runServer(ctx context.Context, serverCred *tlsV1.Credential) 
 
 	listenPort, listener, err := cw.setupListener(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to setup listener: %w", err)
 	}
 
-	cacheListenerPort, sessionListenerFile, err := cw.setupListener(ctx)
+	sessionListenerPort, sessionListenerFile, err := cw.setupListener(ctx)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to setup session listener: %w", err)
 	}
 
-	sessionListener, err := net.FileListener(sessionListenerFile)
-	if err != nil {
-		_ = sessionListenerFile.Close()
-		return 0, err
+	if sessionListenerFile == nil {
+		return 0, fmt.Errorf("session listener file is nil")
 	}
 
 	// Start the session cache server on the cache listener
-	if sessionListenerFile != nil {
-		tlsConfig, err := utls2.ListenerConfig(ctx, serverCred)
-		if err != nil {
-			_ = sessionListenerFile.Close()
-			return 0, err
-		}
-		server := session.NewGRPCSessionServer()
-		cw.SessionServer = server
-		go func() {
-			defer sessionListenerFile.Close()
-			serverErr := session.StartGRPCSessionServerWithOptions(ctx, sessionListener, server, grpc.Creds(credentials.NewTLS(tlsConfig)))
-			if serverErr != nil {
-				l.Error("failed to create memory session cache", zap.Error(err))
-				return
-			}
-		}()
+	sessionListener, err := net.FileListener(sessionListenerFile)
+	if err != nil {
+		_ = sessionListenerFile.Close()
+		return 0, fmt.Errorf("failed to create session listener: %w", err)
 	}
+	tlsConfig, err := utls2.ListenerConfig(ctx, serverCred)
+	if err != nil {
+		_ = sessionListenerFile.Close()
+		return 0, fmt.Errorf("failed to create session listener config: %w", err)
+	}
+	server := session.NewGRPCSessionServer()
+	cw.SessionServer = server
+	go func() {
+		defer sessionListenerFile.Close()
+		serverErr := session.StartGRPCSessionServerWithOptions(ctx, sessionListener, server, grpc.Creds(credentials.NewTLS(tlsConfig)))
+		if serverErr != nil {
+			l.Error("failed to create session store server", zap.Error(serverErr))
+			return
+		}
+	}()
 
 	serverCfg, err := proto.Marshal(&connectorwrapperV1.ServerConfig{
-		Credential:        serverCred,
-		RateLimiterConfig: cw.rlCfg,
-		ListenPort:        listenPort,
-		CacheListenPort:   cacheListenerPort,
+		Credential:             serverCred,
+		RateLimiterConfig:      cw.rlCfg,
+		ListenPort:             listenPort,
+		SessionStoreListenPort: sessionListenerPort,
 	})
 	if err != nil {
 		return 0, err
@@ -320,7 +322,6 @@ func (cw *wrapper) runServer(ctx context.Context, serverCred *tlsV1.Credential) 
 // C returns a ConnectorClient that the caller can use to interact with a locally running connector.
 func (cw *wrapper) C(ctx context.Context) (types.ConnectorClient, error) {
 	// Check to see if we have a client already
-	l := ctxzap.Extract(ctx)
 	cw.mtx.RLock()
 	if cw.client != nil {
 		cw.mtx.RUnlock()
@@ -365,10 +366,8 @@ func (cw *wrapper) C(ctx context.Context) (types.ConnectorClient, error) {
 			ctx,
 			fmt.Sprintf("127.0.0.1:%d", listenPort),
 			grpc.WithTransportCredentials(credentials.NewTLS(clientTLSConfig)),
-			grpc.WithBlock(), //nolint:staticcheck // grpc.WithBlock is deprecated but we are using it still.
-			grpc.WithChainUnaryInterceptor(
-				ratelimit2.UnaryInterceptor(cw.now, cw.rlDescriptors...),
-			),
+			grpc.WithBlock(), //nolint:staticcheck // grpc.WithBlock is deprecated but we are using it still for compatibility
+			grpc.WithChainUnaryInterceptor(ratelimit2.UnaryInterceptor(cw.now, cw.rlDescriptors...)),
 			grpc.WithStatsHandler(otelgrpc.NewClientHandler(
 				otelgrpc.WithPropagators(
 					propagation.NewCompositeTextMapPropagator(
@@ -395,7 +394,7 @@ func (cw *wrapper) C(ctx context.Context) (types.ConnectorClient, error) {
 	if setsessionStore, ok := cw.client.(SetSessionStoreSetter); ok {
 		setsessionStore.SetSessionStoreSetter(cw.SessionServer)
 	} else {
-		l.Warn("client is not a SetSessionStoreSetter")
+		ctxzap.Extract(ctx).Warn("client is not a SetSessionStoreSetter")
 	}
 
 	return cw.client, nil

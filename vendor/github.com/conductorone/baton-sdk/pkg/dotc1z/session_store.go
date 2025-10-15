@@ -6,14 +6,14 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 
-	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 )
 
 type SessionStore interface {
-	types.SessionStore
+	sessions.SessionStore
 }
 
-var _ types.SessionStore = (*C1File)(nil)
+var _ sessions.SessionStore = (*C1File)(nil)
 
 const sessionStoreTableVersion = "1"
 const sessionStoreTableName = "connector_sessions"
@@ -50,8 +50,8 @@ func (r *sessionStoreTable) Migrations(ctx context.Context, db *goqu.Database) e
 	return nil
 }
 
-func applyBag(ctx context.Context, opt ...types.SessionOption) (*types.SessionBag, error) {
-	bag := &types.SessionBag{}
+func applyBag(ctx context.Context, opt ...sessions.SessionStoreOption) (*sessions.SessionStoreBag, error) {
+	bag := &sessions.SessionStoreBag{}
 	for _, o := range opt {
 		err := o(ctx, bag)
 		if err != nil {
@@ -65,7 +65,7 @@ func applyBag(ctx context.Context, opt ...types.SessionOption) (*types.SessionBa
 }
 
 // Get implements types.SessionCache.
-func (c *C1File) Get(ctx context.Context, key string, opt ...types.SessionOption) ([]byte, bool, error) {
+func (c *C1File) Get(ctx context.Context, key string, opt ...sessions.SessionStoreOption) ([]byte, bool, error) {
 	bag, err := applyBag(ctx, opt...)
 	if err != nil {
 		return nil, false, fmt.Errorf("error applying session option: %w", err)
@@ -102,7 +102,7 @@ func (c *C1File) Get(ctx context.Context, key string, opt ...types.SessionOption
 }
 
 // Set implements types.SessionStore.
-func (c *C1File) Set(ctx context.Context, key string, value []byte, opt ...types.SessionOption) error {
+func (c *C1File) Set(ctx context.Context, key string, value []byte, opt ...sessions.SessionStoreOption) error {
 	bag, err := applyBag(ctx, opt...)
 	if err != nil {
 		return fmt.Errorf("error applying session option: %w", err)
@@ -131,7 +131,7 @@ func (c *C1File) Set(ctx context.Context, key string, value []byte, opt ...types
 }
 
 // SetMany implements types.SessionStore.
-func (c *C1File) SetMany(ctx context.Context, values map[string][]byte, opt ...types.SessionOption) error {
+func (c *C1File) SetMany(ctx context.Context, values map[string][]byte, opt ...sessions.SessionStoreOption) error {
 	bag, err := applyBag(ctx, opt...)
 	if err != nil {
 		return fmt.Errorf("error applying session option: %w", err)
@@ -169,7 +169,7 @@ func (c *C1File) SetMany(ctx context.Context, values map[string][]byte, opt ...t
 }
 
 // Delete implements types.SessionStore.
-func (c *C1File) Delete(ctx context.Context, key string, opt ...types.SessionOption) error {
+func (c *C1File) Delete(ctx context.Context, key string, opt ...sessions.SessionStoreOption) error {
 	bag, err := applyBag(ctx, opt...)
 	if err != nil {
 		return fmt.Errorf("error applying session option: %w", err)
@@ -193,7 +193,7 @@ func (c *C1File) Delete(ctx context.Context, key string, opt ...types.SessionOpt
 }
 
 // Clear implements types.SessionStore.
-func (c *C1File) Clear(ctx context.Context, opt ...types.SessionOption) error {
+func (c *C1File) Clear(ctx context.Context, opt ...sessions.SessionStoreOption) error {
 	bag, err := applyBag(ctx, opt...)
 	if err != nil {
 		return fmt.Errorf("error applying session option: %w", err)
@@ -216,7 +216,7 @@ func (c *C1File) Clear(ctx context.Context, opt ...types.SessionOption) error {
 }
 
 // GetMany implements types.SessionStore.
-func (c *C1File) GetMany(ctx context.Context, keys []string, opt ...types.SessionOption) (map[string][]byte, error) {
+func (c *C1File) GetMany(ctx context.Context, keys []string, opt ...sessions.SessionStoreOption) (map[string][]byte, error) {
 	bag, err := applyBag(ctx, opt...)
 	if err != nil {
 		return nil, fmt.Errorf("error applying session option: %w", err)
@@ -257,7 +257,7 @@ func (c *C1File) GetMany(ctx context.Context, keys []string, opt ...types.Sessio
 }
 
 // GetAll implements types.SessionStore.
-func (c *C1File) GetAll(ctx context.Context, opt ...types.SessionOption) (map[string][]byte, error) {
+func (c *C1File) GetAll(ctx context.Context, opt ...sessions.SessionStoreOption) (map[string][]byte, error) {
 	bag, err := applyBag(ctx, opt...)
 	if err != nil {
 		return nil, fmt.Errorf("error applying session option: %w", err)

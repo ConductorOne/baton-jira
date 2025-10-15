@@ -160,7 +160,7 @@ github.com/benbjohnson/clock
 ## explicit; go 1.18
 github.com/cenkalti/backoff/v4
 # github.com/conductorone/baton-sdk v0.4.8-0.20251001175320-30c7b336c509 => ../baton-sdk
-## explicit; go 1.25
+## explicit; go 1.25.2
 github.com/conductorone/baton-sdk/internal/connector
 github.com/conductorone/baton-sdk/pb/c1/c1z/v1
 github.com/conductorone/baton-sdk/pb/c1/config/v1
@@ -211,6 +211,7 @@ github.com/conductorone/baton-sdk/pkg/types
 github.com/conductorone/baton-sdk/pkg/types/entitlement
 github.com/conductorone/baton-sdk/pkg/types/grant
 github.com/conductorone/baton-sdk/pkg/types/resource
+github.com/conductorone/baton-sdk/pkg/types/sessions
 github.com/conductorone/baton-sdk/pkg/types/tasks
 github.com/conductorone/baton-sdk/pkg/types/ticket
 github.com/conductorone/baton-sdk/pkg/ugrpc

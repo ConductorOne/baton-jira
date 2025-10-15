@@ -30,7 +30,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/field"
 	"github.com/conductorone/baton-sdk/pkg/logging"
 	"github.com/conductorone/baton-sdk/pkg/session"
-	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/conductorone/baton-sdk/pkg/uotel"
 	utls2 "github.com/conductorone/baton-sdk/pkg/utls"
 )
@@ -41,8 +41,12 @@ const (
 
 type ContrainstSetter func(*cobra.Command, field.Configuration) error
 
-func defaultGRPCSessionConstructor(ctx context.Context, serverCfg *v1.ServerConfig) func(ctx context.Context, opt ...types.SessionConstructorOption) (types.SessionStore, error) {
-	return func(_ context.Context, opt ...types.SessionConstructorOption) (types.SessionStore, error) {
+// In one shot & service mode, the child process uses this client to connect to the session store server...
+//
+//	which uses the C1Z for storage.  Unfortunately the C1Z is instantiated well after we fork the child process,
+//	so there is quite a bit of pass through.
+func getGRPCSessionStoreClient(ctx context.Context, serverCfg *v1.ServerConfig) func(ctx context.Context, opt ...sessions.SessionStoreConstructorOption) (sessions.SessionStore, error) {
+	return func(_ context.Context, opt ...sessions.SessionStoreConstructorOption) (sessions.SessionStore, error) {
 		l := ctxzap.Extract(ctx)
 		clientTLSConfig, err := utls2.ClientConfig(ctx, serverCfg.Credential)
 		if err != nil {
@@ -57,7 +61,7 @@ func defaultGRPCSessionConstructor(ctx context.Context, serverCfg *v1.ServerConf
 		for {
 			conn, err = grpc.DialContext( //nolint:staticcheck // grpc.DialContext is deprecated but we are using it still.
 				ctx,
-				fmt.Sprintf("127.0.0.1:%d", serverCfg.CacheListenPort),
+				fmt.Sprintf("127.0.0.1:%d", serverCfg.SessionStoreListenPort),
 				grpc.WithTransportCredentials(credentials.NewTLS(clientTLSConfig)),
 				grpc.WithBlock(), //nolint:staticcheck // grpc.WithBlock is deprecated but we are using it still.
 			)
@@ -142,8 +146,14 @@ func MakeMainCommand[T field.Configurable](
 			}
 		}
 
+		readFromPath := true
+		decodeOpts := field.WithAdditionalDecodeHooks(field.FileUploadDecodeHook(readFromPath))
+		t, err := MakeGenericConfiguration[T](v, decodeOpts)
+		if err != nil {
+			return fmt.Errorf("failed to make configuration: %w", err)
+		}
 		// validate required fields and relationship constraints
-		if err := field.Validate(confschema, v); err != nil {
+		if err := field.Validate(confschema, t); err != nil {
 			return err
 		}
 
@@ -343,7 +353,7 @@ func MakeMainCommand[T field.Configurable](
 
 		opts = append(opts, connectorrunner.WithSkipEntitlementsAndGrants(v.GetBool("skip-entitlements-and-grants")))
 
-		t, err := MakeGenericConfiguration[T](v)
+		t, err = MakeGenericConfiguration[T](v)
 		if err != nil {
 			return fmt.Errorf("failed to make configuration: %w", err)
 		}
@@ -450,13 +460,15 @@ func MakeGRPCServerCommand[T field.Configurable](
 		l := ctxzap.Extract(runCtx)
 		l.Debug("starting grpc server")
 
-		// validate required fields and relationship constraints
-		if err := field.Validate(confschema, v); err != nil {
-			return err
-		}
-		t, err := MakeGenericConfiguration[T](v)
+		readFromPath := true
+		decodeOpts := field.WithAdditionalDecodeHooks(field.FileUploadDecodeHook(readFromPath))
+		t, err := MakeGenericConfiguration[T](v, decodeOpts)
 		if err != nil {
 			return fmt.Errorf("failed to make configuration: %w", err)
+		}
+		// validate required fields and relationship constraints
+		if err := field.Validate(confschema, t); err != nil {
+			return err
 		}
 
 		var cfgStr string
@@ -504,7 +516,7 @@ func MakeGRPCServerCommand[T field.Configurable](
 			}
 			runCtx = context.WithValue(runCtx, crypto.ContextClientSecretKey, secretJwk)
 		}
-		sessionConstructor := defaultGRPCSessionConstructor(runCtx, serverCfg)
+		sessionConstructor := getGRPCSessionStoreClient(runCtx, serverCfg)
 		c, err := getconnector(runCtx, t, &RunTimeOpts{
 			SessionStore: &lazySessionStore{constructor: sessionConstructor},
 		})
@@ -587,13 +599,15 @@ func MakeCapabilitiesCommand[T field.Configurable](
 			return err
 		}
 
-		// validate required fields and relationship constraints
-		if err := field.Validate(confschema, v); err != nil {
-			return err
-		}
-		t, err := MakeGenericConfiguration[T](v)
+		readFromPath := true
+		decodeOpts := field.WithAdditionalDecodeHooks(field.FileUploadDecodeHook(readFromPath))
+		t, err := MakeGenericConfiguration[T](v, decodeOpts)
 		if err != nil {
 			return fmt.Errorf("failed to make configuration: %w", err)
+		}
+		// validate required fields and relationship constraints
+		if err := field.Validate(confschema, t); err != nil {
+			return err
 		}
 
 		c, err := getconnector(runCtx, t, &RunTimeOpts{})

@@ -1,6 +1,6 @@
 module github.com/conductorone/baton-jira
 
-go 1.25
+go 1.25.2
 
 require (
 	github.com/conductorone/baton-sdk v0.4.8-0.20251001175320-30c7b336c509

@@ -3,8 +3,6 @@ package pagination
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/conductorone/baton-sdk/pkg/types"
 )
 
 type StreamToken struct {
@@ -18,9 +16,8 @@ type StreamState struct {
 }
 
 type Token struct {
-	Size    int
-	Token   string
-	Session types.SessionStore
+	Size  int
+	Token string
 }
 
 type PageState struct {

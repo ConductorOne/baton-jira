@@ -7,7 +7,7 @@ import (
 	"net"
 
 	v1 "github.com/conductorone/baton-sdk/pb/c1/connectorapi/baton/v1"
-	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"google.golang.org/grpc"
 )
@@ -16,7 +16,7 @@ var _ v1.BatonSessionServiceServer = (*GRPCSessionServer)(nil)
 
 type GRPCSessionServer struct {
 	// v1.UnimplementedBatonSessionServiceServer
-	store types.SessionStore
+	store sessions.SessionStore
 }
 
 func NewGRPCSessionServer() *GRPCSessionServer {
@@ -24,10 +24,10 @@ func NewGRPCSessionServer() *GRPCSessionServer {
 }
 
 type SetSessionStore interface {
-	SetSessionStore(ctx context.Context, store types.SessionStore)
+	SetSessionStore(ctx context.Context, store sessions.SessionStore)
 }
 
-func (s *GRPCSessionServer) SetSessionStore(ctx context.Context, store types.SessionStore) {
+func (s *GRPCSessionServer) SetSessionStore(ctx context.Context, store sessions.SessionStore) {
 	s.store = store
 }
 
@@ -44,7 +44,7 @@ func (s *GRPCSessionServer) Get(ctx context.Context, req *v1.GetRequest) (*v1.Ge
 		return nil, err
 	}
 
-	value, found, err := s.store.Get(ctx, req.Key, types.WithSyncID(req.SyncId))
+	value, found, err := s.store.Get(ctx, req.Key, sessions.WithSyncID(req.SyncId))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get value from cache: %w", err)
 	}
@@ -65,7 +65,7 @@ func (s *GRPCSessionServer) GetMany(ctx context.Context, req *v1.GetManyRequest)
 		return nil, err
 	}
 
-	values, err := s.store.GetMany(ctx, req.Keys, types.WithSyncID(req.SyncId))
+	values, err := s.store.GetMany(ctx, req.Keys, sessions.WithSyncID(req.SyncId))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get many values from cache: %w", err)
 	}
@@ -89,7 +89,7 @@ func (s *GRPCSessionServer) Set(ctx context.Context, req *v1.SetRequest) (*v1.Se
 		return nil, err
 	}
 
-	err := s.store.Set(ctx, req.Key, req.Value, types.WithSyncID(req.SyncId))
+	err := s.store.Set(ctx, req.Key, req.Value, sessions.WithSyncID(req.SyncId))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set value in cache: %w", err)
 	}
@@ -102,7 +102,7 @@ func (s *GRPCSessionServer) SetMany(ctx context.Context, req *v1.SetManyRequest)
 		return nil, err
 	}
 
-	err := s.store.SetMany(ctx, req.Values, types.WithSyncID(req.SyncId))
+	err := s.store.SetMany(ctx, req.Values, sessions.WithSyncID(req.SyncId))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set many values in cache: %w", err)
 	}
@@ -115,7 +115,7 @@ func (s *GRPCSessionServer) Delete(ctx context.Context, req *v1.DeleteRequest) (
 		return nil, err
 	}
 
-	err := s.store.Delete(ctx, req.Key, types.WithSyncID(req.SyncId))
+	err := s.store.Delete(ctx, req.Key, sessions.WithSyncID(req.SyncId))
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete value from cache: %w", err)
 	}
@@ -129,7 +129,7 @@ func (s *GRPCSessionServer) DeleteMany(ctx context.Context, req *v1.DeleteManyRe
 	}
 
 	for _, key := range req.Keys {
-		err := s.store.Delete(ctx, key, types.WithSyncID(req.SyncId))
+		err := s.store.Delete(ctx, key, sessions.WithSyncID(req.SyncId))
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete value for key %s: %w", key, err)
 		}
@@ -145,7 +145,7 @@ func (s *GRPCSessionServer) Clear(ctx context.Context, req *v1.ClearRequest) (*v
 		return &v1.ClearResponse{}, nil
 	}
 
-	err := s.store.Clear(ctx, types.WithSyncID(req.SyncId))
+	err := s.store.Clear(ctx, sessions.WithSyncID(req.SyncId))
 	if err != nil {
 		return nil, fmt.Errorf("failed to clear cache: %w", err)
 	}
@@ -158,7 +158,7 @@ func (s *GRPCSessionServer) GetAll(ctx context.Context, req *v1.GetAllRequest) (
 		return nil, err
 	}
 
-	values, err := s.store.GetAll(ctx, types.WithSyncID(req.SyncId))
+	values, err := s.store.GetAll(ctx, sessions.WithSyncID(req.SyncId))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all values from cache: %w", err)
 	}
@@ -181,7 +181,6 @@ func StartGRPCSessionServerWithOptions(ctx context.Context, listener net.Listene
 	// Create the gRPC server with custom options
 	server := grpc.NewServer(opts...)
 
-	// grpc.Creds(credentials.NewTLS(tlsConfig))
 	// Create and register the session service
 	v1.RegisterBatonSessionServiceServer(server, sessionServer)
 

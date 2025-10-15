@@ -7,7 +7,7 @@ import (
 
 	// "github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/session"
-	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
@@ -24,7 +24,7 @@ func (c *Client) Jira() *jira.Client {
 	return c.jira
 }
 
-func (c *Client) GetProject(ctx context.Context, ss types.SessionStore, projectID string) (*jira.Project, error) {
+func (c *Client) GetProject(ctx context.Context, ss sessions.SessionStore, projectID string) (*jira.Project, error) {
 	l := ctxzap.Extract(ctx)
 
 	project, ok, err := session.GetJSON[*jira.Project](ctx, ss, projectID)
@@ -51,7 +51,7 @@ func (c *Client) GetProject(ctx context.Context, ss types.SessionStore, projectI
 	return prj, nil
 }
 
-func (c *Client) GetProjects(ctx context.Context, ss types.SessionStore, projectIDs ...string) ([]*jira.Project, error) {
+func (c *Client) GetProjects(ctx context.Context, ss sessions.SessionStore, projectIDs ...string) ([]*jira.Project, error) {
 	// Try to get projects from cache first
 	projectMap, err := session.GetManyJSON[*jira.Project](ctx, ss, projectIDs)
 	if err != nil {
@@ -94,7 +94,7 @@ func (c *Client) GetProjects(ctx context.Context, ss types.SessionStore, project
 	return projects, nil
 }
 
-func (c *Client) SetProjects(ctx context.Context, ss types.SessionStore, projects []jira.Project) error {
+func (c *Client) SetProjects(ctx context.Context, ss sessions.SessionStore, projects []jira.Project) error {
 	projectMap := make(map[string]*jira.Project)
 	for _, project := range projects {
 		projectMap[project.ID] = &project
@@ -103,7 +103,7 @@ func (c *Client) SetProjects(ctx context.Context, ss types.SessionStore, project
 	return session.SetManyJSON(ctx, ss, projectMap)
 }
 
-func (c *Client) GetRole(ctx context.Context, ss types.SessionStore, roleID int) (*jira.Role, error) {
+func (c *Client) GetRole(ctx context.Context, ss sessions.SessionStore, roleID int) (*jira.Role, error) {
 	l := ctxzap.Extract(ctx)
 
 	role, ok, err := session.GetJSON[jira.Role](ctx, ss, "role:"+strconv.Itoa(roleID))
@@ -129,7 +129,7 @@ func (c *Client) GetRole(ctx context.Context, ss types.SessionStore, roleID int)
 	return r, nil
 }
 
-func (c *Client) GetRoles(ctx context.Context, ss types.SessionStore, roleIDs []int) ([]*jira.Role, error) {
+func (c *Client) GetRoles(ctx context.Context, ss sessions.SessionStore, roleIDs []int) ([]*jira.Role, error) {
 	l := ctxzap.Extract(ctx)
 	roleIDsStr := make([]string, len(roleIDs))
 	for i, roleID := range roleIDs {

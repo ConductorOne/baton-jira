@@ -1,5 +1,3 @@
-//go:build baton_lambda_support
-
 package session
 
 import (
@@ -7,15 +5,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io"
+	"iter"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	v1 "github.com/conductorone/baton-sdk/pb/c1/connectorapi/baton/v1"
 	"github.com/conductorone/baton-sdk/pkg/sdk"
-	"github.com/conductorone/baton-sdk/pkg/types"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	dpop_grpc "github.com/conductorone/dpop/integrations/dpop_grpc"
 	"github.com/conductorone/dpop/pkg/dpop"
 	"github.com/go-jose/go-jose/v4"
@@ -24,18 +21,28 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-// No longer needed since we're reusing existing credentials
-
-// GRPCSessionCache implements SessionCache interface using gRPC calls to BatonSessionService.
 type GRPCSessionCache struct {
 	client v1.BatonSessionServiceClient
+}
+
+const maxKeysPerRequest = 200
+
+func Chunk[T any](items []T, chunkSize int) iter.Seq[[]T] {
+	return func(yield func([]T) bool) {
+		for i := 0; i < len(items); i += chunkSize {
+			end := min(i+chunkSize, len(items))
+			if !yield(items[i:end]) {
+				return
+			}
+		}
+	}
 }
 
 // NewGRPCSessionClient creates a new gRPC session service client using existing DPoP credentials.
 // It reuses an existing access token and DPoP key instead of performing a new authentication round.
 // It reads the session service address from the BATON_SESSION_SERVICE_ADDR environment variable,
 // defaulting to "localhost:50051" if not set.
-func NewGRPCSessionClient(ctx context.Context, accessToken string, dpopKey *jose.JSONWebKey, opt ...types.SessionCacheConstructorOption) (v1.BatonSessionServiceClient, error) {
+func NewGRPCSessionClient(ctx context.Context, accessToken string, dpopKey *jose.JSONWebKey, opt ...sessions.SessionStoreConstructorOption) (v1.BatonSessionServiceClient, error) {
 	// Apply constructor options
 	for _, option := range opt {
 		var err error
@@ -44,7 +51,6 @@ func NewGRPCSessionClient(ctx context.Context, accessToken string, dpopKey *jose
 			return nil, err
 		}
 	}
-
 	// Get the session service address from environment variable
 	addr := os.Getenv("BATON_SESSION_SERVICE_ADDR")
 	if addr == "" {
@@ -108,7 +114,6 @@ func NewGRPCSessionClient(ctx context.Context, accessToken string, dpopKey *jose
 	return v1.NewBatonSessionServiceClient(conn), nil
 }
 
-// staticTokenSource implements oauth2.TokenSource to return a static access token
 type staticTokenSource struct {
 	accessToken string
 }
@@ -123,7 +128,7 @@ func (s *staticTokenSource) Token() (*oauth2.Token, error) {
 // These functions are no longer needed since we're reusing existing credentials
 
 // NewGRPCSessionCache creates a new gRPC session cache instance.
-func NewGRPCSessionCache(ctx context.Context, client v1.BatonSessionServiceClient, opt ...types.SessionCacheConstructorOption) (types.SessionCache, error) {
+func NewGRPCSessionCache(ctx context.Context, client v1.BatonSessionServiceClient, opt ...sessions.SessionStoreConstructorOption) (sessions.SessionStore, error) {
 	// Apply constructor options
 	for _, option := range opt {
 		var err error
@@ -139,19 +144,16 @@ func NewGRPCSessionCache(ctx context.Context, client v1.BatonSessionServiceClien
 }
 
 // Get retrieves a value from the cache by key.
-func (g *GRPCSessionCache) Get(ctx context.Context, key string, opt ...types.SessionCacheOption) ([]byte, bool, error) {
+func (g *GRPCSessionCache) Get(ctx context.Context, key string, opt ...sessions.SessionStoreOption) ([]byte, bool, error) {
 	bag, err := applyOptions(ctx, opt...)
 	if err != nil {
 		return nil, false, err
 	}
 
-	if bag.Prefix != "" {
-		key = bag.Prefix + KeyPrefixDelimiter + key
-	}
-
 	req := &v1.GetRequest{
 		SyncId: bag.SyncID,
 		Key:    key,
+		Prefix: bag.Prefix,
 	}
 
 	resp, err := g.client.Get(ctx, req)
@@ -167,65 +169,45 @@ func (g *GRPCSessionCache) Get(ctx context.Context, key string, opt ...types.Ses
 }
 
 // GetMany retrieves multiple values from the cache by keys.
-func (g *GRPCSessionCache) GetMany(ctx context.Context, keys []string, opt ...types.SessionCacheOption) (map[string][]byte, error) {
+func (g *GRPCSessionCache) GetMany(ctx context.Context, keys []string, opt ...sessions.SessionStoreOption) (map[string][]byte, error) {
 	bag, err := applyOptions(ctx, opt...)
 	if err != nil {
 		return nil, err
 	}
 
-	// Apply prefix to keys if specified
-	prefixedKeys := make([]string, len(keys))
-	for i, key := range keys {
-		if bag.Prefix != "" {
-			prefixedKeys[i] = bag.Prefix + KeyPrefixDelimiter + key
-		} else {
-			prefixedKeys[i] = key
-		}
-	}
-
-	req := &v1.GetManyRequest{
-		SyncId: bag.SyncID,
-		Keys:   prefixedKeys,
-	}
-
-	stream, err := g.client.GetMany(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get many values from gRPC session cache: %w", err)
-	}
-
-	result := make(map[string][]byte)
-	for {
-		resp, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
+	results := make(map[string][]byte)
+	// TODO(kans): we may need to chunk if the values are too large for a single gRPC request.
+	// The GetMany interface may be backed by gPRC, memory, etc, so we need to handle pagination at the client level.
+	for keys := range Chunk(keys, maxKeysPerRequest) {
+		resp, err := g.client.GetMany(ctx, &v1.GetManyRequest{
+			SyncId: bag.SyncID,
+			Keys:   keys,
+			Prefix: bag.Prefix,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get many values from gRPC session cache: %w", err)
 		}
-		if bag.Prefix != "" {
-			resp.Key = strings.TrimPrefix(resp.Key, bag.Prefix+KeyPrefixDelimiter)
+
+		for _, item := range resp.Items {
+			results[item.Key] = item.Value
 		}
-		result[resp.Key] = resp.Value
 	}
 
-	return result, nil
+	return results, nil
 }
 
 // Set stores a value in the cache with the given key.
-func (g *GRPCSessionCache) Set(ctx context.Context, key string, value []byte, opt ...types.SessionCacheOption) error {
+func (g *GRPCSessionCache) Set(ctx context.Context, key string, value []byte, opt ...sessions.SessionStoreOption) error {
 	bag, err := applyOptions(ctx, opt...)
 	if err != nil {
 		return err
-	}
-
-	if bag.Prefix != "" {
-		key = bag.Prefix + KeyPrefixDelimiter + key
 	}
 
 	req := &v1.SetRequest{
 		SyncId: bag.SyncID,
 		Key:    key,
 		Value:  value,
+		Prefix: bag.Prefix,
 	}
 
 	_, err = g.client.Set(ctx, req)
@@ -237,49 +219,48 @@ func (g *GRPCSessionCache) Set(ctx context.Context, key string, value []byte, op
 }
 
 // SetMany stores multiple values in the cache.
-func (g *GRPCSessionCache) SetMany(ctx context.Context, values map[string][]byte, opt ...types.SessionCacheOption) error {
+func (g *GRPCSessionCache) SetMany(ctx context.Context, values map[string][]byte, opt ...sessions.SessionStoreOption) error {
 	bag, err := applyOptions(ctx, opt...)
 	if err != nil {
 		return err
 	}
 
-	// Apply prefix to keys if specified
-	prefixedValues := make(map[string][]byte)
-	for key, value := range values {
-		if bag.Prefix != "" {
-			prefixedValues[bag.Prefix+KeyPrefixDelimiter+key] = value
-		} else {
-			prefixedValues[key] = value
+	// TODO(kans): we may need to chunk if the values are too large for a single gRPC request.
+	allKeys := make([]string, 0, len(values))
+	for key := range values {
+		allKeys = append(allKeys, key)
+	}
+
+	for keys := range Chunk(allKeys, maxKeysPerRequest) {
+		chunkValues := make(map[string][]byte)
+		for _, key := range keys {
+			chunkValues[key] = values[key]
 		}
-	}
 
-	req := &v1.SetManyRequest{
-		SyncId: bag.SyncID,
-		Values: prefixedValues,
-	}
-
-	_, err = g.client.SetMany(ctx, req)
-	if err != nil {
-		return fmt.Errorf("failed to set many values in gRPC session cache: %w", err)
+		_, err = g.client.SetMany(ctx, &v1.SetManyRequest{
+			SyncId: bag.SyncID,
+			Values: chunkValues,
+			Prefix: bag.Prefix,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to set many values in gRPC session cache: %w", err)
+		}
 	}
 
 	return nil
 }
 
 // Delete removes a value from the cache by key.
-func (g *GRPCSessionCache) Delete(ctx context.Context, key string, opt ...types.SessionCacheOption) error {
+func (g *GRPCSessionCache) Delete(ctx context.Context, key string, opt ...sessions.SessionStoreOption) error {
 	bag, err := applyOptions(ctx, opt...)
 	if err != nil {
 		return err
 	}
 
-	if bag.Prefix != "" {
-		key = bag.Prefix + KeyPrefixDelimiter + key
-	}
-
 	req := &v1.DeleteRequest{
 		SyncId: bag.SyncID,
 		Key:    key,
+		Prefix: bag.Prefix,
 	}
 
 	_, err = g.client.Delete(ctx, req)
@@ -291,7 +272,7 @@ func (g *GRPCSessionCache) Delete(ctx context.Context, key string, opt ...types.
 }
 
 // Clear removes all values from the cache.
-func (g *GRPCSessionCache) Clear(ctx context.Context, opt ...types.SessionCacheOption) error {
+func (g *GRPCSessionCache) Clear(ctx context.Context, opt ...sessions.SessionStoreOption) error {
 	bag, err := applyOptions(ctx, opt...)
 	if err != nil {
 		return err
@@ -299,6 +280,7 @@ func (g *GRPCSessionCache) Clear(ctx context.Context, opt ...types.SessionCacheO
 
 	req := &v1.ClearRequest{
 		SyncId: bag.SyncID,
+		Prefix: bag.Prefix,
 	}
 
 	_, err = g.client.Clear(ctx, req)
@@ -313,14 +295,10 @@ func (g *GRPCSessionCache) Clear(ctx context.Context, opt ...types.SessionCacheO
 // Note: The gRPC service doesn't have a GetAll method, so we'll need to implement this
 // by getting all keys first and then using GetMany. This is a limitation of the current
 // gRPC service definition.
-func (g *GRPCSessionCache) GetAll(ctx context.Context, opt ...types.SessionCacheOption) (map[string][]byte, error) {
+func (g *GRPCSessionCache) GetAll(ctx context.Context, opt ...sessions.SessionStoreOption) (map[string][]byte, error) {
 	bag, err := applyOptions(ctx, opt...)
 	if err != nil {
 		return nil, err
-	}
-
-	if bag.Prefix != "" {
-		return nil, fmt.Errorf("prefix is not supported for GetAll in gRPC session cache")
 	}
 
 	result := make(map[string][]byte)
@@ -330,44 +308,24 @@ func (g *GRPCSessionCache) GetAll(ctx context.Context, opt ...types.SessionCache
 		req := &v1.GetAllRequest{
 			SyncId:    bag.SyncID,
 			PageToken: pageToken,
+			Prefix:    bag.Prefix,
 		}
 
-		stream, err := g.client.GetAll(ctx, req)
+		resp, err := g.client.GetAll(ctx, req)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get all values from gRPC session cache: %w", err)
 		}
 
-		nextToken := ""
-		for {
-			resp, err := stream.Recv()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return nil, fmt.Errorf("failed to get all values from gRPC session cache: %w", err)
-			}
-
-			if resp.NextPageToken != "" {
-				nextToken = resp.NextPageToken
-			}
-
-			key := resp.Key
-			if key != "" {
-				result[key] = resp.Value
-			}
+		for _, item := range resp.Items {
+			result[item.Key] = item.Value
 		}
 
-		if nextToken == "" {
+		// Check if there are more pages
+		if resp.PageToken == "" {
 			break
 		}
-		pageToken = nextToken
+		pageToken = resp.PageToken
 	}
 
 	return result, nil
-}
-
-// Close performs any necessary cleanup when the cache is no longer needed.
-func (g *GRPCSessionCache) Close(ctx context.Context) error {
-	// No cleanup needed for gRPC client
-	return nil
 }

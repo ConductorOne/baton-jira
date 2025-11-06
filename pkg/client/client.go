@@ -2,7 +2,9 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 
 	jira "github.com/conductorone/go-jira/v2/cloud"
@@ -10,6 +12,8 @@ import (
 
 type AuditRecord = jira.AuditRecord
 type AuditOptions = jira.AuditOptions
+
+const GetUsers = "/rest/api/3/users/search?%s"
 
 type Client struct {
 	jira         *jira.Client
@@ -62,4 +66,27 @@ func New(url string, httpClient *http.Client) (*Client, error) {
 	return &Client{
 		jira: jira,
 	}, nil
+}
+
+// FindUsersV3 calls the Jira API v3 /rest/api/3/users/search endpoint directly
+// This endpoint returns all users including inactive ones, unlike the Find method in the go-jira library.
+func (c *Client) FindUsersV3(ctx context.Context, startAt, maxResults int) ([]jira.User, *jira.Response, error) {
+	query := url.Values{}
+	query.Set("startAt", fmt.Sprintf("%d", startAt))
+	query.Set("maxResults", fmt.Sprintf("%d", maxResults))
+
+	apiURL := fmt.Sprintf(GetUsers, query.Encode())
+
+	req, err := c.Jira().NewRequest(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var users []jira.User
+	resp, err := c.Jira().Do(req, &users)
+	if err != nil {
+		return nil, resp, err
+	}
+
+	return users, resp, nil
 }

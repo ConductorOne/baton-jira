@@ -142,7 +142,8 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 			}
 		}
 	case jiraUsers:
-		users, resp, err := u.client.Jira().User.Find(ctx, "", jira.WithMaxResults(resourcePageSize), jira.WithStartAt(int(offset)))
+		// Use API v3 endpoint to get all users including inactive ones
+		users, resp, err := u.client.FindUsersV3(ctx, int(offset), resourcePageSize)
 		if err != nil {
 			var statusCode *int
 			if resp != nil {

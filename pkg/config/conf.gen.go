@@ -15,7 +15,7 @@ type Jira struct {
 	AtlassianApiToken string `mapstructure:"atlassian-api-token"`
 }
 
-func (c* Jira) findFieldByTag(tagValue string) (any, bool) {
+func (c *Jira) findFieldByTag(tagValue string) (any, bool) {
 	v := reflect.ValueOf(c).Elem() // Dereference pointer to struct
 	t := v.Type()
 
@@ -47,11 +47,13 @@ func (c *Jira) GetString(fieldName string) string {
 	if !ok {
 		return ""
 	}
-	t, ok := v.(string)
-	if !ok {
-		panic("wrong type")
+	if t, ok := v.(string); ok {
+		return t
 	}
-	return t
+	if t, ok := v.([]byte); ok {
+		return string(t)
+	}
+	panic("wrong type")
 }
 
 func (c *Jira) GetInt(fieldName string) int {

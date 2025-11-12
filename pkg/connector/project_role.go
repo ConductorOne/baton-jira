@@ -70,7 +70,7 @@ func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2
 		return nil, nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
-	project, err := u.client.GetProjectFromSessionStore(ctx, attrs.Session, projectID)
+	project, err := u.client.GetProject(ctx, attrs.Session, projectID)
 	if err != nil {
 		return nil, nil, err
 	}

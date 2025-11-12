@@ -28,7 +28,7 @@ type projectResourceType struct {
 	skipProjectParticipants bool
 }
 
-func projectResource(ctx context.Context, project *jira.Project) (*v2.Resource, error) {
+func projectResource(_ context.Context, project *jira.Project) (*v2.Resource, error) {
 	resource, err := rs.NewResource(project.Name, resourceTypeProject, project.ID)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 }
 
 func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, attrs rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
-	project, err := p.client.GetProjectFromSessionStore(ctx, attrs.Session, resource.Id.Resource)
+	project, err := p.client.GetProject(ctx, attrs.Session, resource.Id.Resource)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -71,7 +71,7 @@ func New(url string, httpClient *http.Client) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetProjectFromSessionStore(ctx context.Context, ss sessions.SessionStore, projectID string) (*jira.Project, error) {
+func (c *Client) GetProject(ctx context.Context, ss sessions.SessionStore, projectID string) (*jira.Project, error) {
 	project, found, err := session.GetJSON[*jira.Project](ctx, ss, projectID, projectsNamespace)
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func (c *Client) GetRoles(ctx context.Context, ss sessions.SessionStore, roleIDs
 	return cachedRoles, nil
 }
 
-func (c *Client) GetProject(ctx context.Context, projectID string) (*jira.Project, error) {
+func (c *Client) GetProjectForTicket(ctx context.Context, projectID string) (*jira.Project, error) {
 	project, ok := c.projectCache.Load(projectID)
 	if ok {
 		return project.(*jira.Project), nil

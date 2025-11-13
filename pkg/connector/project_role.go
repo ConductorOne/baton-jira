@@ -8,7 +8,6 @@ import (
 	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -63,30 +62,22 @@ func projectRoleBuilder(c *client.Client) *projectRoleResourceType {
 	}
 }
 
-func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2.Resource, attrs rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 
 	projectID, roleID, err := parseProjectRoleID(resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to parse project role ID", nil)
+		return nil, nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
-	project, resp, err := u.client.GetProject(ctx, projectID)
+	project, err := u.client.GetProject(ctx, attrs.Session, projectID)
 	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
-		}
-		return nil, "", nil, wrapError(err, "failed to get project", statusCode)
+		return nil, nil, err
 	}
 
-	role, resp, err := u.client.GetRole(ctx, roleID)
+	role, err := u.client.GetRole(ctx, attrs.Session, roleID)
 	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
-		}
-		return nil, "", nil, wrapError(err, "failed to get role", statusCode)
+		return nil, nil, err
 	}
 
 	assigmentOptions := []ent.EntitlementOption{
@@ -96,15 +87,15 @@ func (u *projectRoleResourceType) Entitlements(ctx context.Context, resource *v2
 	}
 	rv = append(rv, ent.NewAssignmentEntitlement(resource, assignedEntitlement, assigmentOptions...))
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resource, attrs rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
 	l := ctxzap.Extract(ctx)
 
 	projectID, roleID, err := parseProjectRoleID(resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to parse project role ID", nil)
+		return nil, nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
 	var rv []*v2.Grant
@@ -115,7 +106,7 @@ func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resou
 		if resp != nil {
 			statusCode = &resp.StatusCode
 		}
-		return nil, "", nil, wrapError(err, "failed to get role actors for project", statusCode)
+		return nil, nil, wrapError(err, "failed to get role actors for project", statusCode)
 	}
 
 	for _, actor := range projectRoleActors {
@@ -146,13 +137,13 @@ func (p *projectRoleResourceType) Grants(ctx context.Context, resource *v2.Resou
 		rv = append(rv, g)
 	}
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, token *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, offset, err := parsePageToken(token.Token, &v2.ResourceId{ResourceType: resourceTypeProjectRole.Id})
+func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, attrs rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
+	bag, offset, err := parsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeProjectRole.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	projects, resp, err := p.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
@@ -161,52 +152,52 @@ func (p *projectRoleResourceType) List(ctx context.Context, _ *v2.ResourceId, to
 		if resp != nil {
 			statusCode = &resp.StatusCode
 		}
-		return nil, "", nil, wrapError(err, "failed to get projects", statusCode)
+		return nil, nil, wrapError(err, "failed to get projects", statusCode)
 	}
 
 	var ret []*v2.Resource
-	for _, prj := range projects {
-		project, resp, err := p.client.GetProject(ctx, prj.ID)
-		if err != nil {
-			var statusCode *int
-			if resp != nil {
-				statusCode = &resp.StatusCode
-			}
-			return nil, "", nil, wrapError(err, fmt.Sprintf("failed to get project %s", prj.ID), statusCode)
-		}
+	projectIDs := make([]string, 0, len(projects))
+	for _, project := range projects {
+		projectIDs = append(projectIDs, project.ID)
+	}
+	projectMap, err := p.client.GetProjects(ctx, attrs.Session, projectIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, project := range projectMap {
+		roleIDs := make([]int, 0, len(project.Roles))
 		for _, roleLink := range project.Roles {
-			roleId, err := parseRoleIdFromRoleLink(roleLink)
+			roleID, err := parseRoleIdFromRoleLink(roleLink)
 			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to parse role id from role link", nil)
+				return nil, nil, wrapError(err, "failed to parse role id from role link", nil)
 			}
+			roleIDs = append(roleIDs, roleID)
+		}
 
-			role, resp, err := p.client.GetRole(ctx, roleId)
-			if err != nil {
-				var statusCode *int
-				if resp != nil {
-					statusCode = &resp.StatusCode
-				}
-				return nil, "", nil, wrapError(err, "failed to get role", statusCode)
-			}
+		projectRoles, err := p.client.GetRoles(ctx, attrs.Session, roleIDs)
+		if err != nil {
+			return nil, nil, err
+		}
 
+		for _, role := range projectRoles {
 			prr, err := projectRoleResource(project, role)
 			if err != nil {
-				return nil, "", nil, wrapError(err, "failed to create project role resource", nil)
+				return nil, nil, wrapError(err, "failed to create project role resource", nil)
 			}
 			ret = append(ret, prr)
 		}
 	}
 
 	if isLastPage(len(projects), resourcePageSize) {
-		return ret, "", nil, nil
+		return ret, nil, nil
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return ret, nextPage, nil, nil
+	return ret, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 }
 
 func (p *projectRoleResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {

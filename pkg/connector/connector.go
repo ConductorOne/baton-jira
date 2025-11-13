@@ -5,11 +5,17 @@ import (
 
 	"github.com/conductorone/baton-jira/pkg/client"
 	"github.com/conductorone/baton-jira/pkg/client/atlassianclient"
+	cfg "github.com/conductorone/baton-jira/pkg/config"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	jira "github.com/conductorone/go-jira/v2/cloud"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
+
+var wrapError = client.WrapError
 
 type (
 	Jira struct {
@@ -45,6 +51,39 @@ type (
 	}
 )
 
+func New(ctx context.Context, jc *cfg.Jira, opts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
+	l := ctxzap.Extract(ctx)
+
+	builder := JiraBasicAuthBuilder{
+		Base: &JiraOptions{
+			Url:         jc.JiraUrl,
+			ProjectKeys: jc.JiraProjectKeys,
+		},
+		Username: jc.JiraEmail,
+		ApiToken: jc.JiraApiToken,
+	}
+
+	if jc.AtlassianOrgid != "" && jc.AtlassianApiToken != "" {
+		builder.Base.AtlassianBuilder = &AtlassianAuthBuilder{
+			OrganizationId: jc.AtlassianOrgid,
+			AccessToken:    jc.AtlassianApiToken,
+		}
+	}
+
+	jiraConnector, err := builder.New(ctx, jc.SkipProjectParticipants, jc.SkipCustomerUser)
+	if err != nil {
+		l.Error("error creating connector", zap.Error(err))
+		return nil, nil, err
+	}
+
+	builderOpts := make([]connectorbuilder.Opt, 0)
+	if jc.Ticketing {
+		builderOpts = append(builderOpts, connectorbuilder.WithTicketingEnabled())
+	}
+
+	return jiraConnector, builderOpts, nil
+}
+
 func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
 	transport := jira.BasicAuthTransport{
 		Username: b.Username,
@@ -53,7 +92,7 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 
 	c, err := client.New(b.Base.Url, transport.Client())
 	if err != nil {
-		return nil, wrapError(err, "error creating jira client", nil)
+		return nil, client.WrapError(err, "error creating jira client", nil)
 	}
 
 	jc := &Jira{
@@ -73,7 +112,7 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 		atlassianclient.WithOrganizationID(b.Base.AtlassianBuilder.OrganizationId),
 	)
 	if err != nil {
-		return nil, wrapError(err, "error creating atlassian client", nil)
+		return nil, client.WrapError(err, "error creating atlassian client", nil)
 	}
 
 	jc.atlassianClient = ac
@@ -103,8 +142,8 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 	return nil, nil
 }
 
-func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	return []connectorbuilder.ResourceSyncer{
+func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
+	return []connectorbuilder.ResourceSyncerV2{
 		userBuilder(o.client, o.atlassianClient, o.skipCustomerUser, o.siteIDs),
 		groupBuilder(o.client, o.atlassianClient, o.siteIDs),
 		projectRoleBuilder(o.client),

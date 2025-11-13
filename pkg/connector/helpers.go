@@ -2,7 +2,6 @@ package connector
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 	"regexp"
 	"slices"
@@ -12,32 +11,7 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	jira "github.com/conductorone/go-jira/v2/cloud"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
-
-func wrapError(err error, message string, statusCode *int) error {
-	if statusCode == nil {
-		return fmt.Errorf("jira-connector: %s: %w", message, err)
-	}
-
-	switch *statusCode {
-	case http.StatusRequestTimeout:
-		return status.Error(codes.DeadlineExceeded, fmt.Sprintf("%s: %v", message, err))
-	case http.StatusTooManyRequests, http.StatusServiceUnavailable:
-		return status.Error(codes.Unavailable, fmt.Sprintf("%s: %v", message, err))
-	case http.StatusUnauthorized:
-		return status.Error(codes.Unauthenticated, fmt.Sprintf("%s: %v", message, err))
-	case http.StatusNotFound:
-		return status.Error(codes.NotFound, fmt.Sprintf("%s: %v", message, err))
-	case http.StatusForbidden:
-		return status.Error(codes.PermissionDenied, fmt.Sprintf("%s: %v", message, err))
-	case http.StatusNotImplemented:
-		return status.Error(codes.Unimplemented, fmt.Sprintf("%s: %v", message, err))
-	default:
-		return fmt.Errorf("jira-connector: %s: %w", message, err)
-	}
-}
 
 func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, int64, error) {
 	b := &pagination.Bag{}

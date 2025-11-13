@@ -6,8 +6,6 @@ import (
 
 	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -30,7 +28,7 @@ type projectResourceType struct {
 	skipProjectParticipants bool
 }
 
-func projectResource(ctx context.Context, project *jira.Project) (*v2.Resource, error) {
+func projectResource(_ context.Context, project *jira.Project) (*v2.Resource, error) {
 	resource, err := rs.NewResource(project.Name, resourceTypeProject, project.ID)
 	if err != nil {
 		return nil, err
@@ -51,7 +49,7 @@ func projectBuilder(c *client.Client, skipProjectParticipants bool) *projectReso
 	}
 }
 
-func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Resource, attrs rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 
 	var assigmentOptions []ent.EntitlementOption
@@ -72,55 +70,51 @@ func (u *projectResourceType) Entitlements(ctx context.Context, resource *v2.Res
 	}
 	rv = append(rv, ent.NewAssignmentEntitlement(resource, leadEntitlement, assigmentOptions...))
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	project, resp, err := p.client.GetProject(ctx, resource.Id.Resource)
+func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource, attrs rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	project, err := p.client.GetProject(ctx, attrs.Session, resource.Id.Resource)
 	if err != nil {
-		var statusCode *int
-		if resp != nil {
-			statusCode = &resp.StatusCode
-		}
-		return nil, "", nil, wrapError(err, "failed to get project", statusCode)
+		return nil, nil, err
 	}
 
 	var rv []*v2.Grant
 
-	bag, offset, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeProject.Id})
+	bag, offset, err := parsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeProject.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	if offset == 0 {
 		// handle grants without pagination
 		leadGrants, err := p.getLeadGrants(ctx, resource, project)
 		if err != nil {
-			return nil, "", nil, wrapError(err, "failed to get lead grants", nil)
+			return nil, nil, wrapError(err, "failed to get lead grants", nil)
 		}
 		rv = append(rv, leadGrants...)
 	}
 
 	if p.skipProjectParticipants {
-		return rv, "", nil, nil
+		return rv, nil, nil
 	}
 
 	participateGrants, isLastPage, err := p.getGrantsForProjectUsers(ctx, resource, project, int(offset), resourcePageSize)
 	if err != nil {
-		return nil, "", nil, wrapError(err, "failed to get participate grants", nil)
+		return nil, nil, wrapError(err, "failed to get participate grants", nil)
 	}
 	rv = append(rv, participateGrants...)
 
 	if isLastPage {
-		return rv, "", nil, nil
+		return rv, nil, nil
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return rv, nextPage, nil, nil
+	return rv, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 }
 
 func (p *projectResourceType) getLeadGrants(ctx context.Context, resource *v2.Resource, project *jira.Project) ([]*v2.Grant, error) {
@@ -172,10 +166,10 @@ func (p *projectResourceType) getGrantsForProjectUsers(ctx context.Context, reso
 	return rv, lastPage, nil
 }
 
-func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, attrs rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
+	bag, offset, err := parsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeProject.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	projects, resp, err := u.client.Jira().Project.Find(ctx, jira.WithStartAt(int(offset)), jira.WithMaxResults(resourcePageSize))
@@ -184,7 +178,7 @@ func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pag
 		if resp != nil {
 			statusCode = &resp.StatusCode
 		}
-		return nil, "", nil, wrapError(err, "failed to get projects", statusCode)
+		return nil, nil, wrapError(err, "failed to get projects", statusCode)
 	}
 
 	var resources []*v2.Resource
@@ -195,20 +189,20 @@ func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pag
 		})
 
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		resources = append(resources, resource)
 	}
 
 	if isLastPage(len(projects), resourcePageSize) {
-		return resources, "", nil, nil
+		return resources, nil, nil
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return resources, nextPage, nil, nil
+	return resources, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 }

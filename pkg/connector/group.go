@@ -71,7 +71,7 @@ func groupBuilder(c *client.Client, ac *atlassianclient.AtlassianClient, siteIDs
 	}
 }
 
-func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
 	var rv []*v2.Entitlement
 
 	assigmentOptions := []ent.EntitlementOption{
@@ -83,13 +83,13 @@ func (u *groupResourceType) Entitlements(ctx context.Context, resource *v2.Resou
 	en := ent.NewAssignmentEntitlement(resource, memberEntitlement, assigmentOptions...)
 	rv = append(rv, en)
 
-	return rv, "", nil, nil
+	return rv, nil, nil
 }
 
-func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, attrs rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	bag, offset, err := parsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	groupMembers, resp, err := u.client.Jira().Group.GetGroupMembers(
@@ -103,7 +103,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 		if resp != nil {
 			statusCode = &resp.StatusCode
 		}
-		return nil, "", nil, wrapError(err, "failed to get group members", statusCode)
+		return nil, nil, wrapError(err, "failed to get group members", statusCode)
 	}
 
 	var rv []*v2.Grant
@@ -119,7 +119,7 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 			AccountType:  groupMember.AccountType,
 		})
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		grant := grant.NewGrant(resource, memberEntitlement, user.Id)
@@ -127,23 +127,23 @@ func (u *groupResourceType) Grants(ctx context.Context, resource *v2.Resource, p
 	}
 
 	if isLastPage(len(groupMembers), resourcePageSize) {
-		return rv, "", nil, nil
+		return rv, nil, nil
 	}
 
 	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return rv, nextPage, nil, nil
+	return rv, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 }
 
-func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, attrs rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	var resources []*v2.Resource
 
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
+	bag, offset, err := parsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeGroup.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	switch rId := bag.ResourceTypeID(); rId {
@@ -167,7 +167,7 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 			if resp != nil {
 				statusCode = &resp.StatusCode
 			}
-			return nil, "", nil, wrapError(err, "failed to list groups", statusCode)
+			return nil, nil, wrapError(err, "failed to list groups", statusCode)
 		}
 
 		for i, g := range groups {
@@ -182,7 +182,7 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 			resource, err := groupResource(ctx, &group)
 
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 
 			resources = append(resources, resource)
@@ -191,22 +191,22 @@ func (u *groupResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagin
 		if !isLastPage(len(groups), resourcePageSize) {
 			nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
-			return resources, nextPage, nil, nil
+			return resources, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 		}
 		bag.Pop()
 	case siteGroups:
-		return u.listSiteGroups(ctx, nil, p)
+		return u.listSiteGroups(ctx, nil, attrs)
 	default:
-		return resources, "", nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
+		return resources, nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
 	}
 
 	pageToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
-	return resources, pageToken, nil, nil
+	return resources, &rs.SyncOpResults{NextPageToken: pageToken}, nil
 }
 
 func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
@@ -306,41 +306,41 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 	return nil, nil
 }
 
-func (u *groupResourceType) listSiteGroups(ctx context.Context, _ *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (u *groupResourceType) listSiteGroups(ctx context.Context, _ *v2.ResourceId, attrs rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	var (
 		resources     []*v2.Resource
 		nextPageToken string
 		groups        []atlassianclient.Group
 	)
-	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: siteGroups})
+	bag, pageToken, err := getToken(&attrs.PageToken, &v2.ResourceId{ResourceType: siteGroups})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	groups, nextPageToken, err = u.atlassianClient.ListGroups(ctx, bag.ResourceID(), pageToken)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	for _, group := range groups {
 		groupResource, err := parseIntoGroupResource(group)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 		resources = append(resources, groupResource)
 	}
 
 	err = bag.Next(nextPageToken)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	nextPageToken, err = bag.Marshal()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return resources, nextPageToken, nil, nil
+	return resources, &rs.SyncOpResults{NextPageToken: nextPageToken}, nil
 }
 
 func parseIntoGroupResource(group atlassianclient.Group) (*v2.Resource, error) {

@@ -39,7 +39,7 @@ type (
 	}
 )
 
-var _ connectorbuilder.AccountManager = &userResourceType{}
+var _ connectorbuilder.AccountManagerLimited = &userResourceType{}
 
 func getResourceTypeAnnotation() annotations.Annotations {
 	annotations := annotations.Annotations{}
@@ -111,20 +111,20 @@ func userBuilder(c *client.Client, ac *atlassianclient.AtlassianClient, skipCust
 	}
 }
 
-func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (u *userResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Entitlement, *rs.SyncOpResults, error) {
+	return nil, nil, nil
 }
 
-func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (u *userResourceType) Grants(ctx context.Context, resource *v2.Resource, _ rs.SyncOpAttrs) ([]*v2.Grant, *rs.SyncOpResults, error) {
+	return nil, nil, nil
 }
 
-func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, attrs rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	var resources []*v2.Resource
 
-	bag, offset, err := parsePageToken(p.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	bag, offset, err := parsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	switch rId := bag.ResourceTypeID(); rId {
@@ -149,7 +149,7 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 			if resp != nil {
 				statusCode = &resp.StatusCode
 			}
-			return nil, "", nil, wrapError(err, "failed to list users", statusCode)
+			return nil, nil, wrapError(err, "failed to list users", statusCode)
 		}
 
 		for i := range users {
@@ -165,7 +165,7 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 			resource, err := userResource(ctx, &users[i])
 
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 
 			resources = append(resources, resource)
@@ -174,22 +174,22 @@ func (u *userResourceType) List(ctx context.Context, _ *v2.ResourceId, p *pagina
 		if !isLastPage(len(users), resourcePageSize) {
 			nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
-			return resources, nextPage, nil, nil
+			return resources, &rs.SyncOpResults{NextPageToken: nextPage}, nil
 		}
 		bag.Pop()
 	case siteUsers:
-		return u.listSiteUsers(ctx, nil, p)
+		return u.listSiteUsers(ctx, nil, attrs)
 	default:
-		return resources, "", nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
+		return resources, nil, fmt.Errorf("invalid resourcetypeID: %s", rId)
 	}
 
 	pageToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
-	return resources, pageToken, nil, nil
+	return resources, &rs.SyncOpResults{NextPageToken: pageToken}, nil
 }
 
 func (o *userResourceType) CreateAccountCapabilityDetails(ctx context.Context) (*v2.CredentialDetailsAccountProvisioning, annotations.Annotations, error) {
@@ -270,41 +270,41 @@ func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBod
 	}, nil
 }
 
-func (b *userResourceType) listSiteUsers(ctx context.Context, _ *v2.ResourceId, pToken *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (b *userResourceType) listSiteUsers(ctx context.Context, _ *v2.ResourceId, attrs rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {
 	var (
 		resources     []*v2.Resource
 		nextPageToken string
 		users         []atlassianclient.User
 	)
 
-	bag, pageToken, err := getToken(pToken, &v2.ResourceId{ResourceType: siteUsers})
+	bag, pageToken, err := getToken(&attrs.PageToken, &v2.ResourceId{ResourceType: siteUsers})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	users, nextPageToken, err = b.atlassianClient.ListUsers(ctx, bag.ResourceID(), pageToken)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	for _, user := range users {
 		userResource, err := parseIntoUserResource(user)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 		resources = append(resources, userResource)
 	}
 
 	err = bag.Next(nextPageToken)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	nextPageToken, err = bag.Marshal()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
-	return resources, nextPageToken, nil, nil
+	return resources, &rs.SyncOpResults{NextPageToken: nextPageToken}, nil
 }
 
 func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {

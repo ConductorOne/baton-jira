@@ -2,15 +2,19 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	jira "github.com/conductorone/go-jira/v2/cloud"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,6 +26,92 @@ const GetUsers = "/rest/api/3/users/search?%s"
 
 var rolesNamespace = sessions.WithPrefix("role")
 var projectsNamespace = sessions.WithPrefix("project")
+
+type tenantInfo struct {
+	CloudID string `json:"cloudId"`
+}
+
+func isServiceAccount(email string) bool {
+	return strings.HasSuffix(email, "@serviceaccount.atlassian.com")
+}
+
+func resolveCloudID(ctx context.Context, jiraURL string) (string, error) {
+	if jiraURL == "" {
+		return "", fmt.Errorf("jira URL cannot be empty")
+	}
+
+	tenantInfoURL := fmt.Sprintf("%s/_edge/tenant_info", strings.TrimSuffix(jiraURL, "/"))
+
+	req, err := http.NewRequestWithContext(ctx, "GET", tenantInfoURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request for tenant info endpoint %s: %w", tenantInfoURL, err)
+	}
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to call tenant info endpoint %s (check if URL is accessible): %w", tenantInfoURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("tenant info endpoint %s returned status %d (expected 200), this may indicate the Jira URL is incorrect or the tenant info endpoint is unavailable", tenantInfoURL, resp.StatusCode)
+	}
+
+	var info tenantInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return "", fmt.Errorf("failed to decode tenant info response from %s: %w", tenantInfoURL, err)
+	}
+
+	if info.CloudID == "" {
+		return "", fmt.Errorf("cloudId field not found or empty in tenant info response from %s", tenantInfoURL)
+	}
+
+	return info.CloudID, nil
+}
+
+// resolveBaseURL determines the base URL to use for API calls.
+// Service accounts (example@serviceaccount.atlassian.com) use:
+//
+//	https://api.atlassian.com/ex/jira/<cloud-id>
+//
+// while regular accounts use:
+//
+//	https://<cloud-name>.atlassian.net.
+func resolveBaseURL(ctx context.Context, email, jiraURL string) (string, error) {
+	l := ctxzap.Extract(ctx)
+
+	if email == "" {
+		return "", fmt.Errorf("email cannot be empty")
+	}
+	if jiraURL == "" {
+		return "", fmt.Errorf("jira URL cannot be empty")
+	}
+
+	if !isServiceAccount(email) {
+		l.Debug("using regular account authentication", zap.String("email", email), zap.String("url", jiraURL))
+		return jiraURL, nil
+	}
+
+	l.Info("detected service account, resolving cloud ID", zap.String("email", email), zap.String("original_url", jiraURL))
+
+	cloudID, err := resolveCloudID(ctx, jiraURL)
+	if err != nil {
+		l.Error("failed to resolve cloud ID for service account",
+			zap.String("email", email),
+			zap.String("jira_url", jiraURL),
+			zap.Error(err))
+		return "", fmt.Errorf("failed to resolve cloud ID for service account %s: %w", email, err)
+	}
+
+	serviceURL := fmt.Sprintf("https://api.atlassian.com/ex/jira/%s", cloudID)
+	l.Info("resolved service account URL",
+		zap.String("email", email),
+		zap.String("cloud_id", cloudID),
+		zap.String("resolved_url", serviceURL))
+
+	return serviceURL, nil
+}
 
 func wrapJiraErrorResponse(err error, resp *jira.Response, message string) error {
 	var statusCode *int
@@ -61,6 +151,22 @@ type Client struct {
 
 func (c *Client) Jira() *jira.Client {
 	return c.jira
+}
+
+// ResolveURL resolves the appropriate base URL for service accounts vs regular accounts.
+func ResolveURL(ctx context.Context, email, jiraURL string) (string, error) {
+	return resolveBaseURL(ctx, email, jiraURL)
+}
+
+// NewWithAuth creates a new client with service account support. It resolves the appropriate
+// base URL based on the email (service accounts use a different API endpoint).
+func NewWithAuth(ctx context.Context, email, jiraURL string, httpClient *http.Client) (*Client, error) {
+	resolvedURL, err := resolveBaseURL(ctx, email, jiraURL)
+	if err != nil {
+		return nil, WrapError(err, "failed to resolve base URL", nil)
+	}
+
+	return New(resolvedURL, httpClient)
 }
 
 func New(url string, httpClient *http.Client) (*Client, error) {
@@ -142,9 +248,11 @@ func (c *Client) GetProjects(ctx context.Context, ss sessions.SessionStore, proj
 		newProjects[pid] = project
 		cachedProjects[pid] = project
 	}
-	err = session.SetManyJSON(ctx, ss, newProjects, projectsNamespace)
-	if err != nil {
-		return nil, err
+	if len(newProjects) > 0 {
+		err = session.SetManyJSON(ctx, ss, newProjects, projectsNamespace)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return cachedProjects, nil
 }
@@ -178,9 +286,11 @@ func (c *Client) GetRoles(ctx context.Context, ss sessions.SessionStore, roleIDs
 		newRoles[sRoleID] = role
 		cachedRoles[sRoleID] = role
 	}
-	err = session.SetManyJSON(ctx, ss, newRoles, rolesNamespace)
-	if err != nil {
-		return nil, err
+	if len(newRoles) > 0 {
+		err = session.SetManyJSON(ctx, ss, newRoles, rolesNamespace)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return cachedRoles, nil
 }

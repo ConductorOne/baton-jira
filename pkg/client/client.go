@@ -23,6 +23,7 @@ type AuditRecord = jira.AuditRecord
 type AuditOptions = jira.AuditOptions
 
 const GetUsers = "/rest/api/3/users/search?%s"
+const AtlassianServiceAccountBaseURL = "https://api.atlassian.com/ex/jira/%s"
 
 var rolesNamespace = sessions.WithPrefix("role")
 var projectsNamespace = sessions.WithPrefix("project")
@@ -35,7 +36,8 @@ func isServiceAccount(email string) bool {
 	return strings.HasSuffix(email, "@serviceaccount.atlassian.com")
 }
 
-func resolveCloudID(ctx context.Context, jiraURL string) (string, error) {
+// Will get the Cloud ID from the tenant info endpoint, only for service accounts.
+func resolveCloudID(ctx context.Context, jiraURL string, httpClient *http.Client) (string, error) {
 	if jiraURL == "" {
 		return "", fmt.Errorf("jira URL cannot be empty")
 	}
@@ -47,7 +49,10 @@ func resolveCloudID(ctx context.Context, jiraURL string) (string, error) {
 		return "", fmt.Errorf("failed to create request for tenant info endpoint %s: %w", tenantInfoURL, err)
 	}
 
-	httpClient := &http.Client{}
+	if httpClient == nil {
+		httpClient = &http.Client{}
+	}
+
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to call tenant info endpoint %s (check if URL is accessible): %w", tenantInfoURL, err)
@@ -70,7 +75,7 @@ func resolveCloudID(ctx context.Context, jiraURL string) (string, error) {
 	return info.CloudID, nil
 }
 
-// resolveBaseURL determines the base URL to use for API calls.
+// ResolveURL determines the base URL to use for API calls.
 // Service accounts (example@serviceaccount.atlassian.com) use:
 //
 //	https://api.atlassian.com/ex/jira/<cloud-id>
@@ -78,7 +83,7 @@ func resolveCloudID(ctx context.Context, jiraURL string) (string, error) {
 // while regular accounts use:
 //
 //	https://<cloud-name>.atlassian.net.
-func resolveBaseURL(ctx context.Context, email, jiraURL string) (string, error) {
+func ResolveURL(ctx context.Context, email, jiraURL string, httpClient *http.Client) (string, error) {
 	l := ctxzap.Extract(ctx)
 
 	if email == "" {
@@ -95,7 +100,7 @@ func resolveBaseURL(ctx context.Context, email, jiraURL string) (string, error) 
 
 	l.Info("detected service account, resolving cloud ID", zap.String("email", email), zap.String("original_url", jiraURL))
 
-	cloudID, err := resolveCloudID(ctx, jiraURL)
+	cloudID, err := resolveCloudID(ctx, jiraURL, httpClient)
 	if err != nil {
 		l.Error("failed to resolve cloud ID for service account",
 			zap.String("email", email),
@@ -104,7 +109,7 @@ func resolveBaseURL(ctx context.Context, email, jiraURL string) (string, error) 
 		return "", fmt.Errorf("failed to resolve cloud ID for service account %s: %w", email, err)
 	}
 
-	serviceURL := fmt.Sprintf("https://api.atlassian.com/ex/jira/%s", cloudID)
+	serviceURL := fmt.Sprintf(AtlassianServiceAccountBaseURL, cloudID)
 	l.Info("resolved service account URL",
 		zap.String("email", email),
 		zap.String("cloud_id", cloudID),
@@ -153,15 +158,10 @@ func (c *Client) Jira() *jira.Client {
 	return c.jira
 }
 
-// ResolveURL resolves the appropriate base URL for service accounts vs regular accounts.
-func ResolveURL(ctx context.Context, email, jiraURL string) (string, error) {
-	return resolveBaseURL(ctx, email, jiraURL)
-}
-
 // NewWithAuth creates a new client with service account support. It resolves the appropriate
 // base URL based on the email (service accounts use a different API endpoint).
 func NewWithAuth(ctx context.Context, email, jiraURL string, httpClient *http.Client) (*Client, error) {
-	resolvedURL, err := resolveBaseURL(ctx, email, jiraURL)
+	resolvedURL, err := ResolveURL(ctx, email, jiraURL, httpClient)
 	if err != nil {
 		return nil, WrapError(err, "failed to resolve base URL", nil)
 	}

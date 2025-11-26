@@ -59,12 +59,12 @@ func TestIsServiceAccount(t *testing.T) {
 
 func TestResolveCloudID(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupServer    func() *httptest.Server
-		jiraURL        string
+		name            string
+		setupServer     func() *httptest.Server
+		jiraURL         string
 		expectedCloudID string
-		expectError    bool
-		errorContains  string
+		expectError     bool
+		errorContains   string
 	}{
 		{
 			name: "successful cloud ID resolution",
@@ -74,7 +74,7 @@ func TestResolveCloudID(t *testing.T) {
 						t.Errorf("Expected path /_edge/tenant_info, got %s", r.URL.Path)
 					}
 					response := tenantInfo{CloudID: "test-cloud-id-123"}
-					json.NewEncoder(w).Encode(response)
+					_ = json.NewEncoder(w).Encode(response)
 				}))
 			},
 			expectedCloudID: "test-cloud-id-123",
@@ -94,7 +94,7 @@ func TestResolveCloudID(t *testing.T) {
 			name: "tenant info endpoint returns invalid JSON",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Write([]byte("invalid json"))
+					_, _ = w.Write([]byte("invalid json"))
 				}))
 			},
 			expectError:   true,
@@ -105,7 +105,7 @@ func TestResolveCloudID(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					response := tenantInfo{CloudID: ""}
-					json.NewEncoder(w).Encode(response)
+					_ = json.NewEncoder(w).Encode(response)
 				}))
 			},
 			expectError:   true,
@@ -158,12 +158,12 @@ func TestResolveCloudID(t *testing.T) {
 
 func TestResolveURL(t *testing.T) {
 	tests := []struct {
-		name         string
-		email        string
-		jiraURL      string
-		setupServer  func() *httptest.Server
-		expectedURL  string
-		expectError  bool
+		name          string
+		email         string
+		jiraURL       string
+		setupServer   func() *httptest.Server
+		expectedURL   string
+		expectError   bool
 		errorContains string
 	}{
 		{
@@ -174,12 +174,12 @@ func TestResolveURL(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:    "service account resolves cloud ID and constructs API URL",
-			email:   "test@serviceaccount.atlassian.com",
+			name:  "service account resolves cloud ID and constructs API URL",
+			email: "test@serviceaccount.atlassian.com",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					response := tenantInfo{CloudID: "abc123-def456-ghi789"}
-					json.NewEncoder(w).Encode(response)
+					_ = json.NewEncoder(w).Encode(response)
 				}))
 			},
 			expectedURL: "https://api.atlassian.com/ex/jira/abc123-def456-ghi789",
@@ -250,19 +250,17 @@ func TestResolveURL(t *testing.T) {
 }
 
 func TestResolveURLJiraURLWithTrailingSlash(t *testing.T) {
-	// Test that trailing slashes are handled correctly
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/_edge/tenant_info" {
 			t.Errorf("Expected path /_edge/tenant_info, got %s", r.URL.Path)
 		}
 		response := tenantInfo{CloudID: "test-cloud-id"}
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
 	ctx := context.Background()
 
-	// Test with trailing slash
 	resolvedURL, err := ResolveURL(ctx, "test@serviceaccount.atlassian.com", server.URL+"/", nil)
 	if err != nil {
 		t.Errorf("expected no error, but got %v", err)

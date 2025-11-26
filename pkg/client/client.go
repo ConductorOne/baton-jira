@@ -44,7 +44,7 @@ func resolveCloudID(ctx context.Context, jiraURL string, httpClient *http.Client
 
 	tenantInfoURL := fmt.Sprintf("%s/_edge/tenant_info", strings.TrimSuffix(jiraURL, "/"))
 
-	req, err := http.NewRequestWithContext(ctx, "GET", tenantInfoURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tenantInfoURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for tenant info endpoint %s: %w", tenantInfoURL, err)
 	}
@@ -60,7 +60,10 @@ func resolveCloudID(ctx context.Context, jiraURL string, httpClient *http.Client
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("tenant info endpoint %s returned status %d (expected 200), this may indicate the Jira URL is incorrect or the tenant info endpoint is unavailable", tenantInfoURL, resp.StatusCode)
+		return "", fmt.Errorf(
+			"tenant info endpoint %s returned status %d (expected 200), "+
+				"this may indicate the Jira URL is incorrect or the tenant info endpoint is unavailable",
+			tenantInfoURL, resp.StatusCode)
 	}
 
 	var info tenantInfo

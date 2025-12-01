@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/conductorone/baton-jira/pkg/client"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 )
 
 const (
@@ -196,30 +196,25 @@ func (c *AtlassianClient) doRequest(
 }
 
 func New(ctx context.Context, siteurl string, clientOptions ...Option) (*AtlassianClient, []string, error) {
-	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
+	wrapper, err := client.NewHTTPClient(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	cli, err := uhttp.NewBaseHttpClientWithContext(ctx, httpClient)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	client := AtlassianClient{
-		wrapper: cli,
+	atlassianClient := AtlassianClient{
+		wrapper: wrapper,
 	}
 
 	for _, opt := range clientOptions {
-		opt(&client)
+		opt(&atlassianClient)
 	}
 
-	siteIDs, err := client.getSiteID(ctx, siteurl)
+	siteIDs, err := atlassianClient.getSiteID(ctx, siteurl)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return &client, siteIDs, nil
+	return &atlassianClient, siteIDs, nil
 }
 
 func (c *AtlassianClient) getSiteID(ctx context.Context, siteUrl string) ([]string, error) {

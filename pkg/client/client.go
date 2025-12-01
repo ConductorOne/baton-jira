@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/types/sessions"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
@@ -24,6 +24,7 @@ type AuditOptions = jira.AuditOptions
 
 const GetUsers = "/rest/api/3/users/search?%s"
 const AtlassianServiceAccountBaseURL = "https://api.atlassian.com/ex/jira/%s"
+const TenantInfoEndpoint = "/_edge/tenant_info"
 
 var rolesNamespace = sessions.WithPrefix("role")
 var projectsNamespace = sessions.WithPrefix("project")
@@ -36,43 +37,63 @@ func isServiceAccount(email string) bool {
 	return strings.HasSuffix(email, "@serviceaccount.atlassian.com")
 }
 
+// NewHTTPClient creates a new uhttp client with logging enabled.
+func NewHTTPClient(ctx context.Context) (*uhttp.BaseHttpClient, error) {
+	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	wrapper, err := uhttp.NewBaseHttpClientWithContext(ctx, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP wrapper: %w", err)
+	}
+
+	return wrapper, nil
+}
+
 // Will get the Cloud ID from the tenant info endpoint, only for service accounts.
-func resolveCloudID(ctx context.Context, jiraURL string, httpClient *http.Client) (string, error) {
+func resolveCloudID(ctx context.Context, jiraURL string) (string, error) {
 	if jiraURL == "" {
-		return "", fmt.Errorf("jira URL cannot be empty")
+		return "", status.Error(codes.InvalidArgument, "jira URL cannot be empty")
 	}
 
-	tenantInfoURL := fmt.Sprintf("%s/_edge/tenant_info", strings.TrimSuffix(jiraURL, "/"))
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tenantInfoURL, nil)
+	parsedURL, err := url.Parse(jiraURL)
 	if err != nil {
-		return "", fmt.Errorf("failed to create request for tenant info endpoint %s: %w", tenantInfoURL, err)
+		return "", status.Error(codes.InvalidArgument, fmt.Sprintf("invalid jira URL: %v", err))
+	}
+	if parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return "", status.Error(codes.InvalidArgument, "jira URL must include scheme and host")
 	}
 
-	if httpClient == nil {
-		httpClient = &http.Client{}
-	}
-
-	resp, err := httpClient.Do(req)
+	wrapper, err := NewHTTPClient(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to call tenant info endpoint %s (check if URL is accessible): %w", tenantInfoURL, err)
+		return "", err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf(
-			"tenant info endpoint %s returned status %d (expected 200), "+
-				"this may indicate the Jira URL is incorrect or the tenant info endpoint is unavailable",
-			tenantInfoURL, resp.StatusCode)
+	tenantInfoURLStr := strings.TrimSuffix(jiraURL, "/") + TenantInfoEndpoint
+
+	tenantInfoURL, err := url.Parse(tenantInfoURLStr)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse tenant info URL %s: %w", tenantInfoURLStr, err)
+	}
+
+	req, err := wrapper.NewRequest(ctx, http.MethodGet, tenantInfoURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request for tenant info endpoint %s: %w", tenantInfoURLStr, err)
 	}
 
 	var info tenantInfo
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		return "", fmt.Errorf("failed to decode tenant info response from %s: %w", tenantInfoURL, err)
+	resp, err := wrapper.Do(req, uhttp.WithJSONResponse(&info))
+	if err != nil {
+		return "", fmt.Errorf("failed to call tenant info endpoint %s (check if URL is accessible): %w", tenantInfoURLStr, err)
+	}
+	if resp != nil {
+		defer resp.Body.Close()
 	}
 
 	if info.CloudID == "" {
-		return "", fmt.Errorf("cloudId field not found or empty in tenant info response from %s", tenantInfoURL)
+		return "", fmt.Errorf("cloudId field not found or empty in tenant info response from %s", tenantInfoURLStr)
 	}
 
 	return info.CloudID, nil
@@ -90,10 +111,18 @@ func ResolveURL(ctx context.Context, email, jiraURL string, httpClient *http.Cli
 	l := ctxzap.Extract(ctx)
 
 	if email == "" {
-		return "", fmt.Errorf("email cannot be empty")
+		return "", status.Error(codes.InvalidArgument, "email cannot be empty")
 	}
 	if jiraURL == "" {
-		return "", fmt.Errorf("jira URL cannot be empty")
+		return "", status.Error(codes.InvalidArgument, "jira URL cannot be empty")
+	}
+
+	parsedURL, err := url.Parse(jiraURL)
+	if err != nil {
+		return "", status.Error(codes.InvalidArgument, fmt.Sprintf("invalid jira URL: %v", err))
+	}
+	if parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return "", status.Error(codes.InvalidArgument, "jira URL must include scheme and host")
 	}
 
 	if !isServiceAccount(email) {
@@ -101,9 +130,9 @@ func ResolveURL(ctx context.Context, email, jiraURL string, httpClient *http.Cli
 		return jiraURL, nil
 	}
 
-	l.Info("detected service account, resolving cloud ID", zap.String("email", email), zap.String("original_url", jiraURL))
+	l.Debug("detected service account, resolving cloud ID", zap.String("email", email), zap.String("original_url", jiraURL))
 
-	cloudID, err := resolveCloudID(ctx, jiraURL, httpClient)
+	cloudID, err := resolveCloudID(ctx, jiraURL)
 	if err != nil {
 		l.Error("failed to resolve cloud ID for service account",
 			zap.String("email", email),
@@ -113,7 +142,7 @@ func ResolveURL(ctx context.Context, email, jiraURL string, httpClient *http.Cli
 	}
 
 	serviceURL := fmt.Sprintf(AtlassianServiceAccountBaseURL, cloudID)
-	l.Info("resolved service account URL",
+	l.Debug("resolved service account URL",
 		zap.String("email", email),
 		zap.String("cloud_id", cloudID),
 		zap.String("resolved_url", serviceURL))

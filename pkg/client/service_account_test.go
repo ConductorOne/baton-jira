@@ -73,6 +73,7 @@ func TestResolveCloudID(t *testing.T) {
 					if r.URL.Path != "/_edge/tenant_info" {
 						t.Errorf("Expected path /_edge/tenant_info, got %s", r.URL.Path)
 					}
+					w.Header().Set("Content-Type", "application/json")
 					response := tenantInfo{CloudID: "test-cloud-id-123"}
 					_ = json.NewEncoder(w).Encode(response)
 				}))
@@ -88,7 +89,7 @@ func TestResolveCloudID(t *testing.T) {
 				}))
 			},
 			expectError:   true,
-			errorContains: "returned status 404",
+			errorContains: "NotFound",
 		},
 		{
 			name: "tenant info endpoint returns invalid JSON",
@@ -98,12 +99,13 @@ func TestResolveCloudID(t *testing.T) {
 				}))
 			},
 			expectError:   true,
-			errorContains: "failed to decode",
+			errorContains: "unexpected content type",
 		},
 		{
 			name: "tenant info endpoint returns empty cloud ID",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
 					response := tenantInfo{CloudID: ""}
 					_ = json.NewEncoder(w).Encode(response)
 				}))
@@ -132,7 +134,7 @@ func TestResolveCloudID(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			cloudID, err := resolveCloudID(ctx, testJiraURL, nil)
+			cloudID, err := resolveCloudID(ctx, testJiraURL)
 
 			if tt.expectError {
 				if err == nil {
@@ -179,6 +181,7 @@ func TestResolveURL(t *testing.T) {
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					response := tenantInfo{CloudID: "abc123-def456-ghi789"}
+					w.Header().Set("Content-Type", "application/json")
 					_ = json.NewEncoder(w).Encode(response)
 				}))
 			},
@@ -254,6 +257,7 @@ func TestResolveURLJiraURLWithTrailingSlash(t *testing.T) {
 		if r.URL.Path != "/_edge/tenant_info" {
 			t.Errorf("Expected path /_edge/tenant_info, got %s", r.URL.Path)
 		}
+		w.Header().Set("Content-Type", "application/json")
 		response := tenantInfo{CloudID: "test-cloud-id"}
 		_ = json.NewEncoder(w).Encode(response)
 	}))

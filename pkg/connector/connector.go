@@ -92,12 +92,7 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 
 	httpClient := transport.Client()
 
-	resolvedURL, err := client.ResolveURL(ctx, b.Username, b.Base.Url, httpClient)
-	if err != nil {
-		return nil, client.WrapError(err, "failed to resolve URL", nil)
-	}
-
-	c, err := client.New(resolvedURL, httpClient)
+	c, err := client.NewWithAuth(ctx, b.Username, b.Base.Url, httpClient)
 	if err != nil {
 		return nil, client.WrapError(err, "error creating jira client", nil)
 	}
@@ -114,7 +109,7 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 	}
 
 	ac, siteIDs, err := atlassianclient.New(ctx,
-		resolvedURL,
+		b.Base.Url,
 		atlassianclient.WithAccessToken(b.Base.AtlassianBuilder.AccessToken),
 		atlassianclient.WithOrganizationID(b.Base.AtlassianBuilder.OrganizationId),
 	)

@@ -90,7 +90,9 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 		APIToken: b.ApiToken,
 	}
 
-	c, err := client.New(b.Base.Url, transport.Client())
+	httpClient := transport.Client()
+
+	c, err := client.NewWithAuth(ctx, b.Username, b.Base.Url, httpClient)
 	if err != nil {
 		return nil, client.WrapError(err, "error creating jira client", nil)
 	}
@@ -106,6 +108,9 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 		return jc, nil
 	}
 
+	// Note: AtlassianClient uses the original URL (not the resolved service account URL)
+	// because it authenticates via Bearer token and uses the Atlassian Admin API endpoints,
+	// not the Jira API endpoints. The original URL is needed to match workspace hostUrl.
 	ac, siteIDs, err := atlassianclient.New(ctx,
 		b.Base.Url,
 		atlassianclient.WithAccessToken(b.Base.AtlassianBuilder.AccessToken),

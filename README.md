@@ -32,7 +32,7 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more about the
 
 # Prerequisites
 
-This connector uses Jira Basic Auth, requiring an email address and API token. To use this connector, you need:
+This connector uses Jira Basic Auth, requiring an email address and API token. The connector supports both **regular user accounts** and **Atlassian service accounts** (emails look like `<my-service-account>@serviceaccount.atlassian.com`). To use this connector, you need:
 
 1. **Appropriate Permissions**: The account used needs permissions for the operations below (admin privileges provide all these, but more granular permissions can work too):
    - View users, groups, and projects

@@ -669,17 +669,6 @@ func WithCustomField(id string, value interface{}) FieldOption {
 	}
 }
 
-func WithComponents(componentIDs ...string) FieldOption {
-	return func(issue *jira.Issue) {
-		if len(issue.Fields.Components) == 0 {
-			issue.Fields.Components = make([]*jira.Component, 0)
-		}
-		for _, componentID := range componentIDs {
-			issue.Fields.Components = append(issue.Fields.Components, &jira.Component{ID: componentID})
-		}
-	}
-}
-
 func (j *Jira) createIssue(ctx context.Context, projectKey string, summary string, opts ...FieldOption) (*jira.Issue, error) {
 	l := ctxzap.Extract(ctx)
 

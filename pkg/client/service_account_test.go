@@ -228,7 +228,7 @@ func TestResolveURL(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			resolvedURL, err := ResolveURL(ctx, tt.email, testJiraURL, nil)
+			resolvedURL, err := ResolveURL(ctx, tt.email, testJiraURL)
 
 			if tt.expectError {
 				if err == nil {
@@ -265,7 +265,7 @@ func TestResolveURLJiraURLWithTrailingSlash(t *testing.T) {
 
 	ctx := context.Background()
 
-	resolvedURL, err := ResolveURL(ctx, "test@serviceaccount.atlassian.com", server.URL+"/", nil)
+	resolvedURL, err := ResolveURL(ctx, "test@serviceaccount.atlassian.com", server.URL+"/")
 	if err != nil {
 		t.Errorf("expected no error, but got %v", err)
 	}

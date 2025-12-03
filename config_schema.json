@@ -1,24 +1,68 @@
 {
   "fields": [
     {
-      "name": "atlassian-api-token",
-      "displayName": "Atlassian organization api token",
-      "description": "api token to atlassian organization",
-      "isSecret": true,
+      "name": "log-level",
+      "description": "The log level: debug, info, warn, error",
+      "isOps": true,
+      "stringField": {
+        "defaultValue": "info"
+      }
+    },
+    {
+      "name": "log-level-debug-expires-at",
+      "description": "The timestamp indicating when debug-level logging should expire",
+      "isOps": true,
       "stringField": {}
     },
     {
-      "name": "atlassian-orgId",
-      "displayName": "Atlassian organization Id",
-      "description": "organization Id to atlassian instance",
+      "name": "session-store-maximum-size",
+      "description": "The maximum size of the local in-memory session store cache in bytes.",
+      "isOps": true,
+      "intField": {
+        "defaultValue": "15728640"
+      }
+    },
+    {
+      "name": "otel-collector-endpoint",
+      "description": "The endpoint of the OpenTelemetry collector to send observability data to (used for both tracing and logging if specific endpoints are not provided)",
+      "isOps": true,
       "stringField": {}
     },
     {
-      "name": "jira-api-token",
-      "displayName": "API token",
-      "description": "API token for Jira service.",
+      "name": "otel-collector-endpoint-tls-cert-path",
+      "description": "Path to a file containing a PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
+      "isOps": true,
+      "stringField": {}
+    },
+    {
+      "name": "otel-collector-endpoint-tls-cert",
+      "description": "A PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
+      "isOps": true,
+      "stringField": {}
+    },
+    {
+      "name": "otel-collector-endpoint-tls-insecure",
+      "description": "Allow insecure connections to the OpenTelemetry collector",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "otel-tracing-disabled",
+      "description": "Disable OpenTelemetry tracing",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "otel-logging-disabled",
+      "description": "Disable OpenTelemetry logging",
+      "isOps": true,
+      "boolField": {}
+    },
+    {
+      "name": "jira-url",
+      "displayName": "Jira site domain",
+      "description": "Url to Jira service.",
       "isRequired": true,
-      "isSecret": true,
       "stringField": {
         "rules": {
           "isRequired": true
@@ -37,16 +81,11 @@
       }
     },
     {
-      "name": "jira-project-keys",
-      "displayName": "Project keys",
-      "description": "Comma-separated list of Jira project keys to use for tickets.",
-      "stringSliceField": {}
-    },
-    {
-      "name": "jira-url",
-      "displayName": "Jira site domain",
-      "description": "Url to Jira service.",
+      "name": "jira-api-token",
+      "displayName": "API token",
+      "description": "API token for Jira service.",
       "isRequired": true,
+      "isSecret": true,
       "stringField": {
         "rules": {
           "isRequired": true
@@ -54,68 +93,10 @@
       }
     },
     {
-      "name": "log-level",
-      "description": "The log level: debug, info, warn, error",
-      "isOps": true,
-      "stringField": {
-        "defaultValue": "info"
-      }
-    },
-    {
-      "name": "log-level-debug-expires-at",
-      "description": "The timestamp indicating when debug-level logging should expire",
-      "isOps": true,
-      "stringField": {}
-    },
-    {
-      "name": "otel-collector-endpoint",
-      "description": "The endpoint of the OpenTelemetry collector to send observability data to (used for both tracing and logging if specific endpoints are not provided)",
-      "isOps": true,
-      "stringField": {}
-    },
-    {
-      "name": "otel-collector-endpoint-tls-cert",
-      "description": "A PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
-      "isOps": true,
-      "stringField": {}
-    },
-    {
-      "name": "otel-collector-endpoint-tls-cert-path",
-      "description": "Path to a file containing a PEM-encoded certificate to use as a CA for TLS connections to the OpenTelemetry collector",
-      "isOps": true,
-      "stringField": {}
-    },
-    {
-      "name": "otel-collector-endpoint-tls-insecure",
-      "description": "Allow insecure connections to the OpenTelemetry collector",
-      "isOps": true,
-      "boolField": {}
-    },
-    {
-      "name": "otel-logging-disabled",
-      "description": "Disable OpenTelemetry logging",
-      "isOps": true,
-      "boolField": {}
-    },
-    {
-      "name": "otel-tracing-disabled",
-      "description": "Disable OpenTelemetry tracing",
-      "isOps": true,
-      "boolField": {}
-    },
-    {
-      "name": "session-store-maximum-size",
-      "description": "The maximum size of the local in-memory session store cache in bytes.",
-      "isOps": true,
-      "intField": {
-        "defaultValue": "15728640"
-      }
-    },
-    {
-      "name": "skip-customer-user",
-      "displayName": "Skip customer user",
-      "description": "Skip syncing customer users in Jira Service Management.",
-      "boolField": {}
+      "name": "jira-project-keys",
+      "displayName": "Project keys",
+      "description": "Comma-separated list of Jira project keys to use for tickets.",
+      "stringSliceField": {}
     },
     {
       "name": "skip-project-participants",
@@ -128,6 +109,25 @@
       "displayName": "Enable external ticket provisioning",
       "description": "This must be set to enable ticketing support",
       "boolField": {}
+    },
+    {
+      "name": "skip-customer-user",
+      "displayName": "Skip customer user",
+      "description": "Skip syncing customer users in Jira Service Management.",
+      "boolField": {}
+    },
+    {
+      "name": "atlassian-orgId",
+      "displayName": "Atlassian organization Id",
+      "description": "organization Id to atlassian instance",
+      "stringField": {}
+    },
+    {
+      "name": "atlassian-api-token",
+      "displayName": "Atlassian organization api token",
+      "description": "api token to atlassian organization",
+      "isSecret": true,
+      "stringField": {}
     }
   ],
   "displayName": "Jira Cloud",

@@ -49,7 +49,7 @@ func TestIsServiceAccount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isServiceAccount(tt.email)
+			result := IsServiceAccount(tt.email)
 			if result != tt.expected {
 				t.Errorf("isServiceAccount(%s) = %v, want %v", tt.email, result, tt.expected)
 			}
@@ -134,7 +134,7 @@ func TestResolveCloudID(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			cloudID, err := resolveCloudID(ctx, testJiraURL)
+			cloudID, err := ResolveCloudID(ctx, testJiraURL)
 
 			if tt.expectError {
 				if err == nil {
@@ -228,7 +228,7 @@ func TestResolveURL(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			resolvedURL, err := ResolveURL(ctx, tt.email, testJiraURL)
+			resolvedURL, err := GetScopedTokenUrl(ctx, tt.email, testJiraURL)
 
 			if tt.expectError {
 				if err == nil {
@@ -265,7 +265,7 @@ func TestResolveURLJiraURLWithTrailingSlash(t *testing.T) {
 
 	ctx := context.Background()
 
-	resolvedURL, err := ResolveURL(ctx, "test@serviceaccount.atlassian.com", server.URL+"/")
+	resolvedURL, err := GetScopedTokenUrl(ctx, "test@serviceaccount.atlassian.com", server.URL+"/")
 	if err != nil {
 		t.Errorf("expected no error, but got %v", err)
 	}

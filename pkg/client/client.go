@@ -14,7 +14,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	jira "github.com/conductorone/go-jira/v2/cloud"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -23,7 +22,7 @@ type AuditRecord = jira.AuditRecord
 type AuditOptions = jira.AuditOptions
 
 const GetUsers = "/rest/api/3/users/search?%s"
-const AtlassianServiceAccountBaseURL = "https://api.atlassian.com/ex/jira/%s"
+const ScopedTokenBaseURL = "https://api.atlassian.com/ex/jira/%s"
 const TenantInfoEndpoint = "/_edge/tenant_info"
 
 var rolesNamespace = sessions.WithPrefix("role")
@@ -33,8 +32,12 @@ type tenantInfo struct {
 	CloudID string `json:"cloudId"`
 }
 
-func isServiceAccount(email string) bool {
+func IsServiceAccount(email string) bool {
 	return strings.HasSuffix(email, "@serviceaccount.atlassian.com")
+}
+
+func IsScopedTokenURL(email string) bool {
+	return strings.HasSuffix(email, "api.atlassian.com/ex/jira/")
 }
 
 // NewHTTPClient creates a new uhttp client with logging enabled.
@@ -54,7 +57,7 @@ func NewHTTPClient(ctx context.Context) (*uhttp.BaseHttpClient, error) {
 
 // Will get the Cloud ID from the tenant info endpoint, only for service accounts.
 // the cloud id is required to build the correct base URL for service accounts requests.
-func resolveCloudID(ctx context.Context, jiraURL string) (string, error) {
+func ResolveCloudID(ctx context.Context, jiraURL string) (string, error) {
 	if jiraURL == "" {
 		return "", status.Error(codes.InvalidArgument, "jira URL cannot be empty")
 	}
@@ -99,20 +102,15 @@ func resolveCloudID(ctx context.Context, jiraURL string) (string, error) {
 	return info.CloudID, nil
 }
 
-// ResolveURL determines the base URL to use for API calls.
-// Service accounts (example@serviceaccount.atlassian.com) use:
+// GetScopedTokenUrl determines the base URL to use for API calls.
+// Service accounts (example@serviceaccount.atlassian.com) and scoped tokens use:
 //
 //	https://api.atlassian.com/ex/jira/<cloud-id>
 //
 // while regular accounts use:
 //
 //	https://<cloud-name>.atlassian.net.
-func ResolveURL(ctx context.Context, email, jiraURL string) (string, error) {
-	l := ctxzap.Extract(ctx)
-
-	if email == "" {
-		return "", status.Error(codes.InvalidArgument, "email cannot be empty")
-	}
+func GetScopedTokenUrl(ctx context.Context, jiraURL string) (string, error) {
 	if jiraURL == "" {
 		return "", status.Error(codes.InvalidArgument, "jira URL cannot be empty")
 	}
@@ -125,23 +123,12 @@ func ResolveURL(ctx context.Context, email, jiraURL string) (string, error) {
 		return "", status.Error(codes.InvalidArgument, "jira URL must include scheme and host")
 	}
 
-	if !isServiceAccount(email) {
-		l.Info("regular account detected", zap.String("email", email), zap.String("url", jiraURL))
-		return jiraURL, nil
-	}
-
-	l.Info("service account detected", zap.String("email", email), zap.String("url", jiraURL))
-
-	cloudID, err := resolveCloudID(ctx, jiraURL)
+	cloudID, err := ResolveCloudID(ctx, jiraURL)
 	if err != nil {
-		l.Error("failed to resolve cloud ID for service account",
-			zap.String("email", email),
-			zap.String("jira_url", jiraURL),
-			zap.Error(err))
-		return "", fmt.Errorf("failed to resolve cloud ID for service account %s: %w", email, err)
+		return "", fmt.Errorf("failed to resolve scoped token url: %w", err)
 	}
 
-	serviceURL := fmt.Sprintf(AtlassianServiceAccountBaseURL, cloudID)
+	serviceURL := fmt.Sprintf(ScopedTokenBaseURL, cloudID)
 	return serviceURL, nil
 }
 
@@ -185,18 +172,32 @@ func (c *Client) Jira() *jira.Client {
 	return c.jira
 }
 
-// NewWithAuth creates a new client with service account support. It resolves the appropriate
+func (c *Client) UpdateJiraClient(newJiraClient *jira.Client) {
+	c.jira = newJiraClient
+}
+
+// NewWithScopedToken creates a new client with service account support. It resolves the appropriate
 // base URL based on the email (service accounts use a different API endpoint).
-func NewWithAuth(ctx context.Context, email, jiraURL string, httpClient *http.Client) (*Client, error) {
-	resolvedURL, err := ResolveURL(ctx, email, jiraURL)
+func NewWithScopedToken(ctx context.Context, username, apiToken, jiraURL string) (*Client, error) {
+	resolvedURL, err := GetScopedTokenUrl(ctx, jiraURL)
 	if err != nil {
 		return nil, WrapError(err, "failed to resolve base URL", nil)
 	}
 
-	return New(resolvedURL, httpClient)
+	return New(username, apiToken, resolvedURL)
 }
 
-func New(url string, httpClient *http.Client) (*Client, error) {
+func NewHttpClient(username, apiToken string) *http.Client {
+	transport := jira.BasicAuthTransport{
+		Username: username,
+		APIToken: apiToken,
+	}
+
+	return transport.Client()
+}
+
+func New(username, apiToken, url string) (*Client, error) {
+	httpClient := NewHttpClient(username, apiToken)
 	jira, err := jira.NewClient(url, httpClient)
 	if err != nil {
 		return nil, err

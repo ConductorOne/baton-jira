@@ -22,7 +22,7 @@ type AuditRecord = jira.AuditRecord
 type AuditOptions = jira.AuditOptions
 
 const GetUsers = "/rest/api/3/users/search?%s"
-const ScopedTokenBaseURL = "https://api.atlassian.com/ex/jira/%s"
+const ScopedTokenBaseURL = "https://api.atlassian.com/ex/jira/%s" //nolint:gosec // Not a credential
 const TenantInfoEndpoint = "/_edge/tenant_info"
 
 var rolesNamespace = sessions.WithPrefix("role")

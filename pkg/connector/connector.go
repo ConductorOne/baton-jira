@@ -160,7 +160,11 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 				return nil, wrapError(err, "unauthorized access to groups - check that the API token has the necessary permissions", &resp.StatusCode)
 			}
 
-			j.SwitchToScopedTokenUrl(ctx)
+			err = j.SwitchToScopedTokenUrl(ctx)
+			if err != nil {
+				return nil, wrapError(err, "failed to switch to scoped token URL", nil)
+			}
+
 			_, resp, err = j.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(1))
 			if err != nil {
 				if resp != nil {

@@ -36,8 +36,8 @@ func IsServiceAccount(email string) bool {
 	return strings.HasSuffix(email, "@serviceaccount.atlassian.com")
 }
 
-func IsScopedTokenURL(email string) bool {
-	return strings.HasSuffix(email, "api.atlassian.com/ex/jira/")
+func IsScopedTokenURL(url string) bool {
+	return strings.Contains(url, "api.atlassian.com/ex/jira/")
 }
 
 // NewHTTPClient creates a new uhttp client with logging enabled.
@@ -176,7 +176,7 @@ func (c *Client) UpdateJiraClient(newJiraClient *jira.Client) {
 	c.jira = newJiraClient
 }
 
-// NewWithScopedToken creates a new client with service account support. It resolves the appropriate
+// creates a new client with service account support. It resolves the appropriate
 // base URL based on the email (service accounts use a different API endpoint).
 func NewWithScopedToken(ctx context.Context, username, apiToken, jiraURL string) (*Client, error) {
 	resolvedURL, err := GetScopedTokenUrl(ctx, jiraURL)

@@ -137,8 +137,6 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 }
 
 func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
-	l := ctxzap.Extract(ctx)
-
 	_, resp, err := j.client.Jira().User.Find(ctx, "")
 	if err != nil {
 		var statusCode *int
@@ -148,41 +146,50 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 		return nil, wrapError(err, "failed to get users", statusCode)
 	}
 
+	/* Try to list groups to validate permissions/correctness of URL.
+	- If unauthorized, try switching to scoped token URL (using scoped tokens with wrong URL gives 401).
+	- if is authorized after switching, return error indicating the need to update the jira-url flag. to the new scoped token URL.
+	- If still unauthorized, return error indicating a lack of permissions.
+
+		legacy url (for unscoped tokens): https://your-domain.atlassian.net
+		scoped token url: https://api.atlassian.com/ex/jira/<cloud-id>
+	*/
+	_, resp, err = j.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(1))
+	if err == nil {
+		return nil, nil
+	}
+
+	if resp == nil {
+		return nil, wrapError(err, "failed to list groups", nil)
+	}
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		return nil, wrapError(err, "failed to list groups", &resp.StatusCode)
+	}
+
+	// if we get unauthorized, try again with the scoped token URL
+	if client.IsScopedTokenURL(j.originalURL) {
+		return nil, wrapError(err, "unauthorized access to groups - check that the API token has the necessary permissions", &resp.StatusCode)
+	}
+
+	err = j.SwitchToScopedTokenUrl(ctx)
+	if err != nil {
+		return nil, wrapError(err, "failed to switch to scoped token URL", nil)
+	}
+
+	// try the endpoint again but with the scoped token URL
 	_, resp, err = j.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(1))
 	if err != nil {
-		if resp != nil && resp.StatusCode != http.StatusUnauthorized {
-			return nil, wrapError(err, "failed to list groups", &resp.StatusCode)
-		}
-
-		// if we get unauthorized, try again with the scoped token URL
-		if resp != nil && resp.StatusCode == http.StatusUnauthorized {
-			if client.IsScopedTokenURL(j.originalURL) {
-				return nil, wrapError(err, "unauthorized access to groups - check that the API token has the necessary permissions", &resp.StatusCode)
-			}
-
-			err = j.SwitchToScopedTokenUrl(ctx)
-			if err != nil {
-				return nil, wrapError(err, "failed to switch to scoped token URL", nil)
-			}
-
-			_, resp, err = j.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(1))
-			if err != nil {
-				if resp != nil {
-					return nil, wrapError(err, "failed to list groups after service account fallback", &resp.StatusCode)
-				}
-			}
-		}
-	}
-
-	_, resp, err = j.client.Jira().Project.GetAll(ctx, nil)
-	if err != nil {
+		var statusCode *int
 		if resp != nil {
-			return nil, wrapError(err, "failed to get projects", &resp.StatusCode)
+			statusCode = &resp.StatusCode
 		}
+		return nil, wrapError(err, "failed to list groups after scoped token fallback", statusCode)
 	}
 
-	l.Info("validation completed successfully")
-	return nil, nil
+	// error with message indicating the need to switch to scoped token URL
+	newUrl := j.client.Jira().BaseURL.String()
+	return nil, fmt.Errorf("jira-url flag needs to be updated to use this scoped token URL: %s", newUrl)
 }
 
 func (o *Jira) SwitchToScopedTokenUrl(ctx context.Context) error {

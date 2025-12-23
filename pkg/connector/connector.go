@@ -2,6 +2,8 @@ package connector
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	"github.com/conductorone/baton-jira/pkg/client"
 	"github.com/conductorone/baton-jira/pkg/client/atlassianclient"
@@ -25,6 +27,10 @@ type (
 		skipProjectParticipants bool
 		skipCustomerUser        bool
 		siteIDs                 []string
+
+		username    string
+		apiToken    string
+		originalURL string
 	}
 
 	JiraBuilder interface {
@@ -85,14 +91,15 @@ func New(ctx context.Context, jc *cfg.Jira, opts *cli.ConnectorOpts) (connectorb
 }
 
 func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants bool, skipCustomerUser bool) (*Jira, error) {
-	transport := jira.BasicAuthTransport{
-		Username: b.Username,
-		APIToken: b.ApiToken,
+	var err error
+	var c *client.Client
+
+	if client.IsServiceAccount(b.Username) {
+		c, err = client.NewWithScopedToken(ctx, b.Username, b.ApiToken, b.Base.Url)
+	} else {
+		c, err = client.New(b.Username, b.ApiToken, b.Base.Url)
 	}
 
-	httpClient := transport.Client()
-
-	c, err := client.NewWithAuth(ctx, b.Username, b.Base.Url, httpClient)
 	if err != nil {
 		return nil, client.WrapError(err, "error creating jira client", nil)
 	}
@@ -102,6 +109,10 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 		projectKeys:             b.Base.ProjectKeys,
 		skipProjectParticipants: skipProjectParticipants,
 		skipCustomerUser:        skipCustomerUser,
+
+		username:    b.Username,
+		apiToken:    b.ApiToken,
+		originalURL: b.Base.Url,
 	}
 
 	if b.Base.AtlassianBuilder == nil {
@@ -135,16 +146,63 @@ func (j *Jira) Validate(ctx context.Context) (annotations.Annotations, error) {
 		return nil, wrapError(err, "failed to get users", statusCode)
 	}
 
-	_, resp, err = j.client.Jira().Project.GetAll(ctx, nil)
+	/* Try to list groups to validate permissions/correctness of URL.
+	- If unauthorized, try switching to scoped token URL (using scoped tokens with wrong URL gives 401).
+	- if is authorized after switching, return error indicating the need to update the jira-url flag. to the new scoped token URL.
+	- If still unauthorized, return error indicating a lack of permissions.
+
+		legacy url (for unscoped tokens): https://your-domain.atlassian.net
+		scoped token url: https://api.atlassian.com/ex/jira/<cloud-id>
+	*/
+	_, resp, err = j.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(1))
+	if err == nil {
+		return nil, nil
+	}
+
+	if resp == nil {
+		return nil, wrapError(err, "failed to list groups", nil)
+	}
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		return nil, wrapError(err, "failed to list groups", &resp.StatusCode)
+	}
+
+	// if we get unauthorized, try again with the scoped token URL
+	if client.IsScopedTokenURL(j.originalURL) {
+		return nil, wrapError(err, "unauthorized access to groups - check that the API token has the necessary permissions", &resp.StatusCode)
+	}
+
+	err = j.SwitchToScopedTokenUrl(ctx)
+	if err != nil {
+		return nil, wrapError(err, "failed to switch to scoped token URL", nil)
+	}
+
+	// try the endpoint again but with the scoped token URL
+	_, resp, err = j.client.Jira().Group.Bulk(ctx, jira.WithMaxResults(1))
 	if err != nil {
 		var statusCode *int
 		if resp != nil {
 			statusCode = &resp.StatusCode
 		}
-		return nil, wrapError(err, "failed to get projects", statusCode)
+		return nil, wrapError(err, "failed to list groups after scoped token fallback", statusCode)
 	}
 
-	return nil, nil
+	// error with message indicating the need to switch to scoped token URL
+	newUrl := j.client.Jira().BaseURL.String()
+	return nil, fmt.Errorf("jira-url flag needs to be updated to use this scoped token URL: %s", newUrl)
+}
+
+func (o *Jira) SwitchToScopedTokenUrl(ctx context.Context) error {
+	l := ctxzap.Extract(ctx)
+	l.Info("attempting  scoped token URL", zap.String("original_url", o.originalURL))
+
+	newClient, err := client.NewWithScopedToken(ctx, o.username, o.apiToken, o.originalURL)
+	if err != nil {
+		return fmt.Errorf("error creating jira client with scoped token URL: %w", err)
+	}
+
+	o.client.UpdateJiraClient(newClient.Jira())
+	return nil
 }
 
 func (o *Jira) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {

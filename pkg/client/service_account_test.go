@@ -49,7 +49,7 @@ func TestIsServiceAccount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isServiceAccount(tt.email)
+			result := IsServiceAccount(tt.email)
 			if result != tt.expected {
 				t.Errorf("isServiceAccount(%s) = %v, want %v", tt.email, result, tt.expected)
 			}
@@ -134,7 +134,7 @@ func TestResolveCloudID(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			cloudID, err := resolveCloudID(ctx, testJiraURL)
+			cloudID, err := ResolveCloudID(ctx, testJiraURL)
 
 			if tt.expectError {
 				if err == nil {
@@ -158,10 +158,9 @@ func TestResolveCloudID(t *testing.T) {
 	}
 }
 
-func TestResolveURL(t *testing.T) {
+func TestGetScopedTokenUrl(t *testing.T) {
 	tests := []struct {
 		name          string
-		email         string
 		jiraURL       string
 		setupServer   func() *httptest.Server
 		expectedURL   string
@@ -169,15 +168,7 @@ func TestResolveURL(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:        "regular account uses original URL",
-			email:       "user@company.com",
-			jiraURL:     "https://company.atlassian.net",
-			expectedURL: "https://company.atlassian.net",
-			expectError: false,
-		},
-		{
-			name:  "service account resolves cloud ID and constructs API URL",
-			email: "test@serviceaccount.atlassian.com",
+			name: "resolves cloud ID and constructs scoped token URL",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					response := tenantInfo{CloudID: "abc123-def456-ghi789"}
@@ -189,29 +180,20 @@ func TestResolveURL(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:          "empty email",
-			email:         "",
-			jiraURL:       "https://company.atlassian.net",
-			expectError:   true,
-			errorContains: "email cannot be empty",
-		},
-		{
 			name:          "empty jira URL",
-			email:         "user@company.com",
 			jiraURL:       "",
 			expectError:   true,
 			errorContains: "jira URL cannot be empty",
 		},
 		{
-			name:  "service account with tenant info failure",
-			email: "test@serviceaccount.atlassian.com",
+			name: "tenant info failure",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusInternalServerError)
 				}))
 			},
 			expectError:   true,
-			errorContains: "failed to resolve cloud ID",
+			errorContains: "failed to resolve scoped token url",
 		},
 	}
 
@@ -228,7 +210,7 @@ func TestResolveURL(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			resolvedURL, err := ResolveURL(ctx, tt.email, testJiraURL)
+			resolvedURL, err := GetScopedTokenUrl(ctx, testJiraURL)
 
 			if tt.expectError {
 				if err == nil {
@@ -252,7 +234,7 @@ func TestResolveURL(t *testing.T) {
 	}
 }
 
-func TestResolveURLJiraURLWithTrailingSlash(t *testing.T) {
+func TestGetScopedTokenUrlWithTrailingSlash(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/_edge/tenant_info" {
 			t.Errorf("Expected path /_edge/tenant_info, got %s", r.URL.Path)
@@ -265,7 +247,7 @@ func TestResolveURLJiraURLWithTrailingSlash(t *testing.T) {
 
 	ctx := context.Background()
 
-	resolvedURL, err := ResolveURL(ctx, "test@serviceaccount.atlassian.com", server.URL+"/")
+	resolvedURL, err := GetScopedTokenUrl(ctx, server.URL+"/")
 	if err != nil {
 		t.Errorf("expected no error, but got %v", err)
 	}

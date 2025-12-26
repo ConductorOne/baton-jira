@@ -179,6 +179,10 @@ func (c *Client) UpdateJiraClient(newJiraClient *jira.Client) {
 // creates a new client with service account support. It resolves the appropriate
 // base URL based on the email (service accounts use a different API endpoint).
 func NewWithScopedToken(ctx context.Context, username, apiToken, jiraURL string) (*Client, error) {
+	if IsScopedTokenURL(jiraURL) {
+		return New(username, apiToken, jiraURL)
+	}
+
 	resolvedURL, err := GetScopedTokenUrl(ctx, jiraURL)
 	if err != nil {
 		return nil, WrapError(err, "failed to resolve base URL", nil)

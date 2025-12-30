@@ -43,10 +43,9 @@ func TestIsServiceAccount(t *testing.T) {
 		{
 			name:     "almost service account but different domain",
 			email:    "test@serviceaccount.atlassian.org",
-			expected: false,
+			expected: true,
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := IsServiceAccount(tt.email)

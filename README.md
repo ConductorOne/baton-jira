@@ -1,6 +1,6 @@
 ![Baton Logo](./docs/images/baton-logo.png)
 
-# `baton-jira` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-jira.svg)](https://pkg.go.dev/github.com/conductorone/baton-jira) ![main ci](https://github.com/conductorone/baton-jira/actions/workflows/main.yaml/badge.svg)
+# `baton-jira` [![Go Reference](https://pkg.go.dev/badge/github.com/conductorone/baton-jira.svg)](https://pkg.go.dev/github.com/conductorone/baton-jira) ![verify](https://github.com/conductorone/baton-jira/actions/workflows/verify.yaml/badge.svg)
 
 `baton-jira` is a connector for Jira built using the [Baton SDK](https://github.com/conductorone/baton-sdk). It works with both cloud or on-premise Jira installations through the Jira V3 API. This connector helps organizations manage and review access to Jira resources through automated discovery and provisioning capabilities.
 

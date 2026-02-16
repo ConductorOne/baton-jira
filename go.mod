@@ -3,7 +3,7 @@ module github.com/conductorone/baton-jira
 go 1.25.2
 
 require (
-	github.com/conductorone/baton-sdk v0.7.20
+	github.com/conductorone/baton-sdk v0.7.21
 	github.com/conductorone/go-jira/v2 v2.0.0-20250912213052-5fc74fd2093d
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0

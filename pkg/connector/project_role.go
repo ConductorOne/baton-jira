@@ -241,9 +241,7 @@ func (p *projectRoleResourceType) Grant(ctx context.Context, principal *v2.Resou
 			return nil, nil
 		}
 
-		l.Error(
-			"failed to add user to project role",
-			zap.Error(err),
+		logError(l, err, "failed to add user to project role",
 			zap.String("project_id", projectID),
 			zap.Int("role_id", roleID),
 			zap.String("user", principal.Id.Resource),

@@ -239,7 +239,7 @@ func (j *Jira) GetIssueTypeFields(ctx context.Context, projectKey, issueTypeId s
 	for {
 		issueFields, resp, err := j.client.Jira().Issue.GetCreateMetaIssueType(ctx, projectKey, issueTypeId, opts)
 		if err != nil {
-			l.Error("error getting issue type fields", zap.Error(err))
+			logError(l, err, "error getting issue type fields")
 			var statusCode *int
 			if resp != nil {
 				statusCode = &resp.StatusCode
@@ -697,7 +697,7 @@ func (j *Jira) createIssue(ctx context.Context, projectKey string, summary strin
 	issue, resp, err := j.client.Jira().Issue.Create(ctx, i)
 	if err != nil {
 		jerr := jira.NewJiraError(resp, err)
-		l.Error("error creating issue", zap.Error(jerr))
+		logError(l, jerr, "error creating issue")
 		return nil, jerr
 	}
 

@@ -78,7 +78,7 @@ func New(ctx context.Context, jc *cfg.Jira, opts *cli.ConnectorOpts) (connectorb
 
 	jiraConnector, err := builder.New(ctx, jc.SkipProjectParticipants, jc.SkipCustomerUser)
 	if err != nil {
-		l.Error("error creating connector", zap.Error(err))
+		logError(l, err, "error creating connector")
 		return nil, nil, err
 	}
 

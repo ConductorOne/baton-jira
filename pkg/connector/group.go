@@ -230,9 +230,7 @@ func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, e
 			return annotations.New(&v2.GrantAlreadyExists{}), nil
 		}
 
-		l.Error(
-			"failed to add user to group",
-			zap.Error(err),
+		logError(l, err, "failed to add user to group",
 			zap.String("group", entitlement.Resource.Id.Resource),
 			zap.String("user", principal.Id.Resource),
 		)
@@ -243,12 +241,21 @@ func (u *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, e
 	if resp.StatusCode != http.StatusCreated {
 		err := fmt.Errorf("baton-jira: failed to add user to group: %s", resp.Status)
 
-		l.Error(
-			err.Error(),
-			zap.String("group", entitlement.Resource.Id.Resource),
-			zap.String("user", principal.Id.Resource),
-			zap.Int("status_code", resp.StatusCode),
-		)
+		if resp.StatusCode >= 500 {
+			l.Error(
+				err.Error(),
+				zap.String("group", entitlement.Resource.Id.Resource),
+				zap.String("user", principal.Id.Resource),
+				zap.Int("status_code", resp.StatusCode),
+			)
+		} else {
+			l.Warn(
+				err.Error(),
+				zap.String("group", entitlement.Resource.Id.Resource),
+				zap.String("user", principal.Id.Resource),
+				zap.Int("status_code", resp.StatusCode),
+			)
+		}
 
 		return nil, err
 	}
@@ -280,9 +287,7 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 			return annotations.New(&v2.GrantAlreadyRevoked{}), nil
 		}
 
-		l.Error(
-			"failed to remove user from group",
-			zap.Error(err),
+		logError(l, err, "failed to remove user from group",
 			zap.String("group", entitlement.Resource.Id.Resource),
 			zap.String("user", principal.Id.Resource),
 		)
@@ -293,12 +298,21 @@ func (u *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 	if resp.StatusCode >= 300 {
 		err := fmt.Errorf("baton-jira: failed to remove user from group: %s", resp.Status)
 
-		l.Error(
-			err.Error(),
-			zap.String("group", entitlement.Resource.Id.Resource),
-			zap.String("user", principal.Id.Resource),
-			zap.Int("status_code", resp.StatusCode),
-		)
+		if resp.StatusCode >= 500 {
+			l.Error(
+				err.Error(),
+				zap.String("group", entitlement.Resource.Id.Resource),
+				zap.String("user", principal.Id.Resource),
+				zap.Int("status_code", resp.StatusCode),
+			)
+		} else {
+			l.Warn(
+				err.Error(),
+				zap.String("group", entitlement.Resource.Id.Resource),
+				zap.String("user", principal.Id.Resource),
+				zap.Int("status_code", resp.StatusCode),
+			)
+		}
 
 		return nil, err
 	}

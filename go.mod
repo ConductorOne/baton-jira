@@ -3,7 +3,7 @@ module github.com/conductorone/baton-jira
 go 1.25.2
 
 require (
-	github.com/conductorone/baton-sdk v0.8.30
+	github.com/conductorone/baton-sdk v0.9.0
 	github.com/conductorone/go-jira/v2 v2.0.0-20250912213052-5fc74fd2093d
 	github.com/ennyjfrick/ruleguard-logfatal v0.0.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -21,7 +21,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/conductorone/dpop v0.2.4 // indirect
 	github.com/conductorone/dpop/integrations/dpop_grpc v0.2.4 // indirect
-	github.com/conductorone/dpop/integrations/dpop_oauth2 v0.2.4 // indirect
+	github.com/conductorone/dpop/integrations/dpop_oauth2 v0.2.5 // indirect
 	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect

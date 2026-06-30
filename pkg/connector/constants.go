@@ -1,5 +1,7 @@
 package connector
 
+const attrName = "name"
+
 var (
 	resourcePageSize = 50
 

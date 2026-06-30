@@ -25,7 +25,7 @@ import (
 
 var ignoreRequiredSystem = map[string]bool{
 	"issuetype": true,
-	"project":   true,
+	resourceTypeProject.Id: true,
 	"assignee":  true,
 	"summary":   true,
 	"reporter":  true,
@@ -523,7 +523,7 @@ func (j *Jira) CreateTicket(ctx context.Context, ticket *v2.Ticket, schema *v2.T
 
 	for id, cf := range schema.GetCustomFields() {
 		switch id {
-		case "project":
+		case resourceTypeProject.Id:
 			continue
 		case "issue_type":
 			// If issueTypeID is empty, the config has not been updated to use issue type as schema

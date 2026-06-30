@@ -31,7 +31,7 @@ type projectRoleResourceType struct {
 
 func projectRoleResource(project *jira.Project, role *jira.Role) (*v2.Resource, error) {
 	profile := map[string]interface{}{
-		"name":        role.Name,
+		attrName:      role.Name,
 		"role_id":     role.ID,
 		"project_id":  project.ID,
 		"description": role.Description,

@@ -31,7 +31,7 @@ type projectRoleResourceType struct {
 
 func projectRoleResource(project *jira.Project, role *jira.Role) (*v2.Resource, error) {
 	profile := map[string]interface{}{
-		"name":        role.Name,
+		attrName:      role.Name,
 		"role_id":     role.ID,
 		"project_id":  project.ID,
 		"description": role.Description,
@@ -261,9 +261,13 @@ func (p *projectRoleResourceType) Revoke(ctx context.Context, grant *v2.Grant) (
 		return nil, wrapError(err, "failed to parse project role ID", nil)
 	}
 
-	_, err = p.client.Jira().Role.RemoveUserFromRole(ctx, projectID, roleID, grant.Principal.Id.Resource)
+	resp, err := p.client.Jira().Role.RemoveUserFromRole(ctx, projectID, roleID, grant.Principal.Id.Resource)
 	if err != nil {
-		return nil, wrapError(err, "failed to remove user from project role", nil)
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, wrapError(err, "failed to remove user from project role", statusCode)
 	}
 
 	l.Info("removed user from project role",

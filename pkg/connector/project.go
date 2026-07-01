@@ -101,7 +101,7 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 
 	participateGrants, isLastPage, err := p.getGrantsForProjectUsers(ctx, resource, project, int(offset), resourcePageSize)
 	if err != nil {
-		return nil, nil, wrapError(err, "failed to get participate grants", nil)
+		return nil, nil, err
 	}
 	rv = append(rv, participateGrants...)
 
@@ -146,9 +146,13 @@ func (p *projectResourceType) getGrantsForProjectUsers(ctx context.Context, reso
 	var rv []*v2.Grant
 
 	lastPage := true
-	users, _, err := p.client.Jira().User.FindUsersWithBrowsePermission(ctx, ".", jira.WithStartAt(offset), jira.WithMaxResults(count), jira.WithProjectKey(project.Key))
+	users, resp, err := p.client.Jira().User.FindUsersWithBrowsePermission(ctx, ".", jira.WithStartAt(offset), jira.WithMaxResults(count), jira.WithProjectKey(project.Key))
 	if err != nil {
-		return nil, lastPage, err
+		var statusCode *int
+		if resp != nil {
+			statusCode = &resp.StatusCode
+		}
+		return nil, lastPage, wrapError(err, "failed to get participate grants", statusCode)
 	}
 
 	for i := range users {

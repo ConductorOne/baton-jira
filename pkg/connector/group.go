@@ -43,7 +43,7 @@ type groupResourceType struct {
 func groupResource(ctx context.Context, group *jira.Group) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"id":   group.ID,
-		"name": group.Name,
+		attrName: group.Name,
 	}
 
 	groupTraitOptions := []rs.GroupTraitOption{
@@ -360,7 +360,7 @@ func (u *groupResourceType) listSiteGroups(ctx context.Context, _ *v2.ResourceId
 func parseIntoGroupResource(group atlassianclient.Group) (*v2.Resource, error) {
 	profile := map[string]interface{}{
 		"id":   group.ID,
-		"name": group.Name,
+		attrName: group.Name,
 	}
 
 	groupTraitOptions := []rs.GroupTraitOption{

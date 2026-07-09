@@ -264,10 +264,47 @@ func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBod
 		}
 	}
 
+	email, err := getEmailFromAccountInfo(accountInfo, pMap)
+	if err != nil {
+		return nil, err
+	}
+
 	return &client.CreateUserBody{
-		Email:    accountInfo.Login,
+		Email:    email,
 		Products: products,
 	}, nil
+}
+
+func getEmailFromAccountInfo(accountInfo *v2.AccountInfo, pMap map[string]interface{}) (string, error) {
+	if emailValue, exists := pMap["email"]; exists && emailValue != nil {
+		emailStr, ok := emailValue.(string)
+		if !ok {
+			return "", fmt.Errorf("email field is not a string: %T", emailValue)
+		}
+		if emailStr != "" {
+			return emailStr, nil
+		}
+	}
+
+	// Prefer the primary email; fall back to the first non-empty address.
+	firstSet := ""
+	for _, e := range accountInfo.GetEmails() {
+		addr := e.GetAddress()
+		if addr == "" {
+			continue
+		}
+		if e.GetIsPrimary() {
+			return addr, nil
+		}
+		if firstSet == "" {
+			firstSet = addr
+		}
+	}
+	if firstSet != "" {
+		return firstSet, nil
+	}
+
+	return accountInfo.GetLogin(), nil
 }
 
 func (b *userResourceType) listSiteUsers(ctx context.Context, _ *v2.ResourceId, attrs rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {

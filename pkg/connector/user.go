@@ -286,10 +286,22 @@ func getEmailFromAccountInfo(accountInfo *v2.AccountInfo, pMap map[string]interf
 		}
 	}
 
+	// Prefer the primary email; fall back to the first non-empty address.
+	firstSet := ""
 	for _, e := range accountInfo.GetEmails() {
-		if e.GetAddress() != "" {
-			return e.GetAddress(), nil
+		addr := e.GetAddress()
+		if addr == "" {
+			continue
 		}
+		if e.GetIsPrimary() {
+			return addr, nil
+		}
+		if firstSet == "" {
+			firstSet = addr
+		}
+	}
+	if firstSet != "" {
+		return firstSet, nil
 	}
 
 	return accountInfo.GetLogin(), nil

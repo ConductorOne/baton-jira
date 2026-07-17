@@ -153,6 +153,15 @@ func WrapError(err error, message string, statusCode *int) error {
 		return fmt.Errorf("jira-connector: %s: %w", message, err)
 	}
 
+	// A non-nil error paired with a 2xx status means the headers arrived fine
+	// but reading or decoding the body failed (e.g. connection reset or
+	// truncated body mid-read). go-jira's error path loses the original error
+	// chain here, so classify by status: transport failures after a successful
+	// response are safe to retry.
+	if *statusCode >= 200 && *statusCode < 300 {
+		return uhttp.WrapErrors(codes.Unavailable, message, err)
+	}
+
 	switch *statusCode {
 	case http.StatusRequestTimeout:
 		return status.Error(codes.DeadlineExceeded, fmt.Sprintf("%s: %v", message, err))

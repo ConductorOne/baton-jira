@@ -10,6 +10,8 @@ import (
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	jira "github.com/conductorone/go-jira/v2/cloud"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -104,6 +106,13 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 		return nil, nil, err
 	}
 	rv = append(rv, participateGrants...)
+
+	ctxzap.Extract(ctx).Debug("fetched project participants page",
+		zap.String("project_key", project.Key),
+		zap.Int64("start_at", offset),
+		zap.Int("max_results_requested", participantPageSize),
+		zap.Int("users_returned", usersFetched),
+	)
 
 	// Advance by the requested window size and terminate only on an empty
 	// page, so a short-but-nonempty page doesn't end pagination prematurely;

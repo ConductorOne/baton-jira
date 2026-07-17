@@ -105,14 +105,15 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 	}
 	rv = append(rv, participateGrants...)
 
-	// Terminate only on an empty page. A short-but-nonempty page could be the
-	// server clamping maxResults below participantPageSize rather than the end
-	// of the list, so spend one extra request per project to be sure.
+	// Advance by the requested window size and terminate only on an empty
+	// page, so a short-but-nonempty page doesn't end pagination prematurely;
+	// the trailing empty page confirms the end of the list at the cost of one
+	// extra request per project.
 	if usersFetched == 0 {
 		return rv, nil, nil
 	}
 
-	nextPage, err := getPageTokenFromOffset(bag, offset+int64(usersFetched))
+	nextPage, err := getPageTokenFromOffset(bag, offset+int64(participantPageSize))
 	if err != nil {
 		return nil, nil, err
 	}

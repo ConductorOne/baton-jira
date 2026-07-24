@@ -142,7 +142,24 @@ func wrapJiraErrorResponse(err error, resp *jira.Response, message string) error
 
 func WrapError(err error, message string, statusCode *int) error {
 	if statusCode == nil {
+		// Transient network failures (connection resets, unexpected EOFs,
+		// timeouts) never carry a status code. Surface them as Unavailable so
+		// the platform retries the current page instead of failing the sync.
+		// WrapErrors keeps the original error in the chain (errors.Is/As still
+		// work) while status.Code(err) resolves to Unavailable.
+		if isTransientNetworkError(err) {
+			return uhttp.WrapErrors(codes.Unavailable, message, err)
+		}
 		return fmt.Errorf("jira-connector: %s: %w", message, err)
+	}
+
+	// A non-nil error paired with a 2xx status means the headers arrived fine
+	// but reading or decoding the body failed (e.g. connection reset or
+	// truncated body mid-read). go-jira's error path loses the original error
+	// chain here, so classify by status: transport failures after a successful
+	// response are safe to retry.
+	if *statusCode >= 200 && *statusCode < 300 {
+		return uhttp.WrapErrors(codes.Unavailable, message, err)
 	}
 
 	switch *statusCode {

@@ -39,11 +39,8 @@ func projectRoleResource(project *jira.Project, role *jira.Role) (*v2.Resource, 
 
 	displayName := fmt.Sprintf("%s - %s", project.Name, role.Name)
 	resourceID := projectRoleID(project, role)
-	roleTraitOptions := []rs.RoleTraitOption{
-		rs.WithRoleProfile(profile),
-	}
 
-	resource, err := rs.NewRoleResource(displayName, resourceTypeProjectRole, resourceID, roleTraitOptions)
+	resource, err := rs.NewRoleResource(displayName, resourceTypeProjectRole, resourceID, nil, rs.WithResourceProfile(profile))
 	if err != nil {
 		return nil, err
 	}

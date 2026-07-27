@@ -170,7 +170,7 @@ func TestProjectGrantsPagination(t *testing.T) {
 	participantPageSize = 3
 	defer func() { participantPageSize = origPageSize }()
 
-	c, err := client.New("user", "token", srv.URL)
+	c, err := client.New(context.Background(), "user", "token", srv.URL)
 	if err != nil {
 		t.Fatalf("failed to create client: %v", err)
 	}

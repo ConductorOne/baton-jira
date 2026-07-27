@@ -2,7 +2,9 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -142,12 +144,12 @@ func wrapJiraErrorResponse(err error, resp *jira.Response, message string) error
 
 func WrapError(err error, message string, statusCode *int) error {
 	if statusCode == nil {
-		// Transient network failures (connection resets, unexpected EOFs,
-		// timeouts) never carry a status code. Surface them as Unavailable so
-		// the platform retries the current page instead of failing the sync.
-		// WrapErrors keeps the original error in the chain (errors.Is/As still
-		// work) while status.Code(err) resolves to Unavailable.
-		if isTransientNetworkError(err) {
+		// The uhttp transport under the Jira client already classifies
+		// transient network failures (connection resets, unexpected EOFs,
+		// timeouts) as retryable status errors; wrapping with %w keeps that
+		// classification in the chain. io.EOF (server closed the connection
+		// before responding) is the one transient case uhttp does not cover.
+		if errors.Is(err, io.EOF) {
 			return uhttp.WrapErrors(codes.Unavailable, message, err)
 		}
 		return fmt.Errorf("jira-connector: %s: %w", message, err)
@@ -165,7 +167,8 @@ func WrapError(err error, message string, statusCode *int) error {
 	switch *statusCode {
 	case http.StatusRequestTimeout:
 		return status.Error(codes.DeadlineExceeded, fmt.Sprintf("%s: %v", message, err))
-	case http.StatusTooManyRequests, http.StatusServiceUnavailable:
+	case http.StatusTooManyRequests, http.StatusServiceUnavailable,
+		http.StatusInternalServerError, http.StatusBadGateway, http.StatusGatewayTimeout:
 		return status.Error(codes.Unavailable, fmt.Sprintf("%s: %v", message, err))
 	case http.StatusUnauthorized:
 		return status.Error(codes.Unauthenticated, fmt.Sprintf("%s: %v", message, err))
@@ -197,7 +200,7 @@ func (c *Client) UpdateJiraClient(newJiraClient *jira.Client) {
 // base URL based on the email (service accounts use a different API endpoint).
 func NewWithScopedToken(ctx context.Context, username, apiToken, jiraURL string) (*Client, error) {
 	if IsScopedTokenURL(jiraURL) {
-		return New(username, apiToken, jiraURL)
+		return New(ctx, username, apiToken, jiraURL)
 	}
 
 	resolvedURL, err := GetScopedTokenUrl(ctx, jiraURL)
@@ -205,20 +208,35 @@ func NewWithScopedToken(ctx context.Context, username, apiToken, jiraURL string)
 		return nil, WrapError(err, "failed to resolve base URL", nil)
 	}
 
-	return New(username, apiToken, resolvedURL)
+	return New(ctx, username, apiToken, resolvedURL)
 }
 
-func NewHttpClient(username, apiToken string) *http.Client {
-	transport := jira.BasicAuthTransport{
-		Username: username,
-		APIToken: apiToken,
+// NewJiraHTTPClient returns an *http.Client whose transport chains go-jira's
+// basic auth over baton-sdk's uhttp transport, so every Jira request gets
+// uhttp's HTTP-level logging and transient network error classification
+// (connection resets, unexpected EOFs, and timeouts surface as retryable
+// status errors).
+func NewJiraHTTPClient(ctx context.Context, username, apiToken string) (*http.Client, error) {
+	base, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create uhttp client: %w", err)
 	}
 
-	return transport.Client()
+	return &http.Client{
+		Transport: &jira.BasicAuthTransport{
+			Username:  username,
+			APIToken:  apiToken,
+			Transport: base.Transport,
+		},
+	}, nil
 }
 
-func New(username, apiToken, url string) (*Client, error) {
-	httpClient := NewHttpClient(username, apiToken)
+func New(ctx context.Context, username, apiToken, url string) (*Client, error) {
+	httpClient, err := NewJiraHTTPClient(ctx, username, apiToken)
+	if err != nil {
+		return nil, err
+	}
+
 	jira, err := jira.NewClient(url, httpClient)
 	if err != nil {
 		return nil, err

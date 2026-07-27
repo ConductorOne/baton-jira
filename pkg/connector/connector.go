@@ -97,7 +97,7 @@ func (b *JiraBasicAuthBuilder) New(ctx context.Context, skipProjectParticipants 
 	if client.IsServiceAccount(b.Username) {
 		c, err = client.NewWithScopedToken(ctx, b.Username, b.ApiToken, b.Base.Url)
 	} else {
-		c, err = client.New(b.Username, b.ApiToken, b.Base.Url)
+		c, err = client.New(ctx, b.Username, b.ApiToken, b.Base.Url)
 	}
 
 	if err != nil {

@@ -2,13 +2,16 @@ package client
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 
 	jira "github.com/conductorone/go-jira/v2/cloud"
@@ -62,17 +65,58 @@ func TestConnectionResetIsUnavailable(t *testing.T) {
 	}
 }
 
-// TestWrapErrorEOFIsUnavailable covers the one transient case uhttp's
-// transport does not classify: the server closing the connection cleanly
-// before responding surfaces as a bare io.EOF.
-func TestWrapErrorEOFIsUnavailable(t *testing.T) {
-	err := WrapError(&url.Error{Op: "Get", URL: "https://example.com", Err: io.EOF}, "failed to get participate grants", nil)
-
-	if status.Code(err) != codes.Unavailable {
-		t.Errorf("expected codes.Unavailable for io.EOF, got %v", err)
+// TestWrapErrorUncoveredTransientErrorsAreUnavailable covers the transient
+// cases uhttp's transport does not classify: bare io.EOF (server closed the
+// connection cleanly before responding), broken pipes, and aborted
+// connections (Errno.Temporary() is false for EPIPE/ECONNABORTED).
+func TestWrapErrorUncoveredTransientErrorsAreUnavailable(t *testing.T) {
+	sentinels := []error{io.EOF, syscall.EPIPE, syscall.ECONNABORTED}
+	for _, sentinel := range sentinels {
+		wrapped := WrapError(
+			&url.Error{Op: "Get", URL: "https://example.com", Err: &net.OpError{Op: "write", Net: "tcp", Err: os.NewSyscallError("write", sentinel)}},
+			"failed to get participate grants", nil,
+		)
+		if status.Code(wrapped) != codes.Unavailable {
+			t.Errorf("expected codes.Unavailable for %v, got %v", sentinel, wrapped)
+		}
+		if !errors.Is(wrapped, sentinel) {
+			t.Errorf("expected %v to remain in the error chain, got %v", sentinel, wrapped)
+		}
 	}
-	if !errors.Is(err, io.EOF) {
-		t.Errorf("expected io.EOF to remain in the error chain, got %v", err)
+}
+
+// TestNewJiraHTTPClientTransportChain guards the in-place transport wrap:
+// the client must keep uhttp's client-level timeout AND still send basic
+// auth through the wrapped transport chain.
+func TestNewJiraHTTPClientTransportChain(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c, err := NewJiraHTTPClient(context.Background(), "user", "token")
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+	if c.Timeout <= 0 {
+		t.Errorf("expected the uhttp client timeout to be preserved, got %v", c.Timeout)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
+	if err != nil {
+		t.Fatalf("failed to build request: %v", err)
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("request through wrapped transport failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("user:token"))
+	if gotAuth != want {
+		t.Errorf("expected basic auth header %q from the wrapped transport, got %q", want, gotAuth)
 	}
 }
 

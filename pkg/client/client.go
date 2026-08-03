@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/types/sessions"
@@ -147,9 +148,11 @@ func WrapError(err error, message string, statusCode *int) error {
 		// The uhttp transport under the Jira client already classifies
 		// transient network failures (connection resets, unexpected EOFs,
 		// timeouts) as retryable status errors; wrapping with %w keeps that
-		// classification in the chain. io.EOF (server closed the connection
-		// before responding) is the one transient case uhttp does not cover.
-		if errors.Is(err, io.EOF) {
+		// classification in the chain. Cover the transient cases uhttp does
+		// not: io.EOF (server closed the connection before responding),
+		// broken pipes, and aborted connections (Errno.Temporary() is false
+		// for both, so uhttp's Temporary() path misses them).
+		if errors.Is(err, io.EOF) || errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNABORTED) {
 			return uhttp.WrapErrors(codes.Unavailable, message, err)
 		}
 		return fmt.Errorf("jira-connector: %s: %w", message, err)
@@ -222,13 +225,15 @@ func NewJiraHTTPClient(ctx context.Context, username, apiToken string) (*http.Cl
 		return nil, fmt.Errorf("failed to create uhttp client: %w", err)
 	}
 
-	return &http.Client{
-		Transport: &jira.BasicAuthTransport{
-			Username:  username,
-			APIToken:  apiToken,
-			Transport: base.Transport,
-		},
-	}, nil
+	// Wrap the transport in place so the client keeps everything else
+	// uhttp.NewClient configured — notably the client-level timeout.
+	base.Transport = &jira.BasicAuthTransport{
+		Username:  username,
+		APIToken:  apiToken,
+		Transport: base.Transport,
+	}
+
+	return base, nil
 }
 
 func New(ctx context.Context, username, apiToken, url string) (*Client, error) {

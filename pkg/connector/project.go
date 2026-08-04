@@ -10,6 +10,8 @@ import (
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	jira "github.com/conductorone/go-jira/v2/cloud"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -99,17 +101,28 @@ func (p *projectResourceType) Grants(ctx context.Context, resource *v2.Resource,
 		return rv, nil, nil
 	}
 
-	participateGrants, isLastPage, err := p.getGrantsForProjectUsers(ctx, resource, project, int(offset), resourcePageSize)
+	participateGrants, usersFetched, err := p.getGrantsForProjectUsers(ctx, resource, project, int(offset), participantPageSize)
 	if err != nil {
 		return nil, nil, err
 	}
 	rv = append(rv, participateGrants...)
 
-	if isLastPage {
+	ctxzap.Extract(ctx).Debug("fetched project participants page",
+		zap.String("project_key", project.Key),
+		zap.Int64("start_at", offset),
+		zap.Int("max_results_requested", participantPageSize),
+		zap.Int("users_returned", usersFetched),
+	)
+
+	// Advance by the requested window size and terminate only on an empty
+	// page, so a short-but-nonempty page doesn't end pagination prematurely;
+	// the trailing empty page confirms the end of the list at the cost of one
+	// extra request per project.
+	if usersFetched == 0 {
 		return rv, nil, nil
 	}
 
-	nextPage, err := getPageTokenFromOffset(bag, offset+int64(resourcePageSize))
+	nextPage, err := getPageTokenFromOffset(bag, offset+int64(participantPageSize))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -142,32 +155,29 @@ func (p *projectResourceType) getLeadGrants(ctx context.Context, resource *v2.Re
 	return rv, nil
 }
 
-func (p *projectResourceType) getGrantsForProjectUsers(ctx context.Context, resource *v2.Resource, project *jira.Project, offset int, count int) ([]*v2.Grant, bool, error) {
+func (p *projectResourceType) getGrantsForProjectUsers(ctx context.Context, resource *v2.Resource, project *jira.Project, offset int, count int) ([]*v2.Grant, int, error) {
 	var rv []*v2.Grant
 
-	lastPage := true
 	users, resp, err := p.client.Jira().User.FindUsersWithBrowsePermission(ctx, ".", jira.WithStartAt(offset), jira.WithMaxResults(count), jira.WithProjectKey(project.Key))
 	if err != nil {
 		var statusCode *int
 		if resp != nil {
 			statusCode = &resp.StatusCode
 		}
-		return nil, lastPage, wrapError(err, "failed to get participate grants", statusCode)
+		return nil, 0, wrapError(err, "failed to get participate grants", statusCode)
 	}
 
 	for i := range users {
 		userResource, err := userResource(ctx, &users[i])
 		if err != nil {
-			return nil, lastPage, err
+			return nil, 0, err
 		}
 
 		grant := grant.NewGrant(resource, participateEntitlement, userResource.Id)
 		rv = append(rv, grant)
 	}
 
-	lastPage = isLastPage(len(users), resourcePageSize)
-
-	return rv, lastPage, nil
+	return rv, len(users), nil
 }
 
 func (u *projectResourceType) List(ctx context.Context, _ *v2.ResourceId, attrs rs.SyncOpAttrs) ([]*v2.Resource, *rs.SyncOpResults, error) {

@@ -67,8 +67,6 @@ func userResource(ctx context.Context, user *jira.User) (*v2.Resource, error) {
 	}
 
 	userTraitOptions := []rs.UserTraitOption{
-		rs.WithUserProfile(profile),
-		rs.WithStatus(userStatus),
 		rs.WithAccountType(mapAccountType(user.AccountType)),
 	}
 
@@ -76,7 +74,10 @@ func userResource(ctx context.Context, user *jira.User) (*v2.Resource, error) {
 		userTraitOptions = append(userTraitOptions, rs.WithEmail(user.EmailAddress, true))
 	}
 
-	resource, err := rs.NewUserResource(user.DisplayName, resourceTypeUser, user.AccountID, userTraitOptions)
+	resource, err := rs.NewUserResource(user.DisplayName, resourceTypeUser, user.AccountID, userTraitOptions,
+		rs.WithResourceProfile(profile),
+		rs.WithResourceStatus(v2.Status_ResourceStatus(userStatus), ""),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -362,8 +363,6 @@ func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {
 	}
 
 	userTraits := []rs.UserTraitOption{
-		rs.WithUserProfile(profile),
-		rs.WithStatus(userStatus),
 		rs.WithUserLogin(user.Email),
 		rs.WithEmail(user.Email, true),
 	}
@@ -373,5 +372,7 @@ func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {
 		resourceTypeUser,
 		user.AccountId,
 		userTraits,
+		rs.WithResourceProfile(profile),
+		rs.WithResourceStatus(v2.Status_ResourceStatus(userStatus), ""),
 	)
 }

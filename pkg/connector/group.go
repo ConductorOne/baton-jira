@@ -46,11 +46,7 @@ func groupResource(ctx context.Context, group *jira.Group) (*v2.Resource, error)
 		attrName: group.Name,
 	}
 
-	groupTraitOptions := []rs.GroupTraitOption{
-		rs.WithGroupProfile(profile),
-	}
-
-	resource, err := rs.NewGroupResource(group.Name, resourceTypeGroup, group.ID, groupTraitOptions)
+	resource, err := rs.NewGroupResource(group.Name, resourceTypeGroup, group.ID, nil, rs.WithResourceProfile(profile))
 	if err != nil {
 		return nil, err
 	}
@@ -363,11 +359,7 @@ func parseIntoGroupResource(group atlassianclient.Group) (*v2.Resource, error) {
 		attrName: group.Name,
 	}
 
-	groupTraitOptions := []rs.GroupTraitOption{
-		rs.WithGroupProfile(profile),
-	}
-
-	resource, err := rs.NewGroupResource(group.Name, resourceTypeGroup, group.ID, groupTraitOptions)
+	resource, err := rs.NewGroupResource(group.Name, resourceTypeGroup, group.ID, nil, rs.WithResourceProfile(profile))
 	if err != nil {
 		return nil, err
 	}

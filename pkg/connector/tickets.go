@@ -17,6 +17,8 @@ import (
 	sdkTicket "github.com/conductorone/baton-sdk/pkg/types/ticket"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -363,14 +365,17 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 
 			schema, err := j.schemaForProjectIssueType(ctx, &project, &issueType, statuses, multipleProjects)
 			if err != nil {
-				l.Warn(
-					"error getting schema for project issue type",
-					zap.String("error", err.Error()),
-					zap.String("issue_type", issueType.ID),
-					zap.String("issue_type_name", issueType.Name),
-					zap.String("project", project.Key),
-				)
-				continue
+				if status.Code(err) == codes.NotFound {
+					l.Warn(
+						"error getting schema for project issue type",
+						zap.String("error", err.Error()),
+						zap.String("issue_type", issueType.ID),
+						zap.String("issue_type_name", issueType.Name),
+						zap.String("project", project.Key),
+					)
+					continue
+				}
+				return nil, "", nil, err
 			}
 			ret = append(ret, schema)
 		}

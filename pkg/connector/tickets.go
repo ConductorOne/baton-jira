@@ -147,7 +147,9 @@ func (j *Jira) getJiraStatusesForProject(ctx context.Context, projectId string) 
 			if resp != nil {
 				statusCode = &resp.StatusCode
 			}
-			return nil, wrapError(err, "error getting statuses for project", statusCode)
+			return nil, wrapError(err, fmt.Sprintf(
+				"error getting statuses for project (projectId: %s, statusCategory: DONE, startAt: %d, maxResults: %d)",
+				projectId, statusOffset, statusMaxResults), statusCode)
 		}
 
 		jiraStatuses = append(jiraStatuses, statuses...)
@@ -350,7 +352,9 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	for _, project := range filteredProjects {
 		statuses, err := j.getTicketStatuses(ctx, project.ID)
 		if err != nil {
-			return nil, "", nil, wrapError(err, "failed to get ticket statuses", nil)
+			return nil, "", nil, wrapError(err, fmt.Sprintf(
+				"failed to get ticket statuses for project %s (projectId: %s)",
+				project.Key, project.ID), nil)
 		}
 		for _, issueType := range project.IssueTypes {
 			if issueType.Name == "Epic" || issueType.Name == "Bug" {

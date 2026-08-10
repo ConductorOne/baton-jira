@@ -35,7 +35,7 @@ This connector can also be configured to automatically create and update Jira ti
 ## Known limitations
 
 - User email is synced only when Atlassian returns it. Depending on the account's profile-privacy settings and the API token's permissions, Atlassian may omit the email address, in which case the connector cannot populate it.
-- Per-project participant listing pages through all participants using a page size of 1,000, but each project incurs one extra trailing request beyond the pages that returned data, since pagination only stops on an empty page.
+- Project participant listing is subject to an Atlassian API constraint: each request selects up to 1,000 candidate accounts and then filters them for browse permission, so a request returns fewer accounts than requested. Enumeration for a project stops at the first request that returns no accounts, which means a run of 1,000 or more consecutive accounts without browse permission on a project ends that project's participant listing early.
 
 ## Gather Jira Cloud credentials
 

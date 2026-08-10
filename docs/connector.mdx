@@ -24,7 +24,7 @@ The Jira Cloud connector supports [automatic account provisioning](/product/admi
 | `email` | String | Email address of the new user. |
 | `products` | String list | Jira products the user can access. Valid values: `jira-core`, `jira-servicedesk`, `jira-product-discovery`, `jira-software`. |
 
-Both mappings are required. If the `products` mapping is missing, the Atlassian API rejects the request with an HTTP 400 error, and the connector reports this as a generic "create account failed" error without surfacing the upstream message, so the cause may not be immediately obvious.
+Both mappings are required. If the `products` mapping is missing, the Atlassian API rejects the request with an HTTP 400 error, and the connector reports this as a generic "failed to create user" error without surfacing the upstream message, so the cause may not be immediately obvious.
 
 This connector does not support account deprovisioning. You must deprovision accounts directly in Jira.
 
@@ -34,7 +34,8 @@ This connector can also be configured to automatically create and update Jira ti
 
 ## Known limitations
 
-- Per-project participant listing uses a page size of 1,000. On projects with more than 1,000 participants, the connector pages through all of them, but each page requires a separate API call.
+- User email is synced only when Atlassian returns it. Depending on the account's profile-privacy settings and the API token's permissions, Atlassian may omit the email address, in which case the connector cannot populate it.
+- Per-project participant listing pages through all participants using a page size of 1,000, but each project incurs one extra trailing request beyond the pages that returned data, since pagination only stops on an empty page.
 
 ## Gather Jira Cloud credentials
 

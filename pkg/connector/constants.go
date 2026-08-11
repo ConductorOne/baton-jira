@@ -2,6 +2,10 @@ package connector
 
 const attrName = "name"
 
+// defaultMaxIssueTypePairsPerPage bounds how much work one ListTicketSchemas call does.
+// Tests override this per-instance via Jira.maxIssueTypePairsPerPage.
+const defaultMaxIssueTypePairsPerPage = 25
+
 var (
 	resourcePageSize = 50
 

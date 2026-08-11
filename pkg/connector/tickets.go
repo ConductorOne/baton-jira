@@ -26,9 +26,6 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
-// maxIssueTypePairsPerPage bounds how much work one ListTicketSchemas call does.
-var maxIssueTypePairsPerPage = 25
-
 const componentsFieldID = "components"
 
 // projectScopedCustomFieldIDs have allowed values that are the same for every issue type in a project.
@@ -39,10 +36,22 @@ var projectScopedCustomFieldIDs = map[string]bool{
 }
 
 // ticketSchemaPageToken is the ListTicketSchemas pagination cursor: project offset + issue-type index.
+//
+// This is a flat, single-cursor resume position (one linear walk over projects x issue types), not a
+// dispatch between multiple resource types, so it doesn't fit the pagination.Bag/PageState idiom used
+// elsewhere in this package for switching between resource kinds. A plain struct is the simpler fit here.
 type ticketSchemaPageToken struct {
 	ProjectOffset      int `json:"project_offset,omitempty"`
 	ProjectIndexInPage int `json:"project_index,omitempty"`
 	IssueTypeIndex     int `json:"issue_type_index,omitempty"`
+}
+
+// issueTypePairsPerPage returns the per-call cap on issue-type pairs processed by ListTicketSchemas.
+func (j *Jira) issueTypePairsPerPage() int {
+	if j.maxIssueTypePairsPerPage > 0 {
+		return j.maxIssueTypePairsPerPage
+	}
+	return defaultMaxIssueTypePairsPerPage
 }
 
 func marshalTicketSchemaPageToken(tok ticketSchemaPageToken) (string, error) {
@@ -418,10 +427,21 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 
 	multipleProjects := len(projects) > 1
 
+	pairCap := j.issueTypePairsPerPage()
+
 	var ret []*v2.TicketSchema
 	pairsProcessed := 0
 	projectIndex := tok.ProjectIndexInPage
 	issueTypeIndex := tok.IssueTypeIndex
+
+	// nextPageTokenAt marshals a resume position pointing at the given project/issue-type pair.
+	nextPageTokenAt := func(projectIndex, issueTypeIndex int) (string, error) {
+		return marshalTicketSchemaPageToken(ticketSchemaPageToken{
+			ProjectOffset:      tok.ProjectOffset,
+			ProjectIndexInPage: projectIndex,
+			IssueTypeIndex:     issueTypeIndex,
+		})
+	}
 
 	for projectIndex < len(projects) {
 		project := projects[projectIndex]
@@ -432,6 +452,16 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 			projectIndex++
 			issueTypeIndex = 0
 			continue
+		}
+
+		// Check the cap before fetching statuses: if this call has no budget left for this
+		// project's pairs, fetching statuses for it here would be wasted work.
+		if pairsProcessed >= pairCap {
+			nextPageToken, err := nextPageTokenAt(projectIndex, issueTypeIndex)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			return ret, nextPageToken, nil, nil
 		}
 
 		// May be refetched across resumed pages for the same project; bounded, acceptable redundancy.
@@ -446,12 +476,8 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		projectFieldCache := make(map[string]*v2.TicketCustomField)
 
 		for issueTypeIndex < len(issueTypes) {
-			if pairsProcessed >= maxIssueTypePairsPerPage {
-				nextPageToken, err := marshalTicketSchemaPageToken(ticketSchemaPageToken{
-					ProjectOffset:      tok.ProjectOffset,
-					ProjectIndexInPage: projectIndex,
-					IssueTypeIndex:     issueTypeIndex,
-				})
+			if pairsProcessed >= pairCap {
+				nextPageToken, err := nextPageTokenAt(projectIndex, issueTypeIndex)
 				if err != nil {
 					return nil, "", nil, err
 				}
@@ -464,22 +490,24 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 			if err != nil {
 				// 404 means this issue type just isn't on the project's create screen - skip it.
 				// Any other error is a real failure and must propagate.
-				if status.Code(err) == codes.NotFound {
-					l.Debug(
-						"issue type has no create-meta fields for project, skipping",
-						zap.Error(err),
-						zap.String("issue_type", issueType.ID),
-						zap.String("issue_type_name", issueType.Name),
-						zap.String("project", project.Key),
-					)
-					issueTypeIndex++
-					pairsProcessed++
-					continue
+				if status.Code(err) != codes.NotFound {
+					return nil, "", nil, err
 				}
-				return nil, "", nil, err
+				l.Debug(
+					"issue type has no create-meta fields for project, skipping",
+					zap.Error(err),
+					zap.String("issue_type", issueType.ID),
+					zap.String("issue_type_name", issueType.Name),
+					zap.String("project", project.Key),
+				)
+				schema = nil
 			}
 
-			ret = append(ret, schema)
+			// Advance exactly once per pair, on every outcome (added or skipped), so the
+			// resume position (issueTypeIndex/pairsProcessed) can never drift out of sync.
+			if schema != nil {
+				ret = append(ret, schema)
+			}
 			issueTypeIndex++
 			pairsProcessed++
 		}

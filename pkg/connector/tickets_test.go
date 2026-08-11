@@ -326,11 +326,8 @@ func TestListTicketSchemas_FullExhaustionNoDuplicatesNoOmissions(t *testing.T) {
 	defer srv.Close()
 
 	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 3 // force resumes within and across projects
 	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
-
-	origCap := maxIssueTypePairsPerPage
-	maxIssueTypePairsPerPage = 3 // force resumes within and across projects
-	defer func() { maxIssueTypePairsPerPage = origCap }()
 
 	seen := map[string]int{}
 	var allSchemas []*v2.TicketSchema
@@ -379,11 +376,8 @@ func TestListTicketSchemas_CapNeverExceeded(t *testing.T) {
 	defer srv.Close()
 
 	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 4
 	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
-
-	origCap := maxIssueTypePairsPerPage
-	maxIssueTypePairsPerPage = 4
-	defer func() { maxIssueTypePairsPerPage = origCap }()
 
 	token := &pagination.Token{Size: 50}
 	for i := 0; i < 10; i++ {
@@ -391,8 +385,8 @@ func TestListTicketSchemas_CapNeverExceeded(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(schemas) > maxIssueTypePairsPerPage {
-			t.Fatalf("call returned %d schemas, exceeding cap of %d", len(schemas), maxIssueTypePairsPerPage)
+		if len(schemas) > j.maxIssueTypePairsPerPage {
+			t.Fatalf("call returned %d schemas, exceeding cap of %d", len(schemas), j.maxIssueTypePairsPerPage)
 		}
 		if nextToken == "" {
 			return
@@ -408,11 +402,8 @@ func TestListTicketSchemas_ResumesMidProjectNotFromZero(t *testing.T) {
 	defer srv.Close()
 
 	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 3
 	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
-
-	origCap := maxIssueTypePairsPerPage
-	maxIssueTypePairsPerPage = 3
-	defer func() { maxIssueTypePairsPerPage = origCap }()
 
 	// First call: issue types 1-3.
 	firstSchemas, nextToken, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 50})

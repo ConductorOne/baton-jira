@@ -31,6 +31,10 @@ type (
 		username    string
 		apiToken    string
 		originalURL string
+
+		// maxIssueTypePairsPerPage overrides defaultMaxIssueTypePairsPerPage when > 0.
+		// Only tests set this; production instances leave it zero.
+		maxIssueTypePairsPerPage int
 	}
 
 	JiraBuilder interface {

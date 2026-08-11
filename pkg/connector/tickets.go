@@ -397,7 +397,14 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 	}
 
-	projects, resp, err := j.client.Jira().Project.Find(ctx, jira.WithStartAt(tok.ProjectOffset), jira.WithMaxResults(p.Size), jira.WithExpand("issueTypes"), jira.WithKeys(j.projectKeys...))
+	// Callers (production) commonly leave Size unset; fall back to our default page size
+	// rather than sending maxResults=0, which Jira interprets as "return zero projects".
+	projectPageSize := resourcePageSize
+	if p != nil && p.Size > 0 {
+		projectPageSize = p.Size
+	}
+
+	projects, resp, err := j.client.Jira().Project.Find(ctx, jira.WithStartAt(tok.ProjectOffset), jira.WithMaxResults(projectPageSize), jira.WithExpand("issueTypes"), jira.WithKeys(j.projectKeys...))
 	if err != nil {
 		var statusCode *int
 		if resp != nil {
@@ -407,7 +414,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	}
 
 	// resp.Total is always 0 for this endpoint (see project.go), so detect the last page by short count.
-	isLastProjectPage := isLastPage(len(projects), p.Size)
+	isLastProjectPage := isLastPage(len(projects), projectPageSize)
 
 	multipleProjects := len(projects) > 1
 

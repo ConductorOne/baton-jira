@@ -562,6 +562,57 @@ func TestListTicketSchemas_ProjectScopedFieldRequiredVariesPerIssueType(t *testi
 	}
 }
 
+func fixVersionsField(allowedValueIDs ...string) map[string]interface{} {
+	allowed := make([]map[string]interface{}, 0, len(allowedValueIDs))
+	for _, id := range allowedValueIDs {
+		allowed = append(allowed, map[string]interface{}{"id": id, "name": "v" + id})
+	}
+	return map[string]interface{}{
+		"fieldId":       fixVersionsFieldID,
+		"key":           fixVersionsFieldID,
+		"name":          "Fix Version/s",
+		"required":      true,
+		"schema":        map[string]interface{}{"type": "array", "items": "version"},
+		"allowedValues": allowed,
+	}
+}
+
+func TestListTicketSchemas_EmptyAllowedValuesNotCachedOverNonEmpty(t *testing.T) {
+	// A project-scoped field with no choices on one issue type must not poison the
+	// cache for a later issue type that does have choices.
+	projects := []ticketProjectFixture{
+		{
+			id: "10000", key: "TEST", name: "Test Project",
+			issueTypes: []ticketIssueType{
+				{id: "1", name: testIssueTypeTask, fields: []map[string]interface{}{fixVersionsField()}},
+				{id: "2", name: "Story", fields: []map[string]interface{}{fixVersionsField("1", "2")}},
+			},
+		},
+	}
+	srv := newTicketSchemaServer(t, projects, 50, nil)
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	schemas, _, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 50})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(schemas) != 2 {
+		t.Fatalf("expected 2 schemas, got %d", len(schemas))
+	}
+
+	fixVersionsStory := schemas[1].CustomFields[fixVersionsFieldID]
+	if fixVersionsStory == nil {
+		t.Fatalf("expected the Story schema to have a fixVersions custom field")
+	}
+	allowed := fixVersionsStory.GetPickMultipleObjectValues().GetAllowedValues()
+	if len(allowed) != 2 {
+		t.Errorf("expected 2 allowed values for Story's fixVersions, got %d (empty result from Task leaked via cache)", len(allowed))
+	}
+}
+
 func TestListTicketSchemas_IssueTypeScopedFieldsStayDistinct(t *testing.T) {
 	// Non-project-scoped fields must be computed independently per issue type.
 	projects := []ticketProjectFixture{

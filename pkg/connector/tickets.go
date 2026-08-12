@@ -26,13 +26,17 @@ import (
 	jira "github.com/conductorone/go-jira/v2/cloud"
 )
 
-const componentsFieldID = "components"
+const (
+	componentsFieldID  = "components"
+	fixVersionsFieldID = "fixVersions"
+	versionsFieldID    = "versions"
+)
 
 // projectScopedCustomFieldIDs have allowed values that are the same for every issue type in a project.
 var projectScopedCustomFieldIDs = map[string]bool{
-	componentsFieldID: true,
-	"fixVersions":     true,
-	"versions":        true,
+	componentsFieldID:  true,
+	fixVersionsFieldID: true,
+	versionsFieldID:    true,
 }
 
 // ticketSchemaPageToken is the ListTicketSchemas pagination cursor: project offset + issue-type index.
@@ -294,7 +298,9 @@ func (j *Jira) getCustomFieldsForIssueType(
 			allowedValues, ok := projectFieldCache[field.FieldId]
 			if !ok {
 				allowedValues = buildAllowedValues(field)
-				projectFieldCache[field.FieldId] = allowedValues
+				if len(allowedValues) > 0 {
+					projectFieldCache[field.FieldId] = allowedValues
+				}
 			}
 			customFields = append(customFields, convertMetadataFieldToCustomField(field, allowedValues))
 			continue

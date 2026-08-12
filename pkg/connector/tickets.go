@@ -36,10 +36,6 @@ var projectScopedCustomFieldIDs = map[string]bool{
 }
 
 // ticketSchemaPageToken is the ListTicketSchemas pagination cursor: project offset + issue-type index.
-//
-// This is a flat, single-cursor resume position (one linear walk over projects x issue types), not a
-// dispatch between multiple resource types, so it doesn't fit the pagination.Bag/PageState idiom used
-// elsewhere in this package for switching between resource kinds. A plain struct is the simpler fit here.
 type ticketSchemaPageToken struct {
 	ProjectOffset      int `json:"project_offset,omitempty"`
 	ProjectIndexInPage int `json:"project_index,omitempty"`
@@ -223,7 +219,7 @@ func (j *Jira) schemaForProjectIssueType(
 	issueType *jira.IssueType,
 	statuses []*v2.TicketStatus,
 	includeProjectInName bool,
-	projectFieldCache map[string]*v2.TicketCustomField,
+	projectFieldCache map[string][]*v2.TicketCustomFieldObjectValue,
 ) (*v2.TicketSchema, error) {
 	customFieldsMap := make(map[string]*v2.TicketCustomField)
 
@@ -265,9 +261,8 @@ func (j *Jira) schemaForProjectIssueType(
 	return ret, nil
 }
 
-// getCustomFieldsForIssueType fetches create-meta fields for one (project, issue_type) pair,
-// reusing projectFieldCache for project-scoped fields instead of rebuilding them.
-func (j *Jira) getCustomFieldsForIssueType(ctx context.Context, projectId string, issueType *jira.IssueType, projectFieldCache map[string]*v2.TicketCustomField) ([]*v2.TicketCustomField, error) {
+// getCustomFieldsForIssueType fetches create-meta fields for one (project, issue_type) pair.
+func (j *Jira) getCustomFieldsForIssueType(ctx context.Context, projectId string, issueType *jira.IssueType, projectFieldCache map[string][]*v2.TicketCustomFieldObjectValue) ([]*v2.TicketCustomField, error) {
 	customFields := make([]*v2.TicketCustomField, 0)
 
 	issueFields, err := j.GetIssueTypeFields(ctx, projectId, issueType.ID, &jira.GetQueryIssueTypeOptions{
@@ -291,18 +286,16 @@ func (j *Jira) getCustomFieldsForIssueType(ctx context.Context, projectId string
 		}
 
 		if projectFieldCache != nil && projectScopedCustomFieldIDs[field.FieldId] {
-			if cached, ok := projectFieldCache[field.FieldId]; ok {
-				customFields = append(customFields, cached)
-				continue
+			allowedValues, ok := projectFieldCache[field.FieldId]
+			if !ok {
+				allowedValues = buildAllowedValues(field)
+				projectFieldCache[field.FieldId] = allowedValues
 			}
-			customField := convertMetadataFieldToCustomField(field)
-			projectFieldCache[field.FieldId] = customField
-			customFields = append(customFields, customField)
+			customFields = append(customFields, convertMetadataFieldToCustomField(field, allowedValues))
 			continue
 		}
 
-		customField := convertMetadataFieldToCustomField(field)
-		customFields = append(customFields, customField)
+		customFields = append(customFields, convertMetadataFieldToCustomField(field, buildAllowedValues(field)))
 	}
 
 	return customFields, nil
@@ -336,25 +329,28 @@ func (j *Jira) GetIssueTypeFields(ctx context.Context, projectKey, issueTypeId s
 	return allMetaFields, nil
 }
 
-func convertMetadataFieldToCustomField(metaDataField *jira.MetaDataFields) *v2.TicketCustomField {
-	var customField *v2.TicketCustomField
+// buildAllowedValues converts a metadata field's allowed choices to the SDK's object-value type.
+func buildAllowedValues(metaDataField *jira.MetaDataFields) []*v2.TicketCustomFieldObjectValue {
 	var allowedValues []*v2.TicketCustomFieldObjectValue
-
-	hasAllowedValues := len(metaDataField.AllowedValues) > 0
-	isMultiSelect := metaDataField.Schema.Items != ""
-
-	if hasAllowedValues {
-		for _, choice := range metaDataField.AllowedValues {
-			displayName := choice.Name
-			if displayName == "" {
-				displayName = choice.Value
-			}
-			allowedValues = append(allowedValues, &v2.TicketCustomFieldObjectValue{
-				Id:          string(choice.Id),
-				DisplayName: displayName,
-			})
+	for _, choice := range metaDataField.AllowedValues {
+		displayName := choice.Name
+		if displayName == "" {
+			displayName = choice.Value
 		}
+		allowedValues = append(allowedValues, &v2.TicketCustomFieldObjectValue{
+			Id:          string(choice.Id),
+			DisplayName: displayName,
+		})
 	}
+	return allowedValues
+}
+
+// convertMetadataFieldToCustomField builds a custom field for metaDataField using allowedValues.
+func convertMetadataFieldToCustomField(metaDataField *jira.MetaDataFields, allowedValues []*v2.TicketCustomFieldObjectValue) *v2.TicketCustomField {
+	var customField *v2.TicketCustomField
+
+	hasAllowedValues := len(allowedValues) > 0
+	isMultiSelect := metaDataField.Schema.Items != ""
 
 	id := metaDataField.Key
 
@@ -406,10 +402,9 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 	}
 
-	// Callers (production) commonly leave Size unset; fall back to our default page size
-	// rather than sending maxResults=0, which Jira interprets as "return zero projects".
+	// /project/search clamps maxResults server-side, so only honor a smaller caller size.
 	projectPageSize := resourcePageSize
-	if p != nil && p.Size > 0 {
+	if p != nil && p.Size > 0 && p.Size < resourcePageSize {
 		projectPageSize = p.Size
 	}
 
@@ -422,7 +417,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		return nil, "", nil, wrapError(err, "failed to get projects", statusCode)
 	}
 
-	// resp.Total is always 0 for this endpoint (see project.go), so detect the last page by short count.
+	// resp.Total is always 0 here, so use short-count to detect the last page.
 	isLastProjectPage := isLastPage(len(projects), projectPageSize)
 
 	multipleProjects := len(projects) > 1
@@ -434,7 +429,6 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	projectIndex := tok.ProjectIndexInPage
 	issueTypeIndex := tok.IssueTypeIndex
 
-	// nextPageTokenAt marshals a resume position pointing at the given project/issue-type pair.
 	nextPageTokenAt := func(projectIndex, issueTypeIndex int) (string, error) {
 		return marshalTicketSchemaPageToken(ticketSchemaPageToken{
 			ProjectOffset:      tok.ProjectOffset,
@@ -448,14 +442,12 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		issueTypes := filterSchemaIssueTypes(project.IssueTypes)
 
 		if issueTypeIndex >= len(issueTypes) {
-			// project already finished - move on.
 			projectIndex++
 			issueTypeIndex = 0
 			continue
 		}
 
-		// Check the cap before fetching statuses: if this call has no budget left for this
-		// project's pairs, fetching statuses for it here would be wasted work.
+		// Check the cap before fetching statuses to avoid wasted work.
 		if pairsProcessed >= pairCap {
 			nextPageToken, err := nextPageTokenAt(projectIndex, issueTypeIndex)
 			if err != nil {
@@ -464,7 +456,6 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 			return ret, nextPageToken, nil, nil
 		}
 
-		// May be refetched across resumed pages for the same project; bounded, acceptable redundancy.
 		statuses, err := j.getTicketStatuses(ctx, project.ID)
 		if err != nil {
 			return nil, "", nil, wrapError(err, fmt.Sprintf(
@@ -472,8 +463,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 				project.Key, project.ID), nil)
 		}
 
-		// Reused across this project's issue types instead of being rebuilt per issue type.
-		projectFieldCache := make(map[string]*v2.TicketCustomField)
+		projectFieldCache := make(map[string][]*v2.TicketCustomFieldObjectValue)
 
 		for issueTypeIndex < len(issueTypes) {
 			if pairsProcessed >= pairCap {
@@ -488,23 +478,30 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 
 			schema, err := j.schemaForProjectIssueType(ctx, &project, &issueType, statuses, multipleProjects, projectFieldCache)
 			if err != nil {
-				// 404 means this issue type just isn't on the project's create screen - skip it.
-				// Any other error is a real failure and must propagate.
-				if status.Code(err) != codes.NotFound {
+				// 4xx: customer config, skip and continue. Everything else propagates.
+				switch status.Code(err) {
+				case codes.NotFound:
+					l.Debug(
+						"issue type has no create-meta fields for project, skipping",
+						zap.Error(err),
+						zap.String("issue_type", issueType.ID),
+						zap.String("issue_type_name", issueType.Name),
+						zap.String("project", project.Key),
+					)
+				case codes.PermissionDenied, codes.Unauthenticated:
+					l.Warn(
+						"token lacks access to create-meta fields for project, skipping issue type",
+						zap.Error(err),
+						zap.String("issue_type", issueType.ID),
+						zap.String("issue_type_name", issueType.Name),
+						zap.String("project", project.Key),
+					)
+				default:
 					return nil, "", nil, err
 				}
-				l.Debug(
-					"issue type has no create-meta fields for project, skipping",
-					zap.Error(err),
-					zap.String("issue_type", issueType.ID),
-					zap.String("issue_type_name", issueType.Name),
-					zap.String("project", project.Key),
-				)
 				schema = nil
 			}
 
-			// Advance exactly once per pair, on every outcome (added or skipped), so the
-			// resume position (issueTypeIndex/pairsProcessed) can never drift out of sync.
 			if schema != nil {
 				ret = append(ret, schema)
 			}
@@ -567,7 +564,7 @@ func (j *Jira) GetTicketSchema(ctx context.Context, schemaID string) (*v2.Ticket
 		return nil, nil, err
 	}
 
-	ret, err := j.schemaForProjectIssueType(ctx, project, issueType, statuses, false, make(map[string]*v2.TicketCustomField))
+	ret, err := j.schemaForProjectIssueType(ctx, project, issueType, statuses, false, make(map[string][]*v2.TicketCustomFieldObjectValue))
 	if err != nil {
 		return nil, nil, err
 	}

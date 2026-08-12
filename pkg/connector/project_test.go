@@ -105,7 +105,7 @@ type fakeUser struct {
 //   - GET /rest/api/2/project/{id} — project metadata
 //   - GET /rest/api/2/user/viewissue/search — participant pages, sliced from
 //     the filtered participant list exactly like Jira Cloud does (startAt
-//     indexes the filtered list; empirically validated for CXP-762).
+//     indexes the filtered list; empirically validated against production behavior).
 //
 // It records every startAt it receives so tests can assert window placement.
 func newParticipantServer(t *testing.T, participants []fakeUser, startAts *[]int) *httptest.Server {

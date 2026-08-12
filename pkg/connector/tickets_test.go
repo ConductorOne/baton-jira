@@ -20,16 +20,13 @@ import (
 
 const testIssueTypeTask = "Task"
 
-// ticketIssueType is a small fixture describing one issue type of a
-// fixture project, and what the create-meta fields endpoint should return
-// for that (project, issue_type) pair.
+// ticketIssueType is a fixture describing one issue type of a fixture project.
 type ticketIssueType struct {
 	id      string
 	name    string
 	subtask bool
 
-	// httpStatus, when non-zero, makes the create-meta fields endpoint for
-	// this pair fail with that status instead of returning fields.
+	// If non-zero, create-meta for this pair fails with this status.
 	httpStatus int
 
 	fields []map[string]interface{}
@@ -40,19 +37,10 @@ type ticketProjectFixture struct {
 	key        string
 	name       string
 	issueTypes []ticketIssueType
-
-	// statuses returned for this project; also used to count how many times
-	// the statuses endpoint was hit for this project.
-	statuses []map[string]interface{}
+	statuses   []map[string]interface{}
 }
 
-// newTicketSchemaServer serves the three endpoints ListTicketSchemas hits:
-//   - GET /rest/api/2/project/search       - paginated project list
-//   - GET /rest/api/3/statuses/search      - paginated per-project statuses
-//   - GET /rest/api/2/issue/createmeta/{project}/issuetypes/{issueType} - per-pair fields
-//
-// projectPageSize controls how many projects a single project-search call
-// returns, so tests can force multiple project pages.
+// newTicketSchemaServer fakes the project search, statuses, and create-meta endpoints.
 func newTicketSchemaServer(t *testing.T, projects []ticketProjectFixture, projectPageSize int, statusesCalls *map[string]int) *httptest.Server {
 	t.Helper()
 
@@ -265,12 +253,11 @@ func TestListTicketSchemas_404SkippedAtDebug(t *testing.T) {
 	}
 }
 
-func TestListTicketSchemas_NonNotFoundErrorPropagates(t *testing.T) {
+func TestListTicketSchemas_ServerErrorPropagates(t *testing.T) {
 	tests := []struct {
 		name       string
 		httpStatus int
 	}{
-		{"forbidden", http.StatusForbidden},
 		{"server error", http.StatusInternalServerError},
 	}
 
@@ -293,6 +280,48 @@ func TestListTicketSchemas_NonNotFoundErrorPropagates(t *testing.T) {
 			schemas, _, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 50})
 			if err == nil {
 				t.Fatalf("expected error for HTTP %d, got nil (schemas=%v)", tt.httpStatus, schemas)
+			}
+		})
+	}
+}
+
+func TestListTicketSchemas_ClientErrorsSkippedNotPropagated(t *testing.T) {
+	// One inaccessible (project, issue_type) pair must be skipped, not abort the sync.
+	tests := []struct {
+		name       string
+		httpStatus int
+	}{
+		{"forbidden", http.StatusForbidden},
+		{"unauthorized", http.StatusUnauthorized},
+		{"not found", http.StatusNotFound},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			projects := []ticketProjectFixture{
+				{
+					id: "10000", key: "TEST", name: "Test Project",
+					issueTypes: []ticketIssueType{
+						{id: "1", name: testIssueTypeTask, httpStatus: tt.httpStatus},
+						{id: "2", name: "Story", fields: []map[string]interface{}{stringField("customfield_1", "Field 1")}},
+					},
+				},
+			}
+			srv := newTicketSchemaServer(t, projects, 50, nil)
+			defer srv.Close()
+
+			j := newTestJira(t, srv.URL)
+			ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+			schemas, _, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 50})
+			if err != nil {
+				t.Fatalf("expected HTTP %d to be skipped, got error: %v", tt.httpStatus, err)
+			}
+			if len(schemas) != 1 {
+				t.Fatalf("expected the accessible issue type to still produce a schema, got %d schemas", len(schemas))
+			}
+			if schemas[0].DisplayName != "Story" {
+				t.Errorf("expected the surviving schema to be for Story, got %q", schemas[0].DisplayName)
 			}
 		})
 	}
@@ -475,20 +504,66 @@ func TestListTicketSchemas_ProjectScopedFieldsReusedNotRebuilt(t *testing.T) {
 	if componentsA == nil || componentsB == nil {
 		t.Fatalf("expected both schemas to have a components custom field")
 	}
-	if componentsA != componentsB {
-		t.Errorf("expected the components field to be reused (same pointer) across issue types in the same project, got distinct objects")
+
+	allowedA := componentsA.GetPickMultipleObjectValues().GetAllowedValues()
+	allowedB := componentsB.GetPickMultipleObjectValues().GetAllowedValues()
+	if len(allowedA) == 0 || len(allowedB) == 0 {
+		t.Fatalf("expected both components fields to have allowed values")
+	}
+	if allowedA[0] != allowedB[0] {
+		t.Errorf("expected allowed values to be reused across issue types, got distinct objects")
 	}
 
-	// Statuses must also be the exact same slice reused, not rebuilt.
 	if len(schemas[0].Statuses) != 2 || len(schemas[1].Statuses) != 2 {
 		t.Fatalf("expected both schemas to carry the project's 2 statuses")
 	}
 }
 
+func TestListTicketSchemas_ProjectScopedFieldRequiredVariesPerIssueType(t *testing.T) {
+	// Required must not leak from one issue type's cached field to another.
+	requiredComponents := componentsField("c1", "c2")
+	requiredComponents["required"] = true
+	optionalComponents := componentsField("c1", "c2")
+	optionalComponents["required"] = false
+
+	projects := []ticketProjectFixture{
+		{
+			id: "10000", key: "TEST", name: "Test Project",
+			issueTypes: []ticketIssueType{
+				{id: "1", name: testIssueTypeTask, fields: []map[string]interface{}{requiredComponents}},
+				{id: "2", name: "Story", fields: []map[string]interface{}{optionalComponents}},
+			},
+		},
+	}
+	srv := newTicketSchemaServer(t, projects, 50, nil)
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	schemas, _, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 50})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(schemas) != 2 {
+		t.Fatalf("expected 2 schemas, got %d", len(schemas))
+	}
+
+	componentsTask := schemas[0].CustomFields[componentsFieldID]
+	componentsStory := schemas[1].CustomFields[componentsFieldID]
+	if componentsTask == nil || componentsStory == nil {
+		t.Fatalf("expected both schemas to have a components custom field")
+	}
+	if !componentsTask.GetRequired() {
+		t.Errorf("expected components to be required for the Task issue type")
+	}
+	if componentsStory.GetRequired() {
+		t.Errorf("expected components to be optional for the Story issue type, got required (stale value leaked from cache)")
+	}
+}
+
 func TestListTicketSchemas_IssueTypeScopedFieldsStayDistinct(t *testing.T) {
-	// A field that is NOT in projectScopedCustomFieldIDs (a regular custom
-	// picklist) must still be computed independently per issue type, even
-	// if its allowed values happen to differ between issue types.
+	// Non-project-scoped fields must be computed independently per issue type.
 	projects := []ticketProjectFixture{
 		{
 			id: "10000", key: "TEST", name: "Test Project",

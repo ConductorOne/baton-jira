@@ -32,8 +32,7 @@ type (
 		apiToken    string
 		originalURL string
 
-		// maxIssueTypePairsPerPage overrides defaultMaxIssueTypePairsPerPage when > 0.
-		// Only tests set this; production instances leave it zero.
+		// Overrides defaultMaxIssueTypePairsPerPage when > 0; tests only.
 		maxIssueTypePairsPerPage int
 	}
 

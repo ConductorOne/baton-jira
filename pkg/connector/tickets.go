@@ -262,7 +262,12 @@ func (j *Jira) schemaForProjectIssueType(
 }
 
 // getCustomFieldsForIssueType fetches create-meta fields for one (project, issue_type) pair.
-func (j *Jira) getCustomFieldsForIssueType(ctx context.Context, projectId string, issueType *jira.IssueType, projectFieldCache map[string][]*v2.TicketCustomFieldObjectValue) ([]*v2.TicketCustomField, error) {
+func (j *Jira) getCustomFieldsForIssueType(
+	ctx context.Context,
+	projectId string,
+	issueType *jira.IssueType,
+	projectFieldCache map[string][]*v2.TicketCustomFieldObjectValue,
+) ([]*v2.TicketCustomField, error) {
 	customFields := make([]*v2.TicketCustomField, 0)
 
 	issueFields, err := j.GetIssueTypeFields(ctx, projectId, issueType.ID, &jira.GetQueryIssueTypeOptions{

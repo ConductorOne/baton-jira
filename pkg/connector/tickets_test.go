@@ -234,7 +234,7 @@ func TestListTicketSchemas_404SkippedAtDebug(t *testing.T) {
 		t.Fatalf("expected 2 schemas (404 skipped), got %d", len(schemas))
 	}
 
-	var debugCount, warnCount int
+	var debugCount, warnCount, rawErrCount int
 	for _, entry := range logs.All() {
 		if entry.Message == "issue type has no create-meta fields for project, skipping" {
 			if entry.Level == zapcore.DebugLevel {
@@ -244,12 +244,18 @@ func TestListTicketSchemas_404SkippedAtDebug(t *testing.T) {
 				warnCount++
 			}
 		}
+		if entry.Message == "error getting issue type fields" && entry.Level >= zapcore.WarnLevel {
+			rawErrCount++
+		}
 	}
 	if debugCount != 1 {
 		t.Errorf("expected exactly 1 Debug-level skip log, got %d", debugCount)
 	}
 	if warnCount != 0 {
 		t.Errorf("expected 0 Warn-level skip logs (404s must not log at Warn), got %d", warnCount)
+	}
+	if rawErrCount != 0 {
+		t.Errorf("expected 0 Warn/Error logs for the unclassified 404, got %d", rawErrCount)
 	}
 }
 
@@ -466,6 +472,40 @@ func TestListTicketSchemas_ResumesMidProjectNotFromZero(t *testing.T) {
 		if firstIDs[s.Id] {
 			t.Fatalf("schema %s returned on both calls - resumed from zero instead of mid-project", s.Id)
 		}
+	}
+}
+
+func TestListTicketSchemas_StatusesNotRefetchedAcrossResume(t *testing.T) {
+	projects := []ticketProjectFixture{buildManyIssueTypesProject("MID", "1", 10)}
+	projects[0].statuses = []map[string]interface{}{{"id": "1", "name": "Done"}}
+
+	statusesCalls := map[string]int{}
+	srv := newTicketSchemaServer(t, projects, 50, &statusesCalls)
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 3
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	token := &pagination.Token{Size: 50}
+	for {
+		schemas, nextToken, _, err := j.ListTicketSchemas(ctx, token)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, s := range schemas {
+			if len(s.Statuses) != 1 || s.Statuses[0].DisplayName != "Done" {
+				t.Fatalf("schema %s missing expected statuses: %v", s.Id, s.Statuses)
+			}
+		}
+		if nextToken == "" {
+			break
+		}
+		token = &pagination.Token{Size: 50, Token: nextToken}
+	}
+
+	if statusesCalls["MID"] != 1 {
+		t.Errorf("expected exactly 1 getTicketStatuses call across all resumed pages, got %d", statusesCalls["MID"])
 	}
 }
 

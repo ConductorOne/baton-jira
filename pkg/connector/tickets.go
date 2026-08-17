@@ -40,10 +40,13 @@ var projectScopedCustomFieldIDs = map[string]bool{
 }
 
 // ticketSchemaPageToken is the ListTicketSchemas pagination cursor: project offset + issue-type index.
+// Statuses carries the current project's statuses across a resume so a project split across
+// multiple calls by pairCap doesn't refetch them for every remaining page.
 type ticketSchemaPageToken struct {
-	ProjectOffset      int `json:"project_offset,omitempty"`
-	ProjectIndexInPage int `json:"project_index,omitempty"`
-	IssueTypeIndex     int `json:"issue_type_index,omitempty"`
+	ProjectOffset      int                `json:"project_offset,omitempty"`
+	ProjectIndexInPage int                `json:"project_index,omitempty"`
+	IssueTypeIndex     int                `json:"issue_type_index,omitempty"`
+	Statuses           []*v2.TicketStatus `json:"statuses,omitempty"`
 }
 
 // issueTypePairsPerPage returns the per-call cap on issue-type pairs processed by ListTicketSchemas.
@@ -229,7 +232,7 @@ func (j *Jira) schemaForProjectIssueType(
 
 	issueTypeCustomFields, err := j.getCustomFieldsForIssueType(ctx, project.ID, issueType, projectFieldCache)
 	if err != nil {
-		return nil, fmt.Errorf("error getting custom fields for issue type %s in project %s: %w", issueType.ID, project.ID, err)
+		return nil, fmt.Errorf("baton-jira: error getting custom fields for issue type %s in project %s: %w", issueType.ID, project.ID, err)
 	}
 
 	for _, cf := range issueTypeCustomFields {
@@ -313,14 +316,11 @@ func (j *Jira) getCustomFieldsForIssueType(
 }
 
 func (j *Jira) GetIssueTypeFields(ctx context.Context, projectKey, issueTypeId string, opts *jira.GetQueryIssueTypeOptions) ([]*jira.MetaDataFields, error) {
-	l := ctxzap.Extract(ctx)
-
 	allMetaFields := make([]*jira.MetaDataFields, 0)
 
 	for {
 		issueFields, resp, err := j.client.Jira().Issue.GetCreateMetaIssueType(ctx, projectKey, issueTypeId, opts)
 		if err != nil {
-			logError(l, err, "error getting issue type fields")
 			var statusCode *int
 			if resp != nil {
 				statusCode = &resp.StatusCode
@@ -431,7 +431,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	// resp.Total is always 0 here, so use short-count to detect the last page.
 	isLastProjectPage := isLastPage(len(projects), projectPageSize)
 
-	multipleProjects := len(projects) > 1
+	multipleProjects := len(projects) > 1 || tok.ProjectOffset > 0 || !isLastProjectPage
 
 	pairCap := j.issueTypePairsPerPage()
 
@@ -439,12 +439,14 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	pairsProcessed := 0
 	projectIndex := tok.ProjectIndexInPage
 	issueTypeIndex := tok.IssueTypeIndex
+	resumedProjectIndex := tok.ProjectIndexInPage
 
-	nextPageTokenAt := func(projectIndex, issueTypeIndex int) (string, error) {
+	nextPageTokenAt := func(projectIndex, issueTypeIndex int, statuses []*v2.TicketStatus) (string, error) {
 		return marshalTicketSchemaPageToken(ticketSchemaPageToken{
 			ProjectOffset:      tok.ProjectOffset,
 			ProjectIndexInPage: projectIndex,
 			IssueTypeIndex:     issueTypeIndex,
+			Statuses:           statuses,
 		})
 	}
 
@@ -460,25 +462,33 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 
 		// Check the cap before fetching statuses to avoid wasted work.
 		if pairsProcessed >= pairCap {
-			nextPageToken, err := nextPageTokenAt(projectIndex, issueTypeIndex)
+			// This project wasn't fetched this call, so there's nothing to stash.
+			nextPageToken, err := nextPageTokenAt(projectIndex, issueTypeIndex, nil)
 			if err != nil {
 				return nil, "", nil, err
 			}
 			return ret, nextPageToken, nil, nil
 		}
 
-		statuses, err := j.getTicketStatuses(ctx, project.ID)
-		if err != nil {
-			return nil, "", nil, wrapError(err, fmt.Sprintf(
-				"failed to get ticket statuses for project %s (projectId: %s)",
-				project.Key, project.ID), nil)
+		var statuses []*v2.TicketStatus
+		if projectIndex == resumedProjectIndex && len(tok.Statuses) > 0 {
+			statuses = tok.Statuses
+		} else {
+			var statusesErr error
+			statuses, statusesErr = j.getTicketStatuses(ctx, project.ID)
+			if statusesErr != nil {
+				return nil, "", nil, wrapError(statusesErr, fmt.Sprintf(
+					"failed to get ticket statuses for project %s (projectId: %s)",
+					project.Key, project.ID), nil)
+			}
 		}
 
 		projectFieldCache := make(map[string][]*v2.TicketCustomFieldObjectValue)
 
 		for issueTypeIndex < len(issueTypes) {
 			if pairsProcessed >= pairCap {
-				nextPageToken, err := nextPageTokenAt(projectIndex, issueTypeIndex)
+				// Still mid-project: stash statuses so the next call skips refetching them.
+				nextPageToken, err := nextPageTokenAt(projectIndex, issueTypeIndex, statuses)
 				if err != nil {
 					return nil, "", nil, err
 				}
@@ -500,7 +510,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 						zap.String("project", project.Key),
 					)
 				case codes.PermissionDenied, codes.Unauthenticated:
-					l.Warn(
+					l.Debug(
 						"token lacks access to create-meta fields for project, skipping issue type",
 						zap.Error(err),
 						zap.String("issue_type", issueType.ID),

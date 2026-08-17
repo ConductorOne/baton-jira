@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// TestConnectionResetIsUnavailable exercises the full path the CXP-762
+// TestConnectionResetIsUnavailable exercises the full path a connection-reset
 // incident took: the server kills the TCP connection before responding, the
 // uhttp transport under the Jira client classifies the failure as retryable,
 // and WrapError preserves that classification through its wrap.

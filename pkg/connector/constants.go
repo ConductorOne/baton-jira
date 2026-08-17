@@ -2,6 +2,9 @@ package connector
 
 const attrName = "name"
 
+// Bounds how much work one ListTicketSchemas call does.
+const defaultMaxIssueTypePairsPerPage = 25
+
 var (
 	resourcePageSize = 50
 

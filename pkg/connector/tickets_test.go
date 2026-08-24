@@ -59,7 +59,14 @@ func newTicketSchemaServer(t *testing.T, projects []ticketProjectFixture, projec
 		switch r.URL.Path {
 		case "/rest/api/2/project/search":
 			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
-			end := startAt + projectPageSize
+			// Honor the caller's maxResults like real Jira does, falling back to the
+			// configured default only if none was sent. A mock that ignores maxResults
+			// can't reproduce bugs triggered by the requested page size changing between calls.
+			maxResults := projectPageSize
+			if mr, err := strconv.Atoi(r.URL.Query().Get("maxResults")); err == nil && mr > 0 {
+				maxResults = mr
+			}
+			end := startAt + maxResults
 			if end > len(projects) {
 				end = len(projects)
 			}
@@ -87,7 +94,7 @@ func newTicketSchemaServer(t *testing.T, projects []ticketProjectFixture, projec
 
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"startAt":    startAt,
-				"maxResults": projectPageSize,
+				"maxResults": maxResults,
 				"total":      len(projects),
 				"values":     values,
 			})
@@ -429,6 +436,83 @@ func TestListTicketSchemas_CapNeverExceeded(t *testing.T) {
 		token = &pagination.Token{Size: 50, Token: nextToken}
 	}
 	t.Fatal("pagination did not terminate in time")
+}
+
+// TestListTicketSchemas_SurvivesShrinkingCallerPageSize is the CXP-936 regression: C1's
+// driver shrinks the caller's page size as it nears its own result cap (e.g. 8, 8, 4, 4, ...).
+// The project-window size used to compute a resumed ProjectIndexInPage must stay pinned to
+// what it was when that index was stashed, not be recomputed from whatever the resuming
+// call happens to send - otherwise a resume can land past the end of a smaller refetched
+// window, silently drop the rest of that window, and duplicate part of it on the call after.
+func TestListTicketSchemas_SurvivesShrinkingCallerPageSize(t *testing.T) {
+	const numProjects = 10
+	const issueTypesPerProject = 2
+
+	projects := make([]ticketProjectFixture, 0, numProjects)
+	for i := 0; i < numProjects; i++ {
+		projects = append(projects, buildManyIssueTypesProject(
+			fmt.Sprintf("P%d", i), fmt.Sprintf("%d", i+1), issueTypesPerProject))
+	}
+	// Fixture issue type names collide across projects (Type1, Type2); schema IDs are
+	// projectKey:issueTypeID, so they stay unique even though names repeat.
+
+	srv := newTicketSchemaServer(t, projects, resourcePageSize, nil)
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 3 // force several resumes per project window
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	// Mimic C1's driver: page size shrinks toward a result cap as results accumulate.
+	// The shrink from 8 to 2 must land below the project index already reached inside
+	// the size-8 window (index 3), which is what actually triggers the defect.
+	callerSizes := []int{8, 8, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}
+
+	seen := map[string]int{}
+	var order []string
+	var token *pagination.Token
+	totalPairs := numProjects * issueTypesPerProject
+
+	for call := 0; ; call++ {
+		if call >= len(callerSizes) {
+			t.Fatalf("pagination did not terminate within %d calls", len(callerSizes))
+		}
+		size := callerSizes[call]
+		if token == nil {
+			token = &pagination.Token{Size: size}
+		} else {
+			token = &pagination.Token{Size: size, Token: token.Token}
+		}
+
+		schemas, nextToken, _, err := j.ListTicketSchemas(ctx, token)
+		if err != nil {
+			t.Fatalf("call %d (size=%d): unexpected error: %v", call, size, err)
+		}
+		for _, s := range schemas {
+			seen[s.Id]++
+			order = append(order, s.Id)
+		}
+
+		if nextToken == "" {
+			break
+		}
+		if nextToken == token.Token {
+			t.Fatalf("call %d: next page token repeated (%q) - infinite loop risk", call, nextToken)
+		}
+		token = &pagination.Token{Token: nextToken}
+	}
+
+	if len(order) != totalPairs {
+		t.Fatalf("expected %d total schemas emitted across all pages, got %d: %v", totalPairs, len(order), order)
+	}
+	for id, count := range seen {
+		if count != 1 {
+			t.Errorf("schema %s emitted %d times, want exactly 1 (duplicate caused by a page-size change mid-enumeration)", id, count)
+		}
+	}
+	if len(seen) != totalPairs {
+		t.Errorf("expected %d distinct schemas, got %d (tail lost after a page-size change mid-enumeration)", totalPairs, len(seen))
+	}
 }
 
 func TestListTicketSchemas_ResumesMidProjectNotFromZero(t *testing.T) {

@@ -44,6 +44,7 @@ var projectScopedCustomFieldIDs = map[string]bool{
 // multiple calls by pairCap doesn't refetch them for every remaining page.
 type ticketSchemaPageToken struct {
 	ProjectOffset      int                `json:"project_offset,omitempty"`
+	ProjectPageSize    int                `json:"project_page_size,omitempty"`
 	ProjectIndexInPage int                `json:"project_index,omitempty"`
 	IssueTypeIndex     int                `json:"issue_type_index,omitempty"`
 	Statuses           []*v2.TicketStatus `json:"statuses,omitempty"`
@@ -413,10 +414,16 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 	}
 
-	// /project/search clamps maxResults server-side, so only honor a smaller caller size.
-	projectPageSize := resourcePageSize
-	if p != nil && p.Size > 0 && p.Size < resourcePageSize {
-		projectPageSize = p.Size
+	// /project/search clamps maxResults server-side, so only honor a smaller caller size
+	// when starting a fresh window. A resume mid-window must refetch the exact same window
+	// that the stashed ProjectIndexInPage was computed against, regardless of what page size
+	// the caller sends on the resuming call (C1's driver shrinks it as it nears a result cap).
+	projectPageSize := tok.ProjectPageSize
+	if projectPageSize <= 0 {
+		projectPageSize = resourcePageSize
+		if p != nil && p.Size > 0 && p.Size < resourcePageSize {
+			projectPageSize = p.Size
+		}
 	}
 
 	projects, resp, err := j.client.Jira().Project.Find(ctx, jira.WithStartAt(tok.ProjectOffset), jira.WithMaxResults(projectPageSize), jira.WithExpand("issueTypes"), jira.WithKeys(j.projectKeys...))
@@ -443,7 +450,10 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 
 	nextPageTokenAt := func(projectIndex, issueTypeIndex int, statuses []*v2.TicketStatus) (string, error) {
 		return marshalTicketSchemaPageToken(ticketSchemaPageToken{
-			ProjectOffset:      tok.ProjectOffset,
+			ProjectOffset: tok.ProjectOffset,
+			// Lock in the window size this call fetched, so the resume that consumes this
+			// token refetches the identical window instead of one sized off its own p.Size.
+			ProjectPageSize:    projectPageSize,
 			ProjectIndexInPage: projectIndex,
 			IssueTypeIndex:     issueTypeIndex,
 			Statuses:           statuses,

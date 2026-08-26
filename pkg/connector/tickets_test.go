@@ -59,7 +59,14 @@ func newTicketSchemaServer(t *testing.T, projects []ticketProjectFixture, projec
 		switch r.URL.Path {
 		case "/rest/api/2/project/search":
 			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
-			end := startAt + projectPageSize
+			// Honor the caller's maxResults like real Jira does, falling back to the
+			// configured default only if none was sent. A mock that ignores maxResults
+			// can't reproduce bugs triggered by the requested page size changing between calls.
+			maxResults := projectPageSize
+			if mr, err := strconv.Atoi(r.URL.Query().Get("maxResults")); err == nil && mr > 0 {
+				maxResults = mr
+			}
+			end := startAt + maxResults
 			if end > len(projects) {
 				end = len(projects)
 			}
@@ -87,7 +94,7 @@ func newTicketSchemaServer(t *testing.T, projects []ticketProjectFixture, projec
 
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"startAt":    startAt,
-				"maxResults": projectPageSize,
+				"maxResults": maxResults,
 				"total":      len(projects),
 				"values":     values,
 			})
@@ -429,6 +436,721 @@ func TestListTicketSchemas_CapNeverExceeded(t *testing.T) {
 		token = &pagination.Token{Size: 50, Token: nextToken}
 	}
 	t.Fatal("pagination did not terminate in time")
+}
+
+// TestListTicketSchemas_SurvivesShrinkingCallerPageSize is the CXP-936 regression: C1's
+// driver shrinks the caller's page size as it nears its own result cap (e.g. 8, 8, 4, 4, ...).
+// The project-window size used to compute a resumed ProjectIndexInPage must stay pinned to
+// what it was when that index was stashed, not be recomputed from whatever the resuming
+// call happens to send - otherwise a resume can land past the end of a smaller refetched
+// window, silently drop the rest of that window, and duplicate part of it on the call after.
+func TestListTicketSchemas_SurvivesShrinkingCallerPageSize(t *testing.T) {
+	const numProjects = 10
+	const issueTypesPerProject = 2
+
+	projects := make([]ticketProjectFixture, 0, numProjects)
+	for i := 0; i < numProjects; i++ {
+		projects = append(projects, buildManyIssueTypesProject(
+			fmt.Sprintf("P%d", i), fmt.Sprintf("%d", i+1), issueTypesPerProject))
+	}
+	// Fixture issue type names collide across projects (Type1, Type2); schema IDs are
+	// projectKey:issueTypeID, so they stay unique even though names repeat.
+
+	srv := newTicketSchemaServer(t, projects, resourcePageSize, nil)
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 3 // force several resumes per project window
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	// Mimic C1's driver: page size shrinks toward a result cap as results accumulate.
+	// The shrink from 8 to 2 must land below the project index already reached inside
+	// the size-8 window (index 3), which is what actually triggers the defect.
+	callerSizes := []int{8, 8, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}
+
+	seen := map[string]int{}
+	var order []string
+	var token *pagination.Token
+	totalPairs := numProjects * issueTypesPerProject
+
+	for call := 0; ; call++ {
+		if call >= len(callerSizes) {
+			t.Fatalf("pagination did not terminate within %d calls", len(callerSizes))
+		}
+		size := callerSizes[call]
+		if token == nil {
+			token = &pagination.Token{Size: size}
+		} else {
+			token = &pagination.Token{Size: size, Token: token.Token}
+		}
+
+		schemas, nextToken, _, err := j.ListTicketSchemas(ctx, token)
+		if err != nil {
+			t.Fatalf("call %d (size=%d): unexpected error: %v", call, size, err)
+		}
+		for _, s := range schemas {
+			seen[s.Id]++
+			order = append(order, s.Id)
+		}
+
+		if nextToken == "" {
+			break
+		}
+		if nextToken == token.Token {
+			t.Fatalf("call %d: next page token repeated (%q) - infinite loop risk", call, nextToken)
+		}
+		token = &pagination.Token{Token: nextToken}
+	}
+
+	if len(order) != totalPairs {
+		t.Fatalf("expected %d total schemas emitted across all pages, got %d: %v", totalPairs, len(order), order)
+	}
+	for id, count := range seen {
+		if count != 1 {
+			t.Errorf("schema %s emitted %d times, want exactly 1 (duplicate caused by a page-size change mid-enumeration)", id, count)
+		}
+	}
+	if len(seen) != totalPairs {
+		t.Errorf("expected %d distinct schemas, got %d (tail lost after a page-size change mid-enumeration)", totalPairs, len(seen))
+	}
+}
+
+// TestListTicketSchemas_GuardsShrinkingResumeWindow covers the guard added after CXP-936: if
+// the pinned project window returns fewer projects on a resumed call than it did when the
+// token was issued (a project was deleted, or access to it was lost, mid-sync), the stashed
+// ProjectIndexInPage can land past the end of the shrunk window. Without the guard, the resume
+// loop never executes, the shrunk window looks like the last page, and ListTicketSchemas
+// returns an empty page with an empty next-page token - silently ending the whole sync and
+// dropping every remaining project instead of just the one that disappeared.
+func TestListTicketSchemas_GuardsShrinkingResumeWindow(t *testing.T) {
+	p1 := buildManyIssueTypesProject("P1", "1", 2)
+	p2 := buildManyIssueTypesProject("P2", "2", 2)
+	p3 := buildManyIssueTypesProject("P3", "3", 2)
+	full := []ticketProjectFixture{p1, p2, p3}
+	shrunk := []ticketProjectFixture{p1} // P2 and P3 vanish before the resume is served
+
+	byKeyOrID := func(projects []ticketProjectFixture, idOrKey string) *ticketProjectFixture {
+		for i := range projects {
+			if projects[i].key == idOrKey || projects[i].id == idOrKey {
+				return &projects[i]
+			}
+		}
+		return nil
+	}
+
+	searchCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		active := full
+		if searchCalls > 0 {
+			active = shrunk
+		}
+
+		switch r.URL.Path {
+		case "/rest/api/2/project/search":
+			searchCalls++
+			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
+			end := len(active)
+			if startAt > end {
+				startAt = end
+			}
+			page := active[startAt:end]
+
+			values := make([]map[string]interface{}, 0, len(page))
+			for _, p := range page {
+				issueTypes := make([]map[string]interface{}, 0, len(p.issueTypes))
+				for _, it := range p.issueTypes {
+					issueTypes = append(issueTypes, map[string]interface{}{
+						"id": it.id, "name": it.name, "subtask": it.subtask,
+					})
+				}
+				values = append(values, map[string]interface{}{
+					"id": p.id, "key": p.key, "name": p.name, "issueTypes": issueTypes,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": startAt, "maxResults": len(page), "total": len(active), "values": values,
+			})
+
+		case "/rest/api/3/statuses/search":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": 0, "values": []map[string]interface{}{},
+			})
+
+		default:
+			var projectIDOrKey, issueTypeID string
+			if n, _ := fmt.Sscanf(r.URL.Path, "/rest/api/2/issue/createmeta/%s", &projectIDOrKey); n == 1 {
+				parts := splitLast(projectIDOrKey, "/issuetypes/")
+				projectIDOrKey, issueTypeID = parts[0], parts[1]
+			}
+			p := byKeyOrID(active, projectIDOrKey)
+			if p == nil {
+				t.Errorf("unexpected create-meta request for project %s", projectIDOrKey)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var it *ticketIssueType
+			for i := range p.issueTypes {
+				if p.issueTypes[i].id == issueTypeID {
+					it = &p.issueTypes[i]
+					break
+				}
+			}
+			if it == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(it.fields), "fields": it.fields,
+			})
+		}
+	}))
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 2 // exhausts P1's 2 pairs, stashing mid-window at P2 (index 1)
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	// First call: full 3-project window; the cap hits right after P1, stashing
+	// ProjectIndexInPage=1 (P2) against a window pinned at size 3.
+	first, nextToken, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 3})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(first) != 2 {
+		t.Fatalf("expected 2 schemas from P1, got %d", len(first))
+	}
+	if nextToken == "" {
+		t.Fatal("expected a next page token (P2/P3 still pending)")
+	}
+
+	// Resume: the pinned window now only returns P1 (P2/P3 disappeared), so the stashed
+	// index (1) is out of bounds. The guard must log at Debug and advance the window
+	// instead of falling through to the terminating return.
+	core, logs := observer.New(zap.DebugLevel)
+	debugCtx := ctxzap.ToContext(context.Background(), zap.New(core))
+
+	second, nextToken2, _, err := j.ListTicketSchemas(debugCtx, &pagination.Token{Size: 3, Token: nextToken})
+	if err != nil {
+		t.Fatalf("unexpected error on resume: %v", err)
+	}
+	if len(second) != 0 {
+		t.Fatalf("expected no schemas on the guard call, got %d", len(second))
+	}
+	if nextToken2 == "" {
+		t.Fatal("expected pagination to continue past the shrunk window, got empty next token")
+	}
+
+	foundDebug := false
+	for _, entry := range logs.All() {
+		if entry.Message == "ticket schema project window shrank on resume, advancing to next window" {
+			foundDebug = true
+		}
+	}
+	if !foundDebug {
+		t.Error("expected a Debug log for the shrunk resume window")
+	}
+
+	// Final call: the underlying data set is now exhausted, so pagination must terminate
+	// cleanly rather than looping or erroring.
+	third, nextToken3, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 3, Token: nextToken2})
+	if err != nil {
+		t.Fatalf("unexpected error on final call: %v", err)
+	}
+	if len(third) != 0 {
+		t.Fatalf("expected no schemas past the end of the shrunk data set, got %d", len(third))
+	}
+	if nextToken3 != "" {
+		t.Fatalf("expected pagination to terminate, got next token %q", nextToken3)
+	}
+}
+
+func TestListTicketSchemas_RelocatesResumeAfterFrontOfWindowShift(t *testing.T) {
+	p1 := buildManyIssueTypesProject("P1", "1", 2)
+	p2 := buildManyIssueTypesProject("P2", "2", 3)
+	p2.statuses = []map[string]interface{}{{"id": "1", "name": "P2Done"}}
+	p3 := buildManyIssueTypesProject("P3", "3", 2)
+	p3.statuses = []map[string]interface{}{{"id": "2", "name": "P3Done"}}
+
+	full := []ticketProjectFixture{p1, p2, p3}
+	shifted := []ticketProjectFixture{p2, p3} // P1 vanishes from the FRONT before the resume
+
+	byKeyOrID := func(projects []ticketProjectFixture, idOrKey string) *ticketProjectFixture {
+		for i := range projects {
+			if projects[i].key == idOrKey || projects[i].id == idOrKey {
+				return &projects[i]
+			}
+		}
+		return nil
+	}
+
+	// active only changes inside the project/search branch, so it stays fixed for the rest of that call.
+	active := full
+	searchCalls := 0
+	statusesCalls := map[string]int{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/rest/api/2/project/search":
+			if searchCalls > 0 {
+				active = shifted
+			}
+			searchCalls++
+			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
+			end := len(active)
+			if startAt > end {
+				startAt = end
+			}
+			page := active[startAt:end]
+
+			values := make([]map[string]interface{}, 0, len(page))
+			for _, p := range page {
+				issueTypes := make([]map[string]interface{}, 0, len(p.issueTypes))
+				for _, it := range p.issueTypes {
+					issueTypes = append(issueTypes, map[string]interface{}{
+						"id": it.id, "name": it.name, "subtask": it.subtask,
+					})
+				}
+				values = append(values, map[string]interface{}{
+					"id": p.id, "key": p.key, "name": p.name, "issueTypes": issueTypes,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": startAt, "maxResults": len(page), "total": len(active), "values": values,
+			})
+
+		case "/rest/api/3/statuses/search":
+			projectID := r.URL.Query().Get("projectId")
+			p := byKeyOrID(active, projectID)
+			if p == nil {
+				t.Errorf("unexpected projectId in statuses request: %s", projectID)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			statusesCalls[p.key]++
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(p.statuses), "values": p.statuses,
+			})
+
+		default:
+			var projectIDOrKey, issueTypeID string
+			if n, _ := fmt.Sscanf(r.URL.Path, "/rest/api/2/issue/createmeta/%s", &projectIDOrKey); n == 1 {
+				parts := splitLast(projectIDOrKey, "/issuetypes/")
+				projectIDOrKey, issueTypeID = parts[0], parts[1]
+			}
+			p := byKeyOrID(active, projectIDOrKey)
+			if p == nil {
+				t.Errorf("unexpected create-meta request for project %s", projectIDOrKey)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var it *ticketIssueType
+			for i := range p.issueTypes {
+				if p.issueTypes[i].id == issueTypeID {
+					it = &p.issueTypes[i]
+					break
+				}
+			}
+			if it == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(it.fields), "fields": it.fields,
+			})
+		}
+	}))
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 3 // P1's 2 pairs + P2's first pair, stashing mid-P2 (index 1, issue type 1)
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	// First call: full 3-project window; the cap hits mid-P2, stashing P2's index and statuses.
+	first, nextToken, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 3})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(first) != 3 { // P1 x2 + P2's first issue type
+		t.Fatalf("expected 3 schemas (P1 x2, P2 x1), got %d", len(first))
+	}
+	if nextToken == "" {
+		t.Fatal("expected a next page token (P2 remainder / P3 still pending)")
+	}
+	if statusesCalls["P2"] != 1 {
+		t.Fatalf("expected exactly 1 statuses call for P2 on the first call, got %d", statusesCalls["P2"])
+	}
+
+	// Resume: P1 disappears from the front of the window, shifting P2 into the index the token stashed for P3, so the fix must relocate by key instead of trusting the stale index.
+	core, logs := observer.New(zap.DebugLevel)
+	debugCtx := ctxzap.ToContext(context.Background(), zap.New(core))
+
+	second, nextToken2, _, err := j.ListTicketSchemas(debugCtx, &pagination.Token{Size: 3, Token: nextToken})
+	if err != nil {
+		t.Fatalf("unexpected error on resume: %v", err)
+	}
+	// P2 finishes and the leftover cap budget starts P3 too; what matters is each schema carries the right project's statuses.
+	if len(second) != 3 {
+		t.Fatalf("expected 3 schemas (P2's remainder x2, P3's first x1), got %d", len(second))
+	}
+	for _, s := range second[:2] {
+		if len(s.Statuses) != 1 || s.Statuses[0].DisplayName != "P2Done" {
+			t.Fatalf("schema %s: expected P2's stashed statuses, got %v", s.Id, s.Statuses)
+		}
+	}
+	if len(second[2].Statuses) != 1 || second[2].Statuses[0].DisplayName != "P3Done" {
+		t.Fatalf("schema %s: expected P3's statuses, got %v", second[2].Id, second[2].Statuses)
+	}
+	if statusesCalls["P2"] != 1 {
+		t.Errorf("expected P2's statuses to be reused from the stash, not refetched; got %d calls", statusesCalls["P2"])
+	}
+	if statusesCalls["P3"] != 1 {
+		t.Errorf("expected exactly 1 fresh statuses call for P3, got %d", statusesCalls["P3"])
+	}
+
+	foundRelocate := false
+	for _, entry := range logs.All() {
+		if entry.Message == "ticket schema project window shifted on resume, relocating stashed project" {
+			foundRelocate = true
+		}
+	}
+	if !foundRelocate {
+		t.Error("expected a Debug log for the relocated resume position")
+	}
+
+	if nextToken2 == "" {
+		t.Fatal("expected pagination to continue to P3's remaining issue type")
+	}
+
+	// Final call: P3's remaining issue type must still be synced, not skipped or double-counted.
+	third, nextToken3, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 3, Token: nextToken2})
+	if err != nil {
+		t.Fatalf("unexpected error on final call: %v", err)
+	}
+	if len(third) != 1 {
+		t.Fatalf("expected 1 remaining schema from P3, got %d", len(third))
+	}
+	for _, s := range third {
+		if len(s.Statuses) != 1 || s.Statuses[0].DisplayName != "P3Done" {
+			t.Fatalf("schema %s: expected P3's statuses, got %v", s.Id, s.Statuses)
+		}
+	}
+	if nextToken3 != "" {
+		t.Fatalf("expected pagination to terminate, got next token %q", nextToken3)
+	}
+}
+
+func TestListTicketSchemas_DetectsIndexZeroIdentityMismatch(t *testing.T) {
+	p1 := buildManyIssueTypesProject("P1", "1", 3)
+	p1.statuses = []map[string]interface{}{{"id": "1", "name": "P1Done"}}
+	p2 := buildManyIssueTypesProject("P2", "2", 2)
+	p3 := buildManyIssueTypesProject("P3", "3", 2)
+
+	full := []ticketProjectFixture{p1, p2, p3}
+	shrunk := []ticketProjectFixture{p2, p3} // P1 vanishes; P2 backfills into index 0
+
+	byKeyOrID := func(projects []ticketProjectFixture, idOrKey string) *ticketProjectFixture {
+		for i := range projects {
+			if projects[i].key == idOrKey || projects[i].id == idOrKey {
+				return &projects[i]
+			}
+		}
+		return nil
+	}
+
+	active := full
+	searchCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/rest/api/2/project/search":
+			if searchCalls > 0 {
+				active = shrunk
+			}
+			searchCalls++
+
+			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
+			maxResults, _ := strconv.Atoi(r.URL.Query().Get("maxResults"))
+			end := startAt + maxResults
+			if end > len(active) {
+				end = len(active)
+			}
+			if startAt > len(active) {
+				startAt = len(active)
+			}
+			page := active[startAt:end]
+
+			values := make([]map[string]interface{}, 0, len(page))
+			for _, p := range page {
+				issueTypes := make([]map[string]interface{}, 0, len(p.issueTypes))
+				for _, it := range p.issueTypes {
+					issueTypes = append(issueTypes, map[string]interface{}{
+						"id": it.id, "name": it.name, "subtask": it.subtask,
+					})
+				}
+				values = append(values, map[string]interface{}{
+					"id": p.id, "key": p.key, "name": p.name, "issueTypes": issueTypes,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": startAt, "maxResults": maxResults, "total": len(active), "values": values,
+			})
+
+		case "/rest/api/3/statuses/search":
+			projectID := r.URL.Query().Get("projectId")
+			p := byKeyOrID(active, projectID)
+			if p == nil {
+				t.Errorf("unexpected projectId in statuses request: %s", projectID)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(p.statuses), "values": p.statuses,
+			})
+
+		default:
+			var projectIDOrKey, issueTypeID string
+			if n, _ := fmt.Sscanf(r.URL.Path, "/rest/api/2/issue/createmeta/%s", &projectIDOrKey); n == 1 {
+				parts := splitLast(projectIDOrKey, "/issuetypes/")
+				projectIDOrKey, issueTypeID = parts[0], parts[1]
+			}
+			p := byKeyOrID(active, projectIDOrKey)
+			if p == nil {
+				t.Errorf("unexpected create-meta request for project %s", projectIDOrKey)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var it *ticketIssueType
+			for i := range p.issueTypes {
+				if p.issueTypes[i].id == issueTypeID {
+					it = &p.issueTypes[i]
+					break
+				}
+			}
+			if it == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(it.fields), "fields": it.fields,
+			})
+		}
+	}))
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 1 // stash mid-P1, at project index 0
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	first, nextToken, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 2})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(first) != 1 {
+		t.Fatalf("expected 1 schema (P1's first issue type), got %d", len(first))
+	}
+	if nextToken == "" {
+		t.Fatal("expected a next page token")
+	}
+
+	core, logs := observer.New(zap.DebugLevel)
+	debugCtx := ctxzap.ToContext(context.Background(), zap.New(core))
+
+	// P1 vanished entirely, so the fix must detect the index-0 mismatch instead of
+	// applying P1's stashed statuses to whatever project now backfills index 0.
+	all := append([]*v2.TicketSchema{}, first...)
+	token := nextToken
+	calls := 1
+	for token != "" {
+		calls++
+		if calls > 10 {
+			t.Fatalf("pagination did not terminate within 10 calls (ghost-state / infinite loop)")
+		}
+		schemas, next, _, err := j.ListTicketSchemas(debugCtx, &pagination.Token{Size: 2, Token: token})
+		if err != nil {
+			t.Fatalf("call %d: unexpected error: %v", calls, err)
+		}
+		for _, s := range schemas {
+			if len(s.Statuses) == 1 && s.Statuses[0].DisplayName == "P1Done" {
+				t.Fatalf("schema %s: P1's statuses leaked onto a different project: %v", s.Id, s.Statuses)
+			}
+		}
+		all = append(all, schemas...)
+		token = next
+	}
+
+	// P2 and P3 were never touched by the deletion; a resumed sync must still emit their
+	// schemas rather than silently dropping the rest of the window once P1 is gone.
+	seen := map[string]bool{}
+	for _, s := range all {
+		seen[s.Id] = true
+	}
+	for _, want := range []string{"P2:1", "P2:2", "P3:1", "P3:2"} {
+		if !seen[want] {
+			t.Errorf("expected schema %s to be synced, got %v", want, all)
+		}
+	}
+
+	foundMismatch := false
+	for _, entry := range logs.All() {
+		if entry.Message == "ticket schema stashed project not found on resume, resuming window from current index" {
+			foundMismatch = true
+		}
+	}
+	if !foundMismatch {
+		t.Error("expected a Debug log detecting the index-0 identity mismatch")
+	}
+}
+
+// TestListTicketSchemas_DropsRestOfWindowWhenDeletedProjectNotFound covers the same class of
+// bug as TestListTicketSchemas_DetectsIndexZeroIdentityMismatch, but at a non-zero stashed
+// index: the stashed project is deleted outright (not shifted elsewhere in the window), so the
+// relocation scan can't find it anywhere, yet other untouched projects still sit in the window.
+func TestListTicketSchemas_DropsRestOfWindowWhenDeletedProjectNotFound(t *testing.T) {
+	p0 := buildManyIssueTypesProject("P0", "0", 1)
+	p1 := buildManyIssueTypesProject("P1", "1", 3)
+	p1.statuses = []map[string]interface{}{{"id": "1", "name": "P1Done"}}
+	p2 := buildManyIssueTypesProject("P2", "2", 2)
+	p3 := buildManyIssueTypesProject("P3", "3", 2)
+
+	full := []ticketProjectFixture{p0, p1, p2, p3}
+	shrunk := []ticketProjectFixture{p0, p2, p3} // P1 vanishes outright; P2/P3 stay untouched
+
+	byKeyOrID := func(projects []ticketProjectFixture, idOrKey string) *ticketProjectFixture {
+		for i := range projects {
+			if projects[i].key == idOrKey || projects[i].id == idOrKey {
+				return &projects[i]
+			}
+		}
+		return nil
+	}
+
+	active := full
+	searchCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/rest/api/2/project/search":
+			if searchCalls > 0 {
+				active = shrunk
+			}
+			searchCalls++
+
+			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
+			maxResults, _ := strconv.Atoi(r.URL.Query().Get("maxResults"))
+			end := startAt + maxResults
+			if end > len(active) {
+				end = len(active)
+			}
+			if startAt > len(active) {
+				startAt = len(active)
+			}
+			page := active[startAt:end]
+
+			values := make([]map[string]interface{}, 0, len(page))
+			for _, p := range page {
+				issueTypes := make([]map[string]interface{}, 0, len(p.issueTypes))
+				for _, it := range p.issueTypes {
+					issueTypes = append(issueTypes, map[string]interface{}{
+						"id": it.id, "name": it.name, "subtask": it.subtask,
+					})
+				}
+				values = append(values, map[string]interface{}{
+					"id": p.id, "key": p.key, "name": p.name, "issueTypes": issueTypes,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": startAt, "maxResults": maxResults, "total": len(active), "values": values,
+			})
+
+		case "/rest/api/3/statuses/search":
+			projectID := r.URL.Query().Get("projectId")
+			p := byKeyOrID(active, projectID)
+			if p == nil {
+				t.Errorf("unexpected projectId in statuses request: %s", projectID)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(p.statuses), "values": p.statuses,
+			})
+
+		default:
+			var projectIDOrKey, issueTypeID string
+			if n, _ := fmt.Sscanf(r.URL.Path, "/rest/api/2/issue/createmeta/%s", &projectIDOrKey); n == 1 {
+				parts := splitLast(projectIDOrKey, "/issuetypes/")
+				projectIDOrKey, issueTypeID = parts[0], parts[1]
+			}
+			p := byKeyOrID(active, projectIDOrKey)
+			if p == nil {
+				t.Errorf("unexpected create-meta request for project %s", projectIDOrKey)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var it *ticketIssueType
+			for i := range p.issueTypes {
+				if p.issueTypes[i].id == issueTypeID {
+					it = &p.issueTypes[i]
+					break
+				}
+			}
+			if it == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(it.fields), "fields": it.fields,
+			})
+		}
+	}))
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 2 // P0's 1 pair + P1's first pair, stashing mid-P1 (index 1)
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	first, nextToken, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 4})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(first) != 2 { // P0's schema + P1's first issue type
+		t.Fatalf("expected 2 schemas, got %d", len(first))
+	}
+	if nextToken == "" {
+		t.Fatal("expected a next page token")
+	}
+
+	all := append([]*v2.TicketSchema{}, first...)
+	token := nextToken
+	calls := 1
+	for token != "" {
+		calls++
+		if calls > 10 {
+			t.Fatalf("pagination did not terminate within 10 calls (ghost-state / infinite loop)")
+		}
+		schemas, next, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 4, Token: token})
+		if err != nil {
+			t.Fatalf("call %d: unexpected error: %v", calls, err)
+		}
+		all = append(all, schemas...)
+		token = next
+	}
+
+	// P2 and P3 were never touched by P1's deletion; a resumed sync must still emit their
+	// schemas rather than silently dropping the rest of the window once P1 is gone.
+	seen := map[string]bool{}
+	for _, s := range all {
+		seen[s.Id] = true
+	}
+	for _, want := range []string{"P2:1", "P2:2", "P3:1", "P3:2"} {
+		if !seen[want] {
+			t.Errorf("expected schema %s to be synced, got %v", want, all)
+		}
+	}
 }
 
 func TestListTicketSchemas_ResumesMidProjectNotFromZero(t *testing.T) {

@@ -43,10 +43,13 @@ var projectScopedCustomFieldIDs = map[string]bool{
 // Statuses carries the current project's statuses across a resume so a project split across
 // multiple calls by pairCap doesn't refetch them for every remaining page.
 type ticketSchemaPageToken struct {
-	ProjectOffset      int                `json:"project_offset,omitempty"`
-	ProjectIndexInPage int                `json:"project_index,omitempty"`
-	IssueTypeIndex     int                `json:"issue_type_index,omitempty"`
-	Statuses           []*v2.TicketStatus `json:"statuses,omitempty"`
+	ProjectOffset      int `json:"project_offset,omitempty"`
+	ProjectPageSize    int `json:"project_page_size,omitempty"`
+	ProjectIndexInPage int `json:"project_index,omitempty"`
+	// ProjectIndexID is project.ID at ProjectIndexInPage when this token was stashed, used to detect a resume window that shifted rather than just shrank.
+	ProjectIndexID string             `json:"project_index_id,omitempty"`
+	IssueTypeIndex int                `json:"issue_type_index,omitempty"`
+	Statuses       []*v2.TicketStatus `json:"statuses,omitempty"`
 }
 
 // issueTypePairsPerPage returns the per-call cap on issue-type pairs processed by ListTicketSchemas.
@@ -413,10 +416,16 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 		}
 	}
 
-	// /project/search clamps maxResults server-side, so only honor a smaller caller size.
-	projectPageSize := resourcePageSize
-	if p != nil && p.Size > 0 && p.Size < resourcePageSize {
-		projectPageSize = p.Size
+	// /project/search clamps maxResults server-side, so only honor a smaller caller size
+	// when starting a fresh window. A resume mid-window must refetch the exact same window
+	// that the stashed ProjectIndexInPage was computed against, regardless of what page size
+	// the caller sends on the resuming call (C1's driver shrinks it as it nears a result cap).
+	projectPageSize := tok.ProjectPageSize
+	if projectPageSize <= 0 {
+		projectPageSize = resourcePageSize
+		if p != nil && p.Size > 0 && p.Size < resourcePageSize {
+			projectPageSize = p.Size
+		}
 	}
 
 	projects, resp, err := j.client.Jira().Project.Find(ctx, jira.WithStartAt(tok.ProjectOffset), jira.WithMaxResults(projectPageSize), jira.WithExpand("issueTypes"), jira.WithKeys(j.projectKeys...))
@@ -441,10 +450,78 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	issueTypeIndex := tok.IssueTypeIndex
 	resumedProjectIndex := tok.ProjectIndexInPage
 
+	if projectIndex > 0 || tok.ProjectIndexID != "" {
+		outOfBounds := projectIndex >= len(projects)
+		identityMismatch := tok.ProjectIndexID != "" && !outOfBounds && projects[projectIndex].ID != tok.ProjectIndexID
+
+		if outOfBounds || identityMismatch {
+			relocated := -1
+			if tok.ProjectIndexID != "" {
+				for i, proj := range projects {
+					if proj.ID == tok.ProjectIndexID {
+						relocated = i
+						break
+					}
+				}
+			}
+
+			switch {
+			case relocated >= 0:
+				// Relocate rather than trusting the stale index, which may now point at a different project.
+				l.Debug(
+					"ticket schema project window shifted on resume, relocating stashed project",
+					zap.Int("project_offset", tok.ProjectOffset),
+					zap.Int("stashed_project_index", projectIndex),
+					zap.Int("resolved_project_index", relocated),
+					zap.String("project_id", tok.ProjectIndexID),
+				)
+
+				projectIndex = relocated
+				resumedProjectIndex = relocated
+
+			case outOfBounds:
+				// Nothing left in this window to process; advance past it.
+				l.Debug(
+					"ticket schema project window shrank on resume, advancing to next window",
+					zap.Int("project_offset", tok.ProjectOffset),
+					zap.Int("stashed_project_index", projectIndex),
+					zap.String("stashed_project_id", tok.ProjectIndexID),
+					zap.Int("returned_project_count", len(projects)),
+				)
+
+				nextPageToken, err := marshalTicketSchemaPageToken(ticketSchemaPageToken{
+					ProjectOffset: tok.ProjectOffset + len(projects),
+				})
+				if err != nil {
+					return nil, "", nil, err
+				}
+
+				return ret, nextPageToken, nil, nil
+
+			default:
+				// The stashed project is gone, but other projects still sit at/after this index;
+				// process the window from here as fresh rather than skipping the rest of it.
+				l.Debug(
+					"ticket schema stashed project not found on resume, resuming window from current index",
+					zap.Int("project_offset", tok.ProjectOffset),
+					zap.Int("stashed_project_index", projectIndex),
+					zap.String("stashed_project_id", tok.ProjectIndexID),
+				)
+
+				issueTypeIndex = 0
+				resumedProjectIndex = -1
+			}
+		}
+	}
+
 	nextPageTokenAt := func(projectIndex, issueTypeIndex int, statuses []*v2.TicketStatus) (string, error) {
 		return marshalTicketSchemaPageToken(ticketSchemaPageToken{
-			ProjectOffset:      tok.ProjectOffset,
+			ProjectOffset: tok.ProjectOffset,
+			// Lock in the window size this call fetched, so the resume that consumes this
+			// token refetches the identical window instead of one sized off its own p.Size.
+			ProjectPageSize:    projectPageSize,
 			ProjectIndexInPage: projectIndex,
+			ProjectIndexID:     projects[projectIndex].ID,
 			IssueTypeIndex:     issueTypeIndex,
 			Statuses:           statuses,
 		})

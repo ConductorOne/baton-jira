@@ -547,8 +547,8 @@ func TestListTicketSchemas_GuardsShrinkingResumeWindow(t *testing.T) {
 			active = shrunk
 		}
 
-		switch {
-		case r.URL.Path == "/rest/api/2/project/search":
+		switch r.URL.Path {
+		case "/rest/api/2/project/search":
 			searchCalls++
 			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
 			end := len(active)
@@ -573,7 +573,7 @@ func TestListTicketSchemas_GuardsShrinkingResumeWindow(t *testing.T) {
 				"startAt": startAt, "maxResults": len(page), "total": len(active), "values": values,
 			})
 
-		case r.URL.Path == "/rest/api/3/statuses/search":
+		case "/rest/api/3/statuses/search":
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"startAt": 0, "maxResults": 100, "total": 0, "values": []map[string]interface{}{},
 			})

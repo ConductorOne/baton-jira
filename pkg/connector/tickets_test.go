@@ -959,15 +959,38 @@ func TestListTicketSchemas_DetectsIndexZeroIdentityMismatch(t *testing.T) {
 	core, logs := observer.New(zap.DebugLevel)
 	debugCtx := ctxzap.ToContext(context.Background(), zap.New(core))
 
-	// P1 vanished entirely, so the fix must detect the index-0 mismatch and advance rather
-	// than applying P1's stashed statuses to whatever project now backfills index 0.
-	second, _, _, err := j.ListTicketSchemas(debugCtx, &pagination.Token{Size: 2, Token: nextToken})
-	if err != nil {
-		t.Fatalf("unexpected error on resume: %v", err)
+	// P1 vanished entirely, so the fix must detect the index-0 mismatch instead of
+	// applying P1's stashed statuses to whatever project now backfills index 0.
+	all := append([]*v2.TicketSchema{}, first...)
+	token := nextToken
+	calls := 1
+	for token != "" {
+		calls++
+		if calls > 10 {
+			t.Fatalf("pagination did not terminate within 10 calls (ghost-state / infinite loop)")
+		}
+		schemas, next, _, err := j.ListTicketSchemas(debugCtx, &pagination.Token{Size: 2, Token: token})
+		if err != nil {
+			t.Fatalf("call %d: unexpected error: %v", calls, err)
+		}
+		for _, s := range schemas {
+			if len(s.Statuses) == 1 && s.Statuses[0].DisplayName == "P1Done" {
+				t.Fatalf("schema %s: P1's statuses leaked onto a different project: %v", s.Id, s.Statuses)
+			}
+		}
+		all = append(all, schemas...)
+		token = next
 	}
-	for _, s := range second {
-		if len(s.Statuses) == 1 && s.Statuses[0].DisplayName == "P1Done" {
-			t.Fatalf("schema %s: P1's statuses leaked onto a different project: %v", s.Id, s.Statuses)
+
+	// P2 and P3 were never touched by the deletion; a resumed sync must still emit their
+	// schemas rather than silently dropping the rest of the window once P1 is gone.
+	seen := map[string]bool{}
+	for _, s := range all {
+		seen[s.Id] = true
+	}
+	for _, want := range []string{"P2:1", "P2:2", "P3:1", "P3:2"} {
+		if !seen[want] {
+			t.Errorf("expected schema %s to be synced, got %v", want, all)
 		}
 	}
 
@@ -979,6 +1002,154 @@ func TestListTicketSchemas_DetectsIndexZeroIdentityMismatch(t *testing.T) {
 	}
 	if !foundShrink {
 		t.Error("expected a Debug log detecting the index-0 identity mismatch")
+	}
+}
+
+// TestListTicketSchemas_DropsRestOfWindowWhenDeletedProjectNotFound covers the same class of
+// bug as TestListTicketSchemas_DetectsIndexZeroIdentityMismatch, but at a non-zero stashed
+// index: the stashed project is deleted outright (not shifted elsewhere in the window), so the
+// relocation scan can't find it anywhere, yet other untouched projects still sit in the window.
+func TestListTicketSchemas_DropsRestOfWindowWhenDeletedProjectNotFound(t *testing.T) {
+	p0 := buildManyIssueTypesProject("P0", "0", 1)
+	p1 := buildManyIssueTypesProject("P1", "1", 3)
+	p1.statuses = []map[string]interface{}{{"id": "1", "name": "P1Done"}}
+	p2 := buildManyIssueTypesProject("P2", "2", 2)
+	p3 := buildManyIssueTypesProject("P3", "3", 2)
+
+	full := []ticketProjectFixture{p0, p1, p2, p3}
+	shrunk := []ticketProjectFixture{p0, p2, p3} // P1 vanishes outright; P2/P3 stay untouched
+
+	byKeyOrID := func(projects []ticketProjectFixture, idOrKey string) *ticketProjectFixture {
+		for i := range projects {
+			if projects[i].key == idOrKey || projects[i].id == idOrKey {
+				return &projects[i]
+			}
+		}
+		return nil
+	}
+
+	active := full
+	searchCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/rest/api/2/project/search":
+			if searchCalls > 0 {
+				active = shrunk
+			}
+			searchCalls++
+
+			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
+			maxResults, _ := strconv.Atoi(r.URL.Query().Get("maxResults"))
+			end := startAt + maxResults
+			if end > len(active) {
+				end = len(active)
+			}
+			if startAt > len(active) {
+				startAt = len(active)
+			}
+			page := active[startAt:end]
+
+			values := make([]map[string]interface{}, 0, len(page))
+			for _, p := range page {
+				issueTypes := make([]map[string]interface{}, 0, len(p.issueTypes))
+				for _, it := range p.issueTypes {
+					issueTypes = append(issueTypes, map[string]interface{}{
+						"id": it.id, "name": it.name, "subtask": it.subtask,
+					})
+				}
+				values = append(values, map[string]interface{}{
+					"id": p.id, "key": p.key, "name": p.name, "issueTypes": issueTypes,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": startAt, "maxResults": maxResults, "total": len(active), "values": values,
+			})
+
+		case "/rest/api/3/statuses/search":
+			projectID := r.URL.Query().Get("projectId")
+			p := byKeyOrID(active, projectID)
+			if p == nil {
+				t.Errorf("unexpected projectId in statuses request: %s", projectID)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(p.statuses), "values": p.statuses,
+			})
+
+		default:
+			var projectIDOrKey, issueTypeID string
+			if n, _ := fmt.Sscanf(r.URL.Path, "/rest/api/2/issue/createmeta/%s", &projectIDOrKey); n == 1 {
+				parts := splitLast(projectIDOrKey, "/issuetypes/")
+				projectIDOrKey, issueTypeID = parts[0], parts[1]
+			}
+			p := byKeyOrID(active, projectIDOrKey)
+			if p == nil {
+				t.Errorf("unexpected create-meta request for project %s", projectIDOrKey)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var it *ticketIssueType
+			for i := range p.issueTypes {
+				if p.issueTypes[i].id == issueTypeID {
+					it = &p.issueTypes[i]
+					break
+				}
+			}
+			if it == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(it.fields), "fields": it.fields,
+			})
+		}
+	}))
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 2 // P0's 1 pair + P1's first pair, stashing mid-P1 (index 1)
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	first, nextToken, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 4})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(first) != 2 { // P0's schema + P1's first issue type
+		t.Fatalf("expected 2 schemas, got %d", len(first))
+	}
+	if nextToken == "" {
+		t.Fatal("expected a next page token")
+	}
+
+	all := append([]*v2.TicketSchema{}, first...)
+	token := nextToken
+	calls := 1
+	for token != "" {
+		calls++
+		if calls > 10 {
+			t.Fatalf("pagination did not terminate within 10 calls (ghost-state / infinite loop)")
+		}
+		schemas, next, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 4, Token: token})
+		if err != nil {
+			t.Fatalf("call %d: unexpected error: %v", calls, err)
+		}
+		all = append(all, schemas...)
+		token = next
+	}
+
+	// P2 and P3 were never touched by P1's deletion; a resumed sync must still emit their
+	// schemas rather than silently dropping the rest of the window once P1 is gone.
+	seen := map[string]bool{}
+	for _, s := range all {
+		seen[s.Id] = true
+	}
+	for _, want := range []string{"P2:1", "P2:2", "P3:1", "P3:2"} {
+		if !seen[want] {
+			t.Errorf("expected schema %s to be synced, got %v", want, all)
+		}
 	}
 }
 

@@ -626,12 +626,12 @@ func TestListTicketSchemas_GuardsShrinkingResumeWindow(t *testing.T) {
 	}
 
 	// Resume: the pinned window now only returns P1 (P2/P3 disappeared), so the stashed
-	// index (1) is out of bounds. The guard must log a warning and advance the window
+	// index (1) is out of bounds. The guard must log at Debug and advance the window
 	// instead of falling through to the terminating return.
-	core, logs := observer.New(zap.WarnLevel)
-	warnCtx := ctxzap.ToContext(context.Background(), zap.New(core))
+	core, logs := observer.New(zap.DebugLevel)
+	debugCtx := ctxzap.ToContext(context.Background(), zap.New(core))
 
-	second, nextToken2, _, err := j.ListTicketSchemas(warnCtx, &pagination.Token{Size: 3, Token: nextToken})
+	second, nextToken2, _, err := j.ListTicketSchemas(debugCtx, &pagination.Token{Size: 3, Token: nextToken})
 	if err != nil {
 		t.Fatalf("unexpected error on resume: %v", err)
 	}
@@ -642,14 +642,14 @@ func TestListTicketSchemas_GuardsShrinkingResumeWindow(t *testing.T) {
 		t.Fatal("expected pagination to continue past the shrunk window, got empty next token")
 	}
 
-	foundWarn := false
+	foundDebug := false
 	for _, entry := range logs.All() {
 		if entry.Message == "ticket schema project window shrank on resume, advancing to next window" {
-			foundWarn = true
+			foundDebug = true
 		}
 	}
-	if !foundWarn {
-		t.Error("expected a Warn log for the shrunk resume window")
+	if !foundDebug {
+		t.Error("expected a Debug log for the shrunk resume window")
 	}
 
 	// Final call: the underlying data set is now exhausted, so pagination must terminate

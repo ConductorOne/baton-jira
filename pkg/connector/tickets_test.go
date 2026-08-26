@@ -842,6 +842,146 @@ func TestListTicketSchemas_RelocatesResumeAfterFrontOfWindowShift(t *testing.T) 
 	}
 }
 
+func TestListTicketSchemas_DetectsIndexZeroIdentityMismatch(t *testing.T) {
+	p1 := buildManyIssueTypesProject("P1", "1", 3)
+	p1.statuses = []map[string]interface{}{{"id": "1", "name": "P1Done"}}
+	p2 := buildManyIssueTypesProject("P2", "2", 2)
+	p3 := buildManyIssueTypesProject("P3", "3", 2)
+
+	full := []ticketProjectFixture{p1, p2, p3}
+	shrunk := []ticketProjectFixture{p2, p3} // P1 vanishes; P2 backfills into index 0
+
+	byKeyOrID := func(projects []ticketProjectFixture, idOrKey string) *ticketProjectFixture {
+		for i := range projects {
+			if projects[i].key == idOrKey || projects[i].id == idOrKey {
+				return &projects[i]
+			}
+		}
+		return nil
+	}
+
+	active := full
+	searchCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/rest/api/2/project/search":
+			if searchCalls > 0 {
+				active = shrunk
+			}
+			searchCalls++
+
+			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
+			maxResults, _ := strconv.Atoi(r.URL.Query().Get("maxResults"))
+			end := startAt + maxResults
+			if end > len(active) {
+				end = len(active)
+			}
+			if startAt > len(active) {
+				startAt = len(active)
+			}
+			page := active[startAt:end]
+
+			values := make([]map[string]interface{}, 0, len(page))
+			for _, p := range page {
+				issueTypes := make([]map[string]interface{}, 0, len(p.issueTypes))
+				for _, it := range p.issueTypes {
+					issueTypes = append(issueTypes, map[string]interface{}{
+						"id": it.id, "name": it.name, "subtask": it.subtask,
+					})
+				}
+				values = append(values, map[string]interface{}{
+					"id": p.id, "key": p.key, "name": p.name, "issueTypes": issueTypes,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": startAt, "maxResults": maxResults, "total": len(active), "values": values,
+			})
+
+		case "/rest/api/3/statuses/search":
+			projectID := r.URL.Query().Get("projectId")
+			p := byKeyOrID(active, projectID)
+			if p == nil {
+				t.Errorf("unexpected projectId in statuses request: %s", projectID)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(p.statuses), "values": p.statuses,
+			})
+
+		default:
+			var projectIDOrKey, issueTypeID string
+			if n, _ := fmt.Sscanf(r.URL.Path, "/rest/api/2/issue/createmeta/%s", &projectIDOrKey); n == 1 {
+				parts := splitLast(projectIDOrKey, "/issuetypes/")
+				projectIDOrKey, issueTypeID = parts[0], parts[1]
+			}
+			p := byKeyOrID(active, projectIDOrKey)
+			if p == nil {
+				t.Errorf("unexpected create-meta request for project %s", projectIDOrKey)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var it *ticketIssueType
+			for i := range p.issueTypes {
+				if p.issueTypes[i].id == issueTypeID {
+					it = &p.issueTypes[i]
+					break
+				}
+			}
+			if it == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(it.fields), "fields": it.fields,
+			})
+		}
+	}))
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 1 // stash mid-P1, at project index 0
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	first, nextToken, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 2})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(first) != 1 {
+		t.Fatalf("expected 1 schema (P1's first issue type), got %d", len(first))
+	}
+	if nextToken == "" {
+		t.Fatal("expected a next page token")
+	}
+
+	core, logs := observer.New(zap.DebugLevel)
+	debugCtx := ctxzap.ToContext(context.Background(), zap.New(core))
+
+	// P1 vanished entirely, so the fix must detect the index-0 mismatch and advance rather
+	// than applying P1's stashed statuses to whatever project now backfills index 0.
+	second, _, _, err := j.ListTicketSchemas(debugCtx, &pagination.Token{Size: 2, Token: nextToken})
+	if err != nil {
+		t.Fatalf("unexpected error on resume: %v", err)
+	}
+	for _, s := range second {
+		if len(s.Statuses) == 1 && s.Statuses[0].DisplayName == "P1Done" {
+			t.Fatalf("schema %s: P1's statuses leaked onto a different project: %v", s.Id, s.Statuses)
+		}
+	}
+
+	foundShrink := false
+	for _, entry := range logs.All() {
+		if entry.Message == "ticket schema project window shrank on resume, advancing to next window" {
+			foundShrink = true
+		}
+	}
+	if !foundShrink {
+		t.Error("expected a Debug log detecting the index-0 identity mismatch")
+	}
+}
+
 func TestListTicketSchemas_ResumesMidProjectNotFromZero(t *testing.T) {
 	projects := []ticketProjectFixture{buildManyIssueTypesProject("MID", "1", 5)}
 	srv := newTicketSchemaServer(t, projects, 50, nil)

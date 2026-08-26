@@ -43,13 +43,13 @@ var projectScopedCustomFieldIDs = map[string]bool{
 // Statuses carries the current project's statuses across a resume so a project split across
 // multiple calls by pairCap doesn't refetch them for every remaining page.
 type ticketSchemaPageToken struct {
-	ProjectOffset      int                `json:"project_offset,omitempty"`
-	ProjectPageSize    int                `json:"project_page_size,omitempty"`
-	ProjectIndexInPage int                `json:"project_index,omitempty"`
-	// ProjectIndexKey is the project.Key at ProjectIndexInPage when this token was stashed, used to detect a resume window that shifted rather than just shrank.
-	ProjectIndexKey string             `json:"project_index_key,omitempty"`
-	IssueTypeIndex  int                `json:"issue_type_index,omitempty"`
-	Statuses        []*v2.TicketStatus `json:"statuses,omitempty"`
+	ProjectOffset      int `json:"project_offset,omitempty"`
+	ProjectPageSize    int `json:"project_page_size,omitempty"`
+	ProjectIndexInPage int `json:"project_index,omitempty"`
+	// ProjectIndexID is project.ID at ProjectIndexInPage when this token was stashed, used to detect a resume window that shifted rather than just shrank.
+	ProjectIndexID string             `json:"project_index_id,omitempty"`
+	IssueTypeIndex int                `json:"issue_type_index,omitempty"`
+	Statuses       []*v2.TicketStatus `json:"statuses,omitempty"`
 }
 
 // issueTypePairsPerPage returns the per-call cap on issue-type pairs processed by ListTicketSchemas.
@@ -450,16 +450,15 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	issueTypeIndex := tok.IssueTypeIndex
 	resumedProjectIndex := tok.ProjectIndexInPage
 
-	if projectIndex > 0 {
+	if projectIndex > 0 || tok.ProjectIndexID != "" {
 		outOfBounds := projectIndex >= len(projects)
-		// Tokens without a stashed key predate ProjectIndexKey, so fall back to trusting the index.
-		identityMismatch := tok.ProjectIndexKey != "" && !outOfBounds && projects[projectIndex].Key != tok.ProjectIndexKey
+		identityMismatch := tok.ProjectIndexID != "" && !outOfBounds && projects[projectIndex].ID != tok.ProjectIndexID
 
 		if outOfBounds || identityMismatch {
 			relocated := -1
-			if tok.ProjectIndexKey != "" {
+			if tok.ProjectIndexID != "" {
 				for i, proj := range projects {
-					if proj.Key == tok.ProjectIndexKey {
+					if proj.ID == tok.ProjectIndexID {
 						relocated = i
 						break
 					}
@@ -471,7 +470,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 					"ticket schema project window shrank on resume, advancing to next window",
 					zap.Int("project_offset", tok.ProjectOffset),
 					zap.Int("stashed_project_index", projectIndex),
-					zap.String("stashed_project_key", tok.ProjectIndexKey),
+					zap.String("stashed_project_id", tok.ProjectIndexID),
 					zap.Int("returned_project_count", len(projects)),
 				)
 
@@ -485,13 +484,13 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 				return ret, nextPageToken, nil, nil
 			}
 
-			// The stashed project shifted index rather than leaving the window, so relocate it instead of misapplying its statuses to whatever project is now at the stale index.
+			// Relocate rather than trusting the stale index, which may now point at a different project.
 			l.Debug(
 				"ticket schema project window shifted on resume, relocating stashed project",
 				zap.Int("project_offset", tok.ProjectOffset),
 				zap.Int("stashed_project_index", projectIndex),
 				zap.Int("resolved_project_index", relocated),
-				zap.String("project_key", tok.ProjectIndexKey),
+				zap.String("project_id", tok.ProjectIndexID),
 			)
 
 			projectIndex = relocated
@@ -506,7 +505,7 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 			// token refetches the identical window instead of one sized off its own p.Size.
 			ProjectPageSize:    projectPageSize,
 			ProjectIndexInPage: projectIndex,
-			ProjectIndexKey:    projects[projectIndex].Key,
+			ProjectIndexID:     projects[projectIndex].ID,
 			IssueTypeIndex:     issueTypeIndex,
 			Statuses:           statuses,
 		})

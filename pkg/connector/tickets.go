@@ -465,7 +465,22 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 				}
 			}
 
-			if relocated == -1 {
+			switch {
+			case relocated >= 0:
+				// Relocate rather than trusting the stale index, which may now point at a different project.
+				l.Debug(
+					"ticket schema project window shifted on resume, relocating stashed project",
+					zap.Int("project_offset", tok.ProjectOffset),
+					zap.Int("stashed_project_index", projectIndex),
+					zap.Int("resolved_project_index", relocated),
+					zap.String("project_id", tok.ProjectIndexID),
+				)
+
+				projectIndex = relocated
+				resumedProjectIndex = relocated
+
+			case outOfBounds:
+				// Nothing left in this window to process; advance past it.
 				l.Debug(
 					"ticket schema project window shrank on resume, advancing to next window",
 					zap.Int("project_offset", tok.ProjectOffset),
@@ -482,19 +497,20 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 				}
 
 				return ret, nextPageToken, nil, nil
+
+			default:
+				// The stashed project is gone, but other projects still sit at/after this index;
+				// process the window from here as fresh rather than skipping the rest of it.
+				l.Debug(
+					"ticket schema stashed project not found on resume, resuming window from current index",
+					zap.Int("project_offset", tok.ProjectOffset),
+					zap.Int("stashed_project_index", projectIndex),
+					zap.String("stashed_project_id", tok.ProjectIndexID),
+				)
+
+				issueTypeIndex = 0
+				resumedProjectIndex = -1
 			}
-
-			// Relocate rather than trusting the stale index, which may now point at a different project.
-			l.Debug(
-				"ticket schema project window shifted on resume, relocating stashed project",
-				zap.Int("project_offset", tok.ProjectOffset),
-				zap.Int("stashed_project_index", projectIndex),
-				zap.Int("resolved_project_index", relocated),
-				zap.String("project_id", tok.ProjectIndexID),
-			)
-
-			projectIndex = relocated
-			resumedProjectIndex = relocated
 		}
 	}
 

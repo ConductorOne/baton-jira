@@ -994,13 +994,13 @@ func TestListTicketSchemas_DetectsIndexZeroIdentityMismatch(t *testing.T) {
 		}
 	}
 
-	foundShrink := false
+	foundMismatch := false
 	for _, entry := range logs.All() {
-		if entry.Message == "ticket schema project window shrank on resume, advancing to next window" {
-			foundShrink = true
+		if entry.Message == "ticket schema stashed project not found on resume, resuming window from current index" {
+			foundMismatch = true
 		}
 	}
-	if !foundShrink {
+	if !foundMismatch {
 		t.Error("expected a Debug log detecting the index-0 identity mismatch")
 	}
 }

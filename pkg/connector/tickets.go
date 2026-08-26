@@ -448,6 +448,24 @@ func (j *Jira) ListTicketSchemas(ctx context.Context, p *pagination.Token) ([]*v
 	issueTypeIndex := tok.IssueTypeIndex
 	resumedProjectIndex := tok.ProjectIndexInPage
 
+	if projectIndex > 0 && projectIndex >= len(projects) {
+		l.Debug(
+			"ticket schema project window shrank on resume, advancing to next window",
+			zap.Int("project_offset", tok.ProjectOffset),
+			zap.Int("stashed_project_index", projectIndex),
+			zap.Int("returned_project_count", len(projects)),
+		)
+
+		nextPageToken, err := marshalTicketSchemaPageToken(ticketSchemaPageToken{
+			ProjectOffset: tok.ProjectOffset + len(projects),
+		})
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		return ret, nextPageToken, nil, nil
+	}
+
 	nextPageTokenAt := func(projectIndex, issueTypeIndex int, statuses []*v2.TicketStatus) (string, error) {
 		return marshalTicketSchemaPageToken(ticketSchemaPageToken{
 			ProjectOffset: tok.ProjectOffset,

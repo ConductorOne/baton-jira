@@ -515,6 +515,157 @@ func TestListTicketSchemas_SurvivesShrinkingCallerPageSize(t *testing.T) {
 	}
 }
 
+// TestListTicketSchemas_GuardsShrinkingResumeWindow covers the guard added after CXP-936: if
+// the pinned project window returns fewer projects on a resumed call than it did when the
+// token was issued (a project was deleted, or access to it was lost, mid-sync), the stashed
+// ProjectIndexInPage can land past the end of the shrunk window. Without the guard, the resume
+// loop never executes, the shrunk window looks like the last page, and ListTicketSchemas
+// returns an empty page with an empty next-page token - silently ending the whole sync and
+// dropping every remaining project instead of just the one that disappeared.
+func TestListTicketSchemas_GuardsShrinkingResumeWindow(t *testing.T) {
+	p1 := buildManyIssueTypesProject("P1", "1", 2)
+	p2 := buildManyIssueTypesProject("P2", "2", 2)
+	p3 := buildManyIssueTypesProject("P3", "3", 2)
+	full := []ticketProjectFixture{p1, p2, p3}
+	shrunk := []ticketProjectFixture{p1} // P2 and P3 vanish before the resume is served
+
+	byKeyOrID := func(projects []ticketProjectFixture, idOrKey string) *ticketProjectFixture {
+		for i := range projects {
+			if projects[i].key == idOrKey || projects[i].id == idOrKey {
+				return &projects[i]
+			}
+		}
+		return nil
+	}
+
+	searchCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		active := full
+		if searchCalls > 0 {
+			active = shrunk
+		}
+
+		switch {
+		case r.URL.Path == "/rest/api/2/project/search":
+			searchCalls++
+			startAt, _ := strconv.Atoi(r.URL.Query().Get("startAt"))
+			end := len(active)
+			if startAt > end {
+				startAt = end
+			}
+			page := active[startAt:end]
+
+			values := make([]map[string]interface{}, 0, len(page))
+			for _, p := range page {
+				issueTypes := make([]map[string]interface{}, 0, len(p.issueTypes))
+				for _, it := range p.issueTypes {
+					issueTypes = append(issueTypes, map[string]interface{}{
+						"id": it.id, "name": it.name, "subtask": it.subtask,
+					})
+				}
+				values = append(values, map[string]interface{}{
+					"id": p.id, "key": p.key, "name": p.name, "issueTypes": issueTypes,
+				})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": startAt, "maxResults": len(page), "total": len(active), "values": values,
+			})
+
+		case r.URL.Path == "/rest/api/3/statuses/search":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": 0, "values": []map[string]interface{}{},
+			})
+
+		default:
+			var projectIDOrKey, issueTypeID string
+			if n, _ := fmt.Sscanf(r.URL.Path, "/rest/api/2/issue/createmeta/%s", &projectIDOrKey); n == 1 {
+				parts := splitLast(projectIDOrKey, "/issuetypes/")
+				projectIDOrKey, issueTypeID = parts[0], parts[1]
+			}
+			p := byKeyOrID(active, projectIDOrKey)
+			if p == nil {
+				t.Errorf("unexpected create-meta request for project %s", projectIDOrKey)
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var it *ticketIssueType
+			for i := range p.issueTypes {
+				if p.issueTypes[i].id == issueTypeID {
+					it = &p.issueTypes[i]
+					break
+				}
+			}
+			if it == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"startAt": 0, "maxResults": 100, "total": len(it.fields), "fields": it.fields,
+			})
+		}
+	}))
+	defer srv.Close()
+
+	j := newTestJira(t, srv.URL)
+	j.maxIssueTypePairsPerPage = 2 // exhausts P1's 2 pairs, stashing mid-window at P2 (index 1)
+	ctx := ctxzap.ToContext(context.Background(), zap.NewNop())
+
+	// First call: full 3-project window; the cap hits right after P1, stashing
+	// ProjectIndexInPage=1 (P2) against a window pinned at size 3.
+	first, nextToken, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 3})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(first) != 2 {
+		t.Fatalf("expected 2 schemas from P1, got %d", len(first))
+	}
+	if nextToken == "" {
+		t.Fatal("expected a next page token (P2/P3 still pending)")
+	}
+
+	// Resume: the pinned window now only returns P1 (P2/P3 disappeared), so the stashed
+	// index (1) is out of bounds. The guard must log a warning and advance the window
+	// instead of falling through to the terminating return.
+	core, logs := observer.New(zap.WarnLevel)
+	warnCtx := ctxzap.ToContext(context.Background(), zap.New(core))
+
+	second, nextToken2, _, err := j.ListTicketSchemas(warnCtx, &pagination.Token{Size: 3, Token: nextToken})
+	if err != nil {
+		t.Fatalf("unexpected error on resume: %v", err)
+	}
+	if len(second) != 0 {
+		t.Fatalf("expected no schemas on the guard call, got %d", len(second))
+	}
+	if nextToken2 == "" {
+		t.Fatal("expected pagination to continue past the shrunk window, got empty next token")
+	}
+
+	foundWarn := false
+	for _, entry := range logs.All() {
+		if entry.Message == "ticket schema project window shrank on resume, advancing to next window" {
+			foundWarn = true
+		}
+	}
+	if !foundWarn {
+		t.Error("expected a Warn log for the shrunk resume window")
+	}
+
+	// Final call: the underlying data set is now exhausted, so pagination must terminate
+	// cleanly rather than looping or erroring.
+	third, nextToken3, _, err := j.ListTicketSchemas(ctx, &pagination.Token{Size: 3, Token: nextToken2})
+	if err != nil {
+		t.Fatalf("unexpected error on final call: %v", err)
+	}
+	if len(third) != 0 {
+		t.Fatalf("expected no schemas past the end of the shrunk data set, got %d", len(third))
+	}
+	if nextToken3 != "" {
+		t.Fatalf("expected pagination to terminate, got next token %q", nextToken3)
+	}
+}
+
 func TestListTicketSchemas_ResumesMidProjectNotFromZero(t *testing.T) {
 	projects := []ticketProjectFixture{buildManyIssueTypesProject("MID", "1", 5)}
 	srv := newTicketSchemaServer(t, projects, 50, nil)

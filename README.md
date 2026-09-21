@@ -89,7 +89,7 @@ docker run --rm -v $(pwd):/out \
   -e BATON_JIRA_EMAIL='user@domain' \
   -e BATON_JIRA_API_TOKEN='token' \
   -e BATON_JIRA_URL='your-jira.atlassian.com' \
-  ghcr.io/conductorone/baton-jira:latest -f "/out/sync.c1z"
+  public.ecr.aws/conductorone/baton-jira:latest -f "/out/sync.c1z"
 
 # View synced resources
 docker run --rm -v $(pwd):/out ghcr.io/conductorone/baton:latest -f "/out/sync.c1z" resources

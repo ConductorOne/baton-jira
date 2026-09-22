@@ -183,6 +183,13 @@ If you want to set up the Jira Cloud connector to sync managed accounts and mana
     **Optional.** Click to **Enable external ticket processing**.
     </Step>
     <Step>
+    **Optional.** In the **Project keys** field, enter a comma-separated list of Jira Cloud project keys to limit which projects are used when creating external tickets. If left empty, all projects accessible to the service account will be used.
+
+    <Tip>
+    Scoping to specific project keys avoids `403` errors when the service account can't view statuses or browse every project in your Jira instance, and lets you grant narrower permissions.
+    </Tip>
+    </Step>
+    <Step>
     Click **Save**.
     </Step>
 </Steps>

@@ -188,6 +188,10 @@ If you want to set up the Jira Cloud connector to sync managed accounts and mana
     <Tip>
     Scoping to specific project keys avoids `403` errors when the service account can't view statuses or browse every project in your Jira instance, and lets you grant narrower permissions.
     </Tip>
+
+    <Warning>
+    **Listing more than 50 project keys causes external ticket processing to fail.** Jira Cloud accepts at most 50 project keys when filtering projects, so keep the list at 50 keys or fewer.
+    </Warning>
     </Step>
     <Step>
     Click **Save**.

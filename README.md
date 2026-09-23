@@ -113,13 +113,15 @@ baton resources
 
 ## Filtering by Project Keys
 
-You can limit which projects are synced by specifying project keys:
+You can limit which projects are used when creating external tickets by specifying project keys:
 
 ```bash
 BATON_JIRA_PROJECT_KEYS=PROJ1,PROJ2,PROJ3 baton-jira
 ```
 
-This is useful for large Jira instances where you only need to manage access for specific projects.
+This is useful for large Jira instances where you only need to create external tickets in specific projects.
+
+Jira Cloud accepts at most 50 project keys when filtering projects. Listing more than 50 keys causes the request to fail, so keep the list at 50 keys or fewer.
 
 ## Ticketing Support
 

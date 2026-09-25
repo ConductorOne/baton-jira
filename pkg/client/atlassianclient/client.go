@@ -16,6 +16,7 @@ const (
 	usersEP      = "admin/v2/orgs/%s/directories/-/users"
 	workspacesEP = "v2/orgs/%s/workspaces"
 	groupsEP     = "admin/v2/orgs/%s/directories/-/groups"
+	lifecycleEP  = "https://api.atlassian.com/users/%s/manage/lifecycle/%s"
 )
 
 type AtlassianClient struct {
@@ -126,6 +127,25 @@ func (c *AtlassianClient) ListGroups(ctx context.Context, siteID string, pageTok
 	nextPageToken := groupsResponse.Links.Next
 
 	return groupsResponse.Data, nextPageToken, nil
+}
+
+func (c *AtlassianClient) DisableUser(ctx context.Context, accountID string) error {
+	// The disable endpoint requires a JSON body; the message field is optional.
+	body := struct {
+		Message string `json:"message,omitempty"`
+	}{}
+	_, err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf(lifecycleEP, accountID, "disable"), nil, body)
+	return err
+}
+
+func (c *AtlassianClient) EnableUser(ctx context.Context, accountID string) error {
+	_, err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf(lifecycleEP, accountID, "enable"), nil, nil)
+	return err
+}
+
+func (c *AtlassianClient) DeleteUser(ctx context.Context, accountID string) error {
+	_, err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf(lifecycleEP, accountID, "delete"), nil, nil)
+	return err
 }
 
 func (c *AtlassianClient) doRequest(

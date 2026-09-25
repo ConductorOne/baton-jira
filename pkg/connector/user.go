@@ -40,6 +40,7 @@ type (
 )
 
 var _ connectorbuilder.AccountManagerLimited = &userResourceType{}
+var _ connectorbuilder.ResourceDeleterLimited = &userResourceType{}
 
 func getResourceTypeAnnotation() annotations.Annotations {
 	annotations := annotations.Annotations{}
@@ -233,6 +234,21 @@ func (o *userResourceType) CreateAccount(ctx context.Context, accountInfo *v2.Ac
 	return &v2.CreateAccountResponse_SuccessResult{
 		Resource: resource,
 	}, nil, nil, nil
+}
+
+func (o *userResourceType) Delete(ctx context.Context, resourceId *v2.ResourceId) (annotations.Annotations, error) {
+	// The Jira REST user-delete only removes site access (deactivates); a real
+	// account deletion goes through the Atlassian org admin lifecycle API, which
+	// needs the org credentials and only works for org-managed accounts.
+	if o.atlassianClient == nil {
+		return nil, fmt.Errorf("baton-jira: deprovisioning requires Atlassian organization credentials (atlassian-orgId and atlassian-api-token)")
+	}
+
+	if err := o.atlassianClient.DeleteUser(ctx, resourceId.GetResource()); err != nil {
+		return nil, fmt.Errorf("baton-jira: failed to delete user: %w", err)
+	}
+
+	return nil, nil
 }
 
 func getCreateInvitationBody(accountInfo *v2.AccountInfo) (*client.CreateUserBody, error) {

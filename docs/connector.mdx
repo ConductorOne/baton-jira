@@ -26,11 +26,20 @@ The Jira Cloud connector supports [automatic account provisioning](/product/admi
 
 Both mappings are required. If the `products` mapping is missing, the Atlassian API rejects the request with an HTTP 400 error, and the connector reports this as a generic "failed to create user" error without surfacing the upstream message, so the cause may not be immediately obvious.
 
-This connector does not support account deprovisioning. You must deprovision accounts directly in Jira.
+The connector also supports account deprovisioning. When C1 deprovisions a user, the connector permanently deletes the corresponding Atlassian account (a 14-day grace period applies before removal is final). Deprovisioning requires the optional Atlassian organization API key and organization ID (see below), and only applies to accounts your organization manages through a verified domain.
 
 <Icon icon="circle-info" /> This connector can be configured to sync app accounts from the Jira API and managed accounts and managed groups from Atlassian.
 
 This connector can also be configured to automatically create and update Jira tickets to track manual provisioning assignments. Go to [Configure Jira Cloud as an external ticketing provider](/product/admin/external-ticketing#configure-jira-cloud-as-an-external-ticketing-provider) to learn more.
+
+### Connector actions
+
+Connector actions are custom capabilities that extend C1 automations with app-specific operations. You can use connector actions in the [Perform connector action](/product/admin/automations-steps-reference#perform-connector-action) automation step. These actions require the Atlassian organization API key and organization ID and only apply to accounts your organization manages through a verified domain.
+
+| Action name | Additional fields | Description |
+|-------------|-------------------|-------------|
+| enable_user | `user_id` (string, required) | Reactivates a deactivated managed Atlassian account so the user can sign in again. |
+| disable_user | `user_id` (string, required) | Deactivates a managed Atlassian account, blocking the user from signing in without deleting the account. |
 
 ## Known limitations
 

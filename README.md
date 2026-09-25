@@ -10,6 +10,8 @@ This connector provides the following capabilities:
 
 - **Sync**: Discovers and syncs all users, groups, projects, and project roles from your Jira instance
 - **Provisioning**: Grants and revokes access to Jira groups and project roles
+- **Account provisioning**: Creates Jira user accounts, and deprovisions (deletes) managed accounts via the Atlassian organization admin API
+- **Actions**: `enable_user` / `disable_user` to reactivate or deactivate managed Atlassian accounts (Atlassian organization admin API)
 - **Ticketing**: Creates and tracks Jira tickets for access requests/approvals workflows
 
 ## Resource Types Synced
@@ -40,6 +42,7 @@ This connector uses Jira Basic Auth, requiring an email address and API token. T
    - Manage group memberships (for provisioning)
    - Manage project role memberships (for provisioning)
    - Create issues (for ticketing)
+   - An Atlassian organization API key + organization ID (for account deprovisioning and the enable_user / disable_user actions; only applies to accounts managed through a verified domain)
 2. **API Token**: A personal API token for authentication (see below for creation steps)
 3. **Jira URL**: The URL of your Jira instance
 4. **Email Address**: The email associated with your Jira account

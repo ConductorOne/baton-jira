@@ -13,6 +13,8 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	rs "github.com/conductorone/baton-sdk/pkg/types/resource"
 	jira "github.com/conductorone/go-jira/v2/cloud"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -244,7 +246,7 @@ func (o *userResourceType) Delete(ctx context.Context, resourceId *v2.ResourceId
 		return nil, fmt.Errorf("baton-jira: deprovisioning requires Atlassian organization credentials (atlassian-orgId and atlassian-api-token)")
 	}
 
-	if err := o.atlassianClient.DeleteUser(ctx, resourceId.GetResource()); err != nil {
+	if err := o.atlassianClient.DeleteUser(ctx, resourceId.GetResource()); err != nil && status.Code(err) != codes.NotFound {
 		return nil, fmt.Errorf("baton-jira: failed to delete user: %w", err)
 	}
 

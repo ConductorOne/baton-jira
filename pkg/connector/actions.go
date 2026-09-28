@@ -70,8 +70,7 @@ func (o *Jira) enableUser(ctx context.Context, args *structpb.Struct) (*structpb
 	if err != nil {
 		return nil, nil, err
 	}
-	// Atlassian returns 409 when the account is already in the target state; that
-	// is the desired end state, so treat it as an idempotent success.
+	// Repeat calls return 204, but Atlassian also documents a 409 conflict; treat it as already done.
 	if err := o.atlassianClient.EnableUser(ctx, accountID); err != nil && status.Code(err) != codes.AlreadyExists {
 		return nil, nil, fmt.Errorf("baton-jira: failed to enable user: %w", err)
 	}
@@ -100,6 +99,9 @@ func (o *Jira) userIDFromArgs(args *structpb.Struct) (string, error) {
 	rid, ok := actions.GetResourceIDArg(args, "user_id")
 	if !ok || rid.GetResource() == "" {
 		return "", fmt.Errorf("baton-jira: missing required argument user_id")
+	}
+	if rid.GetResourceType() != resourceTypeUser.Id {
+		return "", fmt.Errorf("baton-jira: user_id must be a user resource")
 	}
 	return rid.GetResource(), nil
 }

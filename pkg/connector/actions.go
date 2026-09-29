@@ -74,7 +74,7 @@ func (o *Jira) enableUser(ctx context.Context, args *structpb.Struct) (*structpb
 	if err := o.atlassianClient.EnableUser(ctx, accountID); err != nil && status.Code(err) != codes.AlreadyExists {
 		return nil, nil, fmt.Errorf("baton-jira: failed to enable user: %w", err)
 	}
-	return actionSuccess(), nil, nil
+	return actions.NewReturnValues(true), nil, nil
 }
 
 func (o *Jira) disableUser(ctx context.Context, args *structpb.Struct) (*structpb.Struct, annotations.Annotations, error) {
@@ -85,11 +85,7 @@ func (o *Jira) disableUser(ctx context.Context, args *structpb.Struct) (*structp
 	if err := o.atlassianClient.DisableUser(ctx, accountID); err != nil && status.Code(err) != codes.AlreadyExists {
 		return nil, nil, fmt.Errorf("baton-jira: failed to disable user: %w", err)
 	}
-	return actionSuccess(), nil, nil
-}
-
-func actionSuccess() *structpb.Struct {
-	return &structpb.Struct{Fields: map[string]*structpb.Value{"success": structpb.NewBoolValue(true)}}
+	return actions.NewReturnValues(true), nil, nil
 }
 
 func (o *Jira) userIDFromArgs(args *structpb.Struct) (string, error) {

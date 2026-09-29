@@ -16,7 +16,7 @@ const (
 	usersEP      = "admin/v2/orgs/%s/directories/-/users"
 	workspacesEP = "v2/orgs/%s/workspaces"
 	groupsEP     = "admin/v2/orgs/%s/directories/-/groups"
-	lifecycleEP  = "https://api.atlassian.com/users/%s/manage/lifecycle/%s"
+	lifecycleURL = "https://api.atlassian.com/users"
 )
 
 type AtlassianClient struct {
@@ -40,6 +40,12 @@ func WithAccessToken(accessToken string) Option {
 func WithOrganizationID(orgID string) Option {
 	return func(c *AtlassianClient) {
 		c.config.organizationID = orgID
+	}
+}
+
+func WithHTTPClient(wrapper *uhttp.BaseHttpClient) Option {
+	return func(c *AtlassianClient) {
+		c.wrapper = wrapper
 	}
 }
 
@@ -134,17 +140,27 @@ func (c *AtlassianClient) DisableUser(ctx context.Context, accountID string) err
 	body := struct {
 		Message string `json:"message,omitempty"`
 	}{}
-	_, err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf(lifecycleEP, accountID, "disable"), nil, body)
-	return err
+	return c.lifecycle(ctx, accountID, "disable", body)
 }
 
 func (c *AtlassianClient) EnableUser(ctx context.Context, accountID string) error {
-	_, err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf(lifecycleEP, accountID, "enable"), nil, nil)
-	return err
+	return c.lifecycle(ctx, accountID, "enable", nil)
 }
 
 func (c *AtlassianClient) DeleteUser(ctx context.Context, accountID string) error {
-	_, err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf(lifecycleEP, accountID, "delete"), nil, nil)
+	return c.lifecycle(ctx, accountID, "delete", nil)
+}
+
+func (c *AtlassianClient) lifecycle(ctx context.Context, accountID, op string, body interface{}) error {
+	// JoinPath cleans dot segments, so "." or ".." would otherwise escape the account's path.
+	if accountID == "" || accountID == "." || accountID == ".." {
+		return fmt.Errorf("invalid account id")
+	}
+	u, err := url.JoinPath(lifecycleURL, url.PathEscape(accountID), "manage", "lifecycle", op)
+	if err != nil {
+		return err
+	}
+	_, err = c.doRequest(ctx, http.MethodPost, u, nil, body)
 	return err
 }
 

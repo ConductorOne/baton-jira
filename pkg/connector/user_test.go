@@ -26,8 +26,7 @@ func (t rewriteTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(r)
 }
 
-// newLifecycleClient returns an Atlassian org client whose lifecycle calls answer with lifecycleStatus.
-// Every lifecycle request URI lands in *calls.
+// newLifecycleClient answers every lifecycle call with lifecycleStatus and records its request URI.
 func newLifecycleClient(t *testing.T, lifecycleStatus int, calls *[]string) *atlassianclient.AtlassianClient {
 	t.Helper()
 
@@ -95,7 +94,6 @@ func TestUserDelete(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "deleted", status: http.StatusNoContent},
-		// Deprovisioning must converge: an account that is already gone counts as deleted.
 		{name: "unknown account is success", status: http.StatusNotFound},
 		{name: "server error propagates", status: http.StatusInternalServerError, wantErr: true},
 		{name: "forbidden propagates", status: http.StatusForbidden, wantErr: true},
@@ -149,7 +147,6 @@ func TestEnableDisableUserActions(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "enable", action: enable, op: "enable", status: http.StatusNoContent},
-		// Atlassian documents 409 when the account is already in the target state.
 		{name: "enable already enabled", action: enable, op: "enable", status: http.StatusConflict},
 		{name: "enable server error", action: enable, op: "enable", status: http.StatusInternalServerError, wantErr: true},
 		{name: "disable", action: disable, op: "disable", status: http.StatusNoContent},

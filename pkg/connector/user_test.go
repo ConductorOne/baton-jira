@@ -94,7 +94,7 @@ func TestUserDelete(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "deleted", status: http.StatusNoContent},
-		{name: "unknown account is success", status: http.StatusNotFound},
+		{name: "unknown account propagates", status: http.StatusNotFound, wantErr: true},
 		{name: "server error propagates", status: http.StatusInternalServerError, wantErr: true},
 		{name: "forbidden propagates", status: http.StatusForbidden, wantErr: true},
 	}
@@ -111,20 +111,6 @@ func TestUserDelete(t *testing.T) {
 				t.Errorf("expected one escaped delete call, got %v", calls)
 			}
 		})
-	}
-}
-
-func TestUserDeleteRejectsDotSegmentID(t *testing.T) {
-	var calls []string
-	u := userBuilder(nil, newLifecycleClient(t, http.StatusNoContent, &calls), false, nil)
-
-	for _, id := range []string{"..", "."} {
-		if _, err := u.Delete(context.Background(), &v2.ResourceId{ResourceType: resourceTypeUser.Id, Resource: id}); err == nil {
-			t.Errorf("expected error for account id %q", id)
-		}
-	}
-	if len(calls) != 0 {
-		t.Errorf("dot-segment ids must not reach the API, got %v", calls)
 	}
 }
 

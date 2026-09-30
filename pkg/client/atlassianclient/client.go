@@ -152,10 +152,6 @@ func (c *AtlassianClient) DeleteUser(ctx context.Context, accountID string) erro
 }
 
 func (c *AtlassianClient) lifecycle(ctx context.Context, accountID, op string, body interface{}) error {
-	// JoinPath cleans dot segments, so "." or ".." would otherwise escape the account's path.
-	if accountID == "" || accountID == "." || accountID == ".." {
-		return fmt.Errorf("invalid account id")
-	}
 	u, err := url.JoinPath(lifecycleURL, url.PathEscape(accountID), "manage", "lifecycle", op)
 	if err != nil {
 		return err

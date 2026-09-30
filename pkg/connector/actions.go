@@ -45,14 +45,14 @@ var enableUserAction = &v2.BatonActionSchema{
 	Name:        ActionEnableUser,
 	Arguments:   userIDArg(),
 	ReturnTypes: successReturn(),
-	ActionType:  []v2.ActionType{v2.ActionType_ACTION_TYPE_ACCOUNT_ENABLE},
+	ActionType:  []v2.ActionType{v2.ActionType_ACTION_TYPE_ACCOUNT, v2.ActionType_ACTION_TYPE_ACCOUNT_ENABLE},
 }
 
 var disableUserAction = &v2.BatonActionSchema{
 	Name:        ActionDisableUser,
 	Arguments:   userIDArg(),
 	ReturnTypes: successReturn(),
-	ActionType:  []v2.ActionType{v2.ActionType_ACTION_TYPE_ACCOUNT_DISABLE},
+	ActionType:  []v2.ActionType{v2.ActionType_ACTION_TYPE_ACCOUNT, v2.ActionType_ACTION_TYPE_ACCOUNT_DISABLE},
 }
 
 func (o *Jira) GlobalActions(ctx context.Context, registry actions.ActionRegistry) error {

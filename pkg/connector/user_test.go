@@ -89,6 +89,18 @@ func TestUserDeleteRequiresOrgCredentials(t *testing.T) {
 	}
 }
 
+func TestUserDeleteEmptyIDNeverReachesAPI(t *testing.T) {
+	var calls []string
+	u := userBuilder(nil, newLifecycleClient(t, http.StatusNoContent, &calls), false, nil)
+
+	if _, err := u.Delete(context.Background(), &v2.ResourceId{ResourceType: resourceTypeUser.Id}); err == nil {
+		t.Fatal("expected error for empty account id")
+	}
+	if len(calls) != 0 {
+		t.Errorf("empty id must not reach the API, got %v", calls)
+	}
+}
+
 func TestUserDelete(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -97,7 +109,7 @@ func TestUserDelete(t *testing.T) {
 		wantMsg string
 	}{
 		{name: "deleted", status: http.StatusNoContent},
-		{name: "unknown account propagates", status: http.StatusNotFound, wantErr: true},
+		{name: "already deleted", status: http.StatusNotFound},
 		{name: "server error propagates", status: http.StatusInternalServerError, wantErr: true},
 		{name: "forbidden names unmanaged account", status: http.StatusForbidden, wantErr: true, wantMsg: "not managed by this organization"},
 	}

@@ -8,8 +8,6 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/actions"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -70,8 +68,7 @@ func (o *Jira) enableUser(ctx context.Context, args *structpb.Struct) (*structpb
 	if err != nil {
 		return nil, nil, err
 	}
-	// Repeat calls return 204, but Atlassian also documents a 409 conflict; treat it as already done.
-	if err := o.atlassianClient.EnableUser(ctx, accountID); err != nil && status.Code(err) != codes.AlreadyExists {
+	if err := o.atlassianClient.EnableUser(ctx, accountID); err != nil {
 		return nil, nil, fmt.Errorf("baton-jira: failed to enable user: %w", err)
 	}
 	return actions.NewReturnValues(true), nil, nil
@@ -82,7 +79,7 @@ func (o *Jira) disableUser(ctx context.Context, args *structpb.Struct) (*structp
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := o.atlassianClient.DisableUser(ctx, accountID); err != nil && status.Code(err) != codes.AlreadyExists {
+	if err := o.atlassianClient.DisableUser(ctx, accountID); err != nil {
 		return nil, nil, fmt.Errorf("baton-jira: failed to disable user: %w", err)
 	}
 	return actions.NewReturnValues(true), nil, nil

@@ -11,6 +11,8 @@ import (
 	"github.com/conductorone/baton-jira/pkg/client/atlassianclient"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -92,11 +94,12 @@ func TestUserDelete(t *testing.T) {
 		name    string
 		status  int
 		wantErr bool
+		wantMsg string
 	}{
 		{name: "deleted", status: http.StatusNoContent},
 		{name: "unknown account propagates", status: http.StatusNotFound, wantErr: true},
 		{name: "server error propagates", status: http.StatusInternalServerError, wantErr: true},
-		{name: "forbidden propagates", status: http.StatusForbidden, wantErr: true},
+		{name: "forbidden names unmanaged account", status: http.StatusForbidden, wantErr: true, wantMsg: "not managed by this organization"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,6 +109,9 @@ func TestUserDelete(t *testing.T) {
 			_, err := u.Delete(context.Background(), &v2.ResourceId{ResourceType: resourceTypeUser.Id, Resource: "557058:abc/def"})
 			if tt.wantErr != (err != nil) {
 				t.Fatalf("wantErr=%v, got %v", tt.wantErr, err)
+			}
+			if tt.wantMsg != "" && (!strings.Contains(err.Error(), tt.wantMsg) || status.Code(err) != codes.PermissionDenied) {
+				t.Errorf("expected PermissionDenied mentioning %q, got %v", tt.wantMsg, err)
 			}
 			if len(calls) != 1 || calls[0] != "/users/557058:abc%2Fdef/manage/lifecycle/delete" {
 				t.Errorf("expected one escaped delete call, got %v", calls)
@@ -133,10 +139,10 @@ func TestEnableDisableUserActions(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "enable", action: enable, op: "enable", status: http.StatusNoContent},
-		{name: "enable already enabled", action: enable, op: "enable", status: http.StatusConflict},
+		{name: "enable conflict propagates", action: enable, op: "enable", status: http.StatusConflict, wantErr: true},
 		{name: "enable server error", action: enable, op: "enable", status: http.StatusInternalServerError, wantErr: true},
 		{name: "disable", action: disable, op: "disable", status: http.StatusNoContent},
-		{name: "disable already disabled", action: disable, op: "disable", status: http.StatusConflict},
+		{name: "disable conflict propagates", action: disable, op: "disable", status: http.StatusConflict, wantErr: true},
 		{name: "disable not found propagates", action: disable, op: "disable", status: http.StatusNotFound, wantErr: true},
 	}
 	for _, tt := range tests {

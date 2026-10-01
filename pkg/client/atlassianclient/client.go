@@ -8,6 +8,8 @@ import (
 
 	"github.com/conductorone/baton-jira/pkg/client"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -157,6 +159,9 @@ func (c *AtlassianClient) lifecycle(ctx context.Context, accountID, op string, b
 		return err
 	}
 	_, err = c.doRequest(ctx, http.MethodPost, u, nil, body)
+	if status.Code(err) == codes.PermissionDenied {
+		return fmt.Errorf("account is not managed by this organization (app accounts never are), or the org API key lacks user management access: %w", err)
+	}
 	return err
 }
 

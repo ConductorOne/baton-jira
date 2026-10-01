@@ -55,10 +55,10 @@ var disableUserAction = &v2.BatonActionSchema{
 
 func (o *Jira) GlobalActions(ctx context.Context, registry actions.ActionRegistry) error {
 	if err := registry.Register(ctx, enableUserAction, o.enableUser); err != nil {
-		return err
+		return fmt.Errorf("baton-jira: failed to register enable_user action: %w", err)
 	}
 	if err := registry.Register(ctx, disableUserAction, o.disableUser); err != nil {
-		return err
+		return fmt.Errorf("baton-jira: failed to register disable_user action: %w", err)
 	}
 	return nil
 }

@@ -121,7 +121,7 @@ BATON_JIRA_PROJECT_KEYS=PROJ1,PROJ2,PROJ3 baton-jira
 
 This is useful for large Jira instances where you only need to create external tickets in specific projects.
 
-Jira Cloud accepts at most 50 project keys when filtering projects. Listing more than 50 keys causes the request to fail, so keep the list at 50 keys or fewer.
+Atlassian documents a maximum of 50 project keys for project filtering. Very long lists (several hundred keys) exceed the request URL length limit, and listing ticket schemas fails with `414 Request URI Too Long`. Unknown keys are ignored without a warning, and the service account needs permission to view statuses (Administer projects) on every listed project.
 
 ## Ticketing Support
 

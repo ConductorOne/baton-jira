@@ -26,7 +26,7 @@ The Jira Cloud connector supports [automatic account provisioning](/product/admi
 
 Both mappings are required. If the `products` mapping is missing, the Atlassian API rejects the request with an HTTP 400 error, and the connector reports this as a generic "failed to create user" error without surfacing the upstream message, so the cause may not be immediately obvious.
 
-This connector does not support account deprovisioning. You must deprovision accounts directly in Jira.
+This connector does not support account deprovisioning. Deactivating or deleting an Atlassian account removes the user from every Atlassian product, not just Jira, so deprovisioning is handled at the Atlassian organization level. To deprovision Jira users, configure the [Atlassian connector](/baton/atlassian).
 
 <Icon icon="circle-info" /> This connector can be configured to sync app accounts from the Jira API and managed accounts and managed groups from Atlassian.
 

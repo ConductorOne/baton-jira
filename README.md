@@ -10,7 +10,7 @@ This connector provides the following capabilities:
 
 - **Sync**: Discovers and syncs all users, groups, projects, and project roles from your Jira instance
 - **Provisioning**: Grants and revokes access to Jira groups and project roles
-- **Deprovisioning**: Not supported. Suspending, restoring, deactivating, or deleting a user applies across every Atlassian product, so use the [Atlassian connector](https://github.com/conductorone/baton-atlassian) for account deprovisioning, suspend/restore, and Atlassian account status
+- **Deprovisioning**: Not supported. Suspending, restoring, or deleting a user applies across every Atlassian product, so use the [Atlassian connector](https://github.com/conductorone/baton-atlassian) for account deprovisioning, suspend/restore, and Atlassian account status
 - **Ticketing**: Creates and tracks Jira tickets for access requests/approvals workflows
 
 ## Resource Types Synced

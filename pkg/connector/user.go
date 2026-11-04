@@ -345,21 +345,53 @@ func (b *userResourceType) listSiteUsers(ctx context.Context, _ *v2.ResourceId, 
 	return resources, &rs.SyncOpResults{NextPageToken: nextPageToken}, nil
 }
 
-func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {
-	var userStatus = v2.UserTrait_Status_STATUS_UNSPECIFIED
+// Composite "status" values returned by the Atlassian org directory users endpoint.
+const (
+	orgUserStatusActive      = "active"
+	orgUserStatusSuspended   = "suspended"
+	orgUserStatusNotInvited  = "not_invited"
+	orgUserStatusDeactivated = "deactivated"
+	orgUserStatusForDeletion = "for_deletion"
+)
 
-	profile := map[string]interface{}{
-		"account_id":     user.AccountId,
-		"account_type":   user.AccountType,
-		"username":       user.Name,
-		"email_verified": user.EmailVerified,
+// mapOrgUserStatus maps an org directory user to a resource status.
+//
+// The composite "status" field is authoritative. Only "active" is enabled; every other
+// documented value means the user cannot use the site. "for_deletion" is DISABLED rather
+// than DELETED because the account can still be restored during Atlassian's grace period.
+//
+// If "status" holds a value this connector does not know, the user is classified from
+// "accountStatus" and "membershipStatus" instead: an account that is not active (e.g.
+// "inactive" or "closed") or a membership that is not active (e.g. "suspended" or
+// "no_membership") is DISABLED, and active on both is ENABLED. Anything still
+// unrecognised stays UNSPECIFIED rather than guessing.
+func mapOrgUserStatus(user atlassianclient.User) v2.Status_ResourceStatus {
+	switch user.Status {
+	case orgUserStatusActive:
+		return v2.Status_RESOURCE_STATUS_ENABLED
+	case orgUserStatusSuspended, orgUserStatusNotInvited, orgUserStatusDeactivated, orgUserStatusForDeletion:
+		return v2.Status_RESOURCE_STATUS_DISABLED
 	}
 
-	switch user.Status {
-	case "active":
-		userStatus = v2.UserTrait_Status_STATUS_ENABLED
-	case "deactivated":
-		userStatus = v2.UserTrait_Status_STATUS_DISABLED
+	switch {
+	case user.AccountStatus == "" || user.MembershipStatus == "":
+		return v2.Status_RESOURCE_STATUS_UNSPECIFIED
+	case user.AccountStatus != "active" || user.MembershipStatus != "active":
+		return v2.Status_RESOURCE_STATUS_DISABLED
+	default:
+		return v2.Status_RESOURCE_STATUS_ENABLED
+	}
+}
+
+func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {
+	profile := map[string]interface{}{
+		"account_id":        user.AccountId,
+		"account_type":      user.AccountType,
+		"username":          user.Name,
+		"email_verified":    user.EmailVerified,
+		"status":            user.Status,
+		"account_status":    user.AccountStatus,
+		"membership_status": user.MembershipStatus,
 	}
 
 	userTraits := []rs.UserTraitOption{
@@ -373,6 +405,6 @@ func parseIntoUserResource(user atlassianclient.User) (*v2.Resource, error) {
 		user.AccountId,
 		userTraits,
 		rs.WithResourceProfile(profile),
-		rs.WithResourceStatus(v2.Status_ResourceStatus(userStatus), ""),
+		rs.WithResourceStatus(mapOrgUserStatus(user), user.Status),
 	)
 }

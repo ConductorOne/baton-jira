@@ -361,10 +361,15 @@ const (
 // than DELETED because the account can still be restored during Atlassian's grace period.
 //
 // If "status" holds a value this connector does not know, the user is classified from
-// "accountStatus" and "membershipStatus" instead: an account that is not active (e.g.
-// "inactive" or "closed") or a membership that is not active (e.g. "suspended" or
-// "no_membership") is DISABLED, and active on both is ENABLED. Anything still
-// unrecognised stays UNSPECIFIED rather than guessing.
+// "accountStatus" and "membershipStatus" instead. Atlassian documents only "active" as
+// usable for either field: an inactive or closed account has no access to any resource,
+// and a suspended or absent membership has no access to the organization's apps.
+//
+//   - Either field present and not active (e.g. "inactive", "closed", "suspended",
+//     "no_membership"): DISABLED, whatever the other field says.
+//   - Both fields active: ENABLED.
+//   - Otherwise (both missing, or one active and the other missing): UNSPECIFIED,
+//     because access cannot be confirmed either way.
 func mapOrgUserStatus(user atlassianclient.User) v2.Status_ResourceStatus {
 	switch user.Status {
 	case orgUserStatusActive:
@@ -373,13 +378,16 @@ func mapOrgUserStatus(user atlassianclient.User) v2.Status_ResourceStatus {
 		return v2.Status_RESOURCE_STATUS_DISABLED
 	}
 
+	accountInactive := user.AccountStatus != "" && user.AccountStatus != orgUserStatusActive
+	membershipInactive := user.MembershipStatus != "" && user.MembershipStatus != orgUserStatusActive
+
 	switch {
-	case user.AccountStatus == "" || user.MembershipStatus == "":
-		return v2.Status_RESOURCE_STATUS_UNSPECIFIED
-	case user.AccountStatus != "active" || user.MembershipStatus != "active":
+	case accountInactive || membershipInactive:
 		return v2.Status_RESOURCE_STATUS_DISABLED
-	default:
+	case user.AccountStatus == orgUserStatusActive && user.MembershipStatus == orgUserStatusActive:
 		return v2.Status_RESOURCE_STATUS_ENABLED
+	default:
+		return v2.Status_RESOURCE_STATUS_UNSPECIFIED
 	}
 }
 

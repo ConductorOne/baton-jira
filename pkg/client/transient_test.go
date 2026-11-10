@@ -38,7 +38,7 @@ func TestConnectionResetIsUnavailable(t *testing.T) {
 		if tcp, ok := conn.(*net.TCPConn); ok {
 			_ = tcp.SetLinger(0)
 		}
-		conn.Close()
+		_ = conn.Close()
 	}))
 	defer srv.Close()
 

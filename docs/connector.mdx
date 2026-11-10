@@ -97,9 +97,7 @@ If creating a scoped token, select the permissions you need based on your requir
 
 To set up the connector, you'll also need:
 
-* If using a classic token, your Jira Cloud URL in `https://your-domain.atlassian.net` format
-
-* If using a scoped token, your cloud ID, which can be found at `https://<your-domain>.atlassian.net/_edge/tenant_info`
+* Your Jira Cloud URL in `https://your-domain.atlassian.net` format. Use this format for both classic and scoped tokens.
 
 * The email address for your Jira Cloud account
 
@@ -168,10 +166,11 @@ If you want to set up the Jira Cloud connector to sync managed accounts and mana
     Find the **Settings** area of the page and click **Edit**.
     </Step>
     <Step>
-    Enter your Jira Cloud domain into the **Jira site domain** field:
+    Enter your Jira Cloud URL into the **Jira site domain** field, in `https://your-domain.atlassian.net` format. Use this format for both classic and scoped tokens.
 
-    * If using a classic API token without scopes, use the format `<YOUR DOMAIN>.atlassian.net`.
-    * If using a token with scopes, use the format `https://api.atlassian.com/ex/jira/<cloud-id>`.
+    <Note>
+    The URL must include the `https://` scheme. With a scoped token, the connector resolves your cloud ID from this URL and builds the `https://api.atlassian.com/ex/jira/<cloud-id>` address on its own, so do not enter that address here.
+    </Note>
     </Step>
     <Step>
     Enter the email address for your Jira Cloud account in the **Your Jira email address** field.
@@ -264,7 +263,7 @@ stringData:
   BATON_CLIENT_SECRET: <C1 client secret>
   
   # Jira Cloud credentials
-  BATON_JIRA_URL: <Jira Cloud tenant URL in https://domain.atlassian.net format (unscoped token) or https://api.atlassian.com/ex/jira/<cloud-id> format (scoped token)>
+  BATON_JIRA_URL: <Jira Cloud tenant URL in https://your-domain.atlassian.net format, including the scheme, for both classic and scoped tokens>
   BATON_JIRA_API_TOKEN: <Jira Cloud API token>
   BATON_JIRA_EMAIL: <Email address associated with your Jira Cloud account>
 

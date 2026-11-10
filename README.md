@@ -62,12 +62,15 @@ The connector requires the following configuration:
 
 | Parameter | Description | Required | Environment Variable | Flag |
 |-----------|-------------|----------|----------------------|------|
-| Jira URL | URL of your Jira instance | Yes | `BATON_JIRA_URL` | `--jira-url` |
+| Jira URL | URL of your Jira instance, in `https://your-domain.atlassian.net` format, including the scheme | Yes | `BATON_JIRA_URL` | `--jira-url` |
 | Email | Email address for Jira authentication | Yes | `BATON_JIRA_EMAIL` | `--jira-email` |
 | API Token | API token for Jira authentication | Yes | `BATON_JIRA_API_TOKEN` | `--jira-api-token` |
 | Project Keys | Comma-separated list of project keys to sync (optional) | No | `BATON_JIRA_PROJECT_KEYS` | `--jira-project-keys` |
 | Ticketing | Enable ticketing support | No | `BATON_TICKETING` | `--ticketing` |
-| Skip Project Participants | Skip syncing project participants (improves performance) | No | n/a | `--skip-project-participants` |
+| Skip Project Participants | Skip syncing project participants (improves performance) | No | `BATON_SKIP_PROJECT_PARTICIPANTS` | `--skip-project-participants` |
+| Skip Customer User | Skip syncing customer users in Jira Service Management | No | `BATON_SKIP_CUSTOMER_USER` | `--skip-customer-user` |
+| Atlassian Organization ID | Atlassian organization ID. Set it together with the Atlassian API token to sync managed accounts and managed groups from the Atlassian organization directory | No | `BATON_ATLASSIAN_ORGID` | `--atlassian-orgId` |
+| Atlassian API Token | Atlassian organization API key. Set it together with the Atlassian organization ID | No | `BATON_ATLASSIAN_API_TOKEN` | `--atlassian-api-token` |
 
 ## Installation Methods
 

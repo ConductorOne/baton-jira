@@ -201,6 +201,10 @@ If you want to set up the Jira Cloud connector to sync managed accounts and mana
 
     Project keys that don't match an existing project are ignored without a warning, so check the keys for typos. After you change this field, the ticket schemas offered in C1 are updated on the next sync.
 
+    <Note>
+    C1 stores at most 100 ticket schemas per connector. Each project contributes one schema for every eligible issue type, and Epic, Bug, and sub-task issue types are excluded. On large Jira instances, projects beyond the first 100 schemas don't appear in C1. If project or issue type options are missing, enter the keys of the projects you need in this field.
+    </Note>
+
     <Tip>
     Scoping to specific project keys avoids `403` errors on projects the service account can't view statuses for or browse, because the connector doesn't query projects outside the list. The service account still needs permission to view statuses (**Administer projects**) on every project you list.
     </Tip>

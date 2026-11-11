@@ -15,7 +15,7 @@ This document provides information needed to set up and use the connector.
 
 Accounts reach the connector through two different sources, and the source decides which status mapping an account gets:
 
-- **Jira REST** (`/rest/api/3/users/search`) returns a boolean `active`, so accounts from this path are only ever Enabled or Disabled.
+- **Jira REST** (`/rest/api/3/users/search`) returns a boolean `active`, so accounts from this path are only ever Enabled or Disabled. When both Atlassian organization settings are set, only `app` accounts come from this path.
 - **The Atlassian organization directory** (`/admin/v2/orgs/{orgId}/directories/-/users`), used only when both optional Atlassian organization settings are configured, returns a composite `status` plus `accountStatus` and `membershipStatus`. The composite maps to the C1 resource status, the raw value is sent as the status detail, and all three land on the account profile as `status`, `account_status` and `membership_status`.
 
 ### 2. Can the connector provision any resources? If so, which ones?
@@ -38,11 +38,11 @@ Account deletion, suspension and restoration are not implemented here on purpose
 
 | Credential | Required | Description |
 |------------|----------|-------------|
-| **Jira site URL** (`--jira-url`) | Yes | The site URL, in `https://your-domain.atlassian.net` format. The scheme is required, and this format applies to both classic and scoped tokens. |
+| **Jira site URL** (`--jira-url`) | Yes | The site URL, in `https://your-domain.atlassian.net` format; the scheme is required. A scoped token on a non service-account email takes the gateway form `https://api.atlassian.com/ex/jira/<cloud-id>` instead, which validation reports back when the site form answers 401. |
 | **Jira email** (`--jira-email`) | Yes | The account the API token was created under. A `@serviceaccount.atlassian.com` address selects the service-account path. |
 | **Jira API token** (`--jira-api-token`) | Yes | A classic or scoped Atlassian API token. |
-| **Atlassian organization ID** (`--atlassian-orgId`) | No | Enables syncing managed accounts and managed groups from the Atlassian organization directory. |
-| **Atlassian organization API key** (`--atlassian-api-token`) | No | Pairs with the organization ID. |
+| **Atlassian organization ID** (`--atlassian-orgId`) | No | Syncs accounts and groups from the Atlassian organization directory instead of Jira. Jira still supplies `app` accounts and the `atlassian-addons`, `atlassian-addons-admin` and `system-administrators` groups. |
+| **Atlassian organization API token** (`--atlassian-api-token`) | No | The organization API key. Pairs with the organization ID. |
 
 The two Atlassian organization settings are a pair: the organization directory is used only when both are non-empty, and a value in one with the other left blank is ignored without a warning.
 
@@ -52,17 +52,17 @@ Three further options affect what is synced: `--jira-project-keys` limits which 
 
 The Jira API token comes from `id.atlassian.com` → **Security** → **API tokens**, signed in as the account whose email is configured. The page is per Atlassian account, so a token minted while signed in as a different account pairs with the wrong email and answers 401. Atlassian shows the value once.
 
-The account needs to view users, groups, projects and project roles, and to manage group and project role memberships for provisioning. Browse Projects and Create issues are needed only for external ticketing. A weaker account does not fail: it authenticates and the sync completes short.
+The account needs to view users, groups, projects and project roles, and to manage group and project role memberships for provisioning. Browse Projects and Create issues are needed only for external ticketing. A weaker account fails rather than syncing short: validation lists groups and returns an error for any status other than 401, and the resource syncs return the API error instead of skipping the item.
 
 The Atlassian organization API key is a different credential from a different console: `admin.atlassian.com` → **Settings** → **API keys** → **Create API key**, created without scopes. The organization ID is shown alongside it. It has its own expiry, so renewing the Jira token does nothing for it.
 
-With a scoped token or a service account, the connector resolves the cloud ID from the configured site URL and builds the `https://api.atlassian.com/ex/jira/<cloud-id>` gateway address itself. That address is derived, never configured.
+With a service account, the connector resolves the cloud ID from the configured site URL and builds the `https://api.atlassian.com/ex/jira/<cloud-id>` gateway address itself. Every other email uses the site URL as configured, so a scoped token there carries the gateway address in `--jira-url`. The gateway address is accepted, but it never equals a workspace `hostUrl`, so it cannot be combined with the organization directory settings.
 
 ## Additional Notes
 
 ### Jira plan requirements
 
-No capability here is gated behind a paid Jira tier. Two settings depend on which Atlassian products a site carries rather than on its plan: `--skip-customer-user` only matters on a site with Jira Service Management, and the Atlassian organization settings require an Atlassian organization with an admin who can mint an organization API key.
+Nothing in the connector keys off a Jira plan tier. Two settings depend on which Atlassian products a site carries: `--skip-customer-user` only matters on a site with Jira Service Management, and the Atlassian organization settings require an Atlassian organization with an admin who can mint an organization API key.
 
 ### Site resolution
 

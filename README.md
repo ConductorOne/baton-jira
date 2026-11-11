@@ -70,7 +70,7 @@ The connector requires the following configuration:
 | Skip Project Participants | Skip syncing project participants (improves performance) | No | `BATON_SKIP_PROJECT_PARTICIPANTS` | `--skip-project-participants` |
 | Skip Customer User | Skip syncing customer users in Jira Service Management | No | `BATON_SKIP_CUSTOMER_USER` | `--skip-customer-user` |
 | Atlassian Organization ID | Atlassian organization ID. Set it together with the Atlassian API token to sync managed accounts and managed groups from the Atlassian organization directory | No | `BATON_ATLASSIAN_ORGID` | `--atlassian-orgId` |
-| Atlassian API Token | Atlassian organization API key. Set it together with the Atlassian organization ID | No | `BATON_ATLASSIAN_API_TOKEN` | `--atlassian-api-token` |
+| Atlassian organization API token | Atlassian organization API key. Set it together with the Atlassian organization ID | No | `BATON_ATLASSIAN_API_TOKEN` | `--atlassian-api-token` |
 
 ## Installation Methods
 
@@ -81,7 +81,7 @@ The connector requires the following configuration:
 brew install conductorone/baton/baton conductorone/baton/baton-jira
 
 # Run the connector with your configuration
-BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='your-jira.atlassian.com' baton-jira
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='https://your-domain.atlassian.net' baton-jira
 baton resources
 ```
 
@@ -92,7 +92,7 @@ baton resources
 docker run --rm -v $(pwd):/out \
   -e BATON_JIRA_EMAIL='user@domain' \
   -e BATON_JIRA_API_TOKEN='token' \
-  -e BATON_JIRA_URL='your-jira.atlassian.com' \
+  -e BATON_JIRA_URL='https://your-domain.atlassian.net' \
   public.ecr.aws/conductorone/baton-jira:latest -f "/out/sync.c1z"
 
 # View synced resources
@@ -107,7 +107,7 @@ go install github.com/conductorone/baton/cmd/baton@main
 go install github.com/conductorone/baton-jira/cmd/baton-jira@main
 
 # Run the connector with your configuration
-BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='your-jira.atlassian.com' baton-jira
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='https://your-domain.atlassian.net' baton-jira
 
 # View synced resources
 baton resources
@@ -132,7 +132,7 @@ Atlassian documents a maximum of 50 project keys for project filtering. Very lon
 The connector can create and manage Jira tickets for access requests and approvals:
 
 ```bash
-BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='your-jira.atlassian.com' BATON_TICKETING=true baton-jira
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='https://your-domain.atlassian.net' BATON_TICKETING=true baton-jira
 ```
 
 When ticketing is enabled, the connector will:
@@ -145,7 +145,7 @@ When ticketing is enabled, the connector will:
 For large Jira instances, you can improve sync performance by skipping project participants:
 
 ```bash
-BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='your-jira.atlassian.com' --skip-project-participants baton-jira
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='https://your-domain.atlassian.net' --skip-project-participants baton-jira
 ```
 
 # Contributing, Support and Issues

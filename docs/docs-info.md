@@ -62,7 +62,7 @@ With a service account, the connector resolves the cloud ID from the configured 
 
 ### Jira plan requirements
 
-Nothing in the connector keys off a Jira plan tier, and an organization admin can mint an organization API key on any Cloud plan. What the organization directory returns is managed accounts, which are the accounts on domains the organization has verified, so an organization with no verified domain has nothing to sync there. Verifying a domain is not itself a paid feature: Atlassian Guard adds policy enforcement over managed accounts rather than access to them. `--skip-customer-user` only matters on a site with Jira Service Management.
+Nothing in the connector keys off a Jira plan tier, and an organization admin can mint an organization API key on any Cloud plan. What the organization directory returns is managed accounts: `pkg/client/atlassianclient/client.go:16` reads `admin/v2/orgs/%s/directories/-/users`, and that directory holds the accounts on domains the organization has verified and claimed ([Atlassian: verify a domain to manage accounts](https://support.atlassian.com/user-management/docs/verify-a-domain-to-manage-accounts/)), so an organization with no verified domain has nothing to sync there. Verifying a domain is not itself a paid feature: Atlassian Guard adds policy enforcement over managed accounts rather than access to them. `--skip-customer-user` only matters on a site with Jira Service Management.
 
 ### Site resolution
 

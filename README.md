@@ -62,7 +62,7 @@ The connector requires the following configuration:
 
 | Parameter | Description | Required | Environment Variable | Flag |
 |-----------|-------------|----------|----------------------|------|
-| Jira URL | URL of your Jira instance, in `https://your-domain.atlassian.net` format, including the scheme | Yes | `BATON_JIRA_URL` | `--jira-url` |
+| Jira URL | URL of your Jira instance, in `https://your-domain.atlassian.net` format, including the scheme. A scoped token on a regular Atlassian account uses `https://api.atlassian.com/ex/jira/<cloud-id>` instead, which cannot be combined with the `BATON_ATLASSIAN_*` settings | Yes | `BATON_JIRA_URL` | `--jira-url` |
 | Email | Email address for Jira authentication | Yes | `BATON_JIRA_EMAIL` | `--jira-email` |
 | API Token | API token for Jira authentication | Yes | `BATON_JIRA_API_TOKEN` | `--jira-api-token` |
 | Project Keys | Comma-separated list of project keys to sync (optional) | No | `BATON_JIRA_PROJECT_KEYS` | `--jira-project-keys` |

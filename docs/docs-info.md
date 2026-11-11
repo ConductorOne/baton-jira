@@ -16,7 +16,7 @@ This document provides information needed to set up and use the connector.
 Accounts reach the connector through two different sources, and the source decides which status mapping an account gets:
 
 - **Jira REST** (`/rest/api/3/users/search`) returns a boolean `active`, so accounts from this path are only ever Enabled or Disabled. When both Atlassian organization settings are set, only `app` accounts come from this path.
-- **The Atlassian organization directory** (`/admin/v2/orgs/{orgId}/directories/-/users`), used only when both optional Atlassian organization settings are configured, returns a composite `status` plus `accountStatus` and `membershipStatus`. The composite maps to the C1 resource status, the raw value is sent as the status detail, and all three land on the account profile as `status`, `account_status` and `membership_status`.
+- **The Atlassian organization directory** (`/admin/v2/orgs/{orgId}/directories/-/users`), used only when both optional Atlassian organization settings are configured, returns a composite `status` plus `accountStatus` and `membershipStatus`. The composite maps to the C1 resource status, the raw value is sent as the status detail, and all three land on the account profile as `status`, `account_status` and `membership_status`. When the composite is empty or carries an unrecognised value, the mapping falls back to `accountStatus` and `membershipStatus`, and leaves the status unspecified only when neither settles it.
 
 ### 2. Can the connector provision any resources? If so, which ones?
 

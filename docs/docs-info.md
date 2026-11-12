@@ -28,7 +28,7 @@ Yes.
 | **Project role assignment** | ✅ Assigns the account to the project role | ✅ Removes the assignment | - | - |
 | **Account** | - | - | ✅ Creates an Atlassian account and grants it the Jira products named in the request | - |
 
-Account creation requires two field mappings, `email` and `products`. A request without `products` is rejected by the Atlassian API with an HTTP 400, which the connector surfaces as a generic "failed to create user" without the upstream message.
+Account creation requires two field mappings, `email` and `products`. The Atlassian API marks `products` required, and documents an empty array as the way to create an account without product access.
 
 Account deletion, suspension and restoration are not implemented here on purpose. Those operations act on the Atlassian account across every Atlassian product rather than on Jira alone, so they belong to the Atlassian connector.
 

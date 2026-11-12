@@ -205,7 +205,7 @@ If you want to set up the Jira Cloud connector to sync managed accounts and mana
     </Tip>
 
     <Note>
-    Atlassian documents a maximum of 50 project keys for project filtering. Very long lists (several hundred keys) exceed the request URL length limit, and external ticket processing fails with a `414 Request URI Too Long` error. Keep the list to the projects you need.
+    C1 shows at most 100 ticket schemas per connector. Each project adds one schema per issue type, except Epic, Bug, and sub-task types. If project or issue type options are missing, list only the projects you need in this field. Atlassian documents a maximum of 50 project keys for project filtering. Very long lists (several hundred keys) exceed the request URL length limit, and external ticket processing fails with a `414 Request URI Too Long` error.
     </Note>
     </Step>
     <Step>

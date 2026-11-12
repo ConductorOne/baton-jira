@@ -145,7 +145,7 @@ When ticketing is enabled, the connector will:
 For large Jira instances, you can improve sync performance by skipping project participants:
 
 ```bash
-BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='https://your-domain.atlassian.net' --skip-project-participants baton-jira
+BATON_JIRA_EMAIL='user@domain' BATON_JIRA_API_TOKEN='token' BATON_JIRA_URL='https://your-domain.atlassian.net' baton-jira --skip-project-participants
 ```
 
 # Contributing, Support and Issues

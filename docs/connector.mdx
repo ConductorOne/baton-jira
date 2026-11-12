@@ -183,7 +183,7 @@ If you want to set up the Jira Cloud connector to sync managed accounts and mana
     Enter your Jira Cloud URL into the **Jira site domain** field, in `https://your-domain.atlassian.net` format.
 
     <Note>
-    The URL must include the `https://` scheme. With a service account (an `@serviceaccount.atlassian.com` email), the connector resolves your cloud ID from this URL and builds the `https://api.atlassian.com/ex/jira/<cloud-id>` address on its own, so do not enter that address here. With a scoped token on a regular account, enter the `https://api.atlassian.com/ex/jira/<cloud-id>` address yourself; your cloud ID is at `https://your-domain.atlassian.net/_edge/tenant_info`. That address cannot be combined with the optional Atlassian organization settings, which match this field against your site's workspace address and fail with `site id not found`.
+    The URL must include the `https://` scheme. With a service account (an `@serviceaccount.atlassian.com` email), the connector resolves your cloud ID from this URL and builds the `https://api.atlassian.com/ex/jira/<cloud-id>` address on its own, so do not enter that address here. With a scoped token on a regular account, enter the `https://api.atlassian.com/ex/jira/<cloud-id>` address yourself; your cloud ID is at `https://your-domain.atlassian.net/_edge/tenant_info`. That address cannot be combined with the optional Atlassian organization settings; they fail with `site id not found`.
     </Note>
     </Step>
     <Step>

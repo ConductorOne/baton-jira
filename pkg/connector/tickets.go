@@ -12,6 +12,7 @@ import (
 	"time"
 
 	pbjira "github.com/conductorone/baton-jira/pb/c1/connector/v2"
+	"github.com/conductorone/baton-jira/pkg/client"
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
@@ -944,8 +945,20 @@ func (j *Jira) createIssue(ctx context.Context, projectKey string, summary strin
 	return issue, nil
 }
 
+// browseBaseURL returns the base URL that should be used to build user-facing
+// browse links. When a scoped API token is in use, the Jira client's BaseURL is
+// the api.atlassian.com gateway (https://api.atlassian.com/ex/jira/<cloud-id>),
+// which does not serve /browse/ paths. In that case we prefer the site URL the
+// connector was configured with (e.g. https://<domain>.atlassian.net).
+func (j *Jira) browseBaseURL() string {
+	if j.originalURL != "" && !client.IsScopedTokenURL(j.originalURL) {
+		return j.originalURL
+	}
+	return j.client.Jira().BaseURL.String()
+}
+
 func (j *Jira) generateIssueURL(issueKey string) (string, error) {
-	baseURL, err := url.Parse(j.client.Jira().BaseURL.String())
+	baseURL, err := url.Parse(j.browseBaseURL())
 	if err != nil {
 		return "", err
 	}
